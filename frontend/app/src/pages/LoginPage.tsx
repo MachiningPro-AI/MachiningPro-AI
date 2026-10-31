@@ -329,8 +329,8 @@ export default function LoginPage({
 }) {
   const { locale, t } = useLocale()  // ← CANONICAL — no second locale system
 
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
+  const [username, setUsername] = useState(import.meta.env.VITE_DEMO_USERNAME ?? '')
+  const [password, setPassword] = useState(import.meta.env.VITE_DEMO_PASSWORD ?? '')
   const [error,    setError]    = useState('')
   const [loading,  setLoading]  = useState(false)
 
@@ -688,31 +688,6 @@ export default function LoginPage({
                 aria-label={t('password')}
               />
             </div>
-
-            {/* Demo credentials button — only renders when VITE_DEMO_USERNAME is set in build env */}
-            {import.meta.env.VITE_DEMO_USERNAME && (
-              <button
-                type="button"
-                onClick={() => {
-                  setUsername(import.meta.env.VITE_DEMO_USERNAME || '')
-                  // Password intentionally NOT pre-filled — DEMO_PASSWORD_HARDCODED=NO
-                }}
-                style={{
-                  display: 'block',
-                  marginBottom: '8px',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '11px',
-                  color: '#6F8FA3',
-                  textDecoration: 'underline',
-                  padding: '0',
-                  fontFamily: 'monospace',
-                }}
-              >
-                {t('demo_credentialsBtn')}
-              </button>
-            )}
 
             {/* Submit */}
             <button
