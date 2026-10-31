@@ -6,6 +6,11 @@ import { NAV_GROUPS, HOME_ITEM } from '../lib/navigation'
 import { useLocale } from '../i18n'
 import type { LucideIcon } from 'lucide-react'
 
+// ── Constants ─────────────────────────────────────────────────────────────────
+// Unified row dimensions — applied to every clickable nav row
+const ROW = 'h-9 w-full flex items-center rounded transition-colors'
+const ICON_ZONE = 'shrink-0 w-[18px] flex items-center justify-center'
+
 // ── Persistence ──────────────────────────────────────────────────────────────
 interface SidebarPrefs { collapsed: boolean; pinned: boolean; openGroups: string[] }
 
@@ -49,8 +54,8 @@ function CollapseTooltip({ label, children }: { label: string; children: React.R
 // ── Preview badge ─────────────────────────────────────────────────────────────
 function PreviewBadge({ label }: { label: string }) {
   return (
-    <span className="ml-auto shrink-0 text-[9px] font-semibold uppercase tracking-wide
-                     px-1 py-0.5 rounded bg-tp-border/60 text-tp-text-3 leading-none">
+    <span className="ml-auto shrink-0 text-[8px] font-medium uppercase
+                     px-[3px] py-[1px] rounded-sm bg-tp-border/40 text-tp-text-3 leading-none">
       {label}
     </span>
   )
@@ -112,7 +117,7 @@ export default function Sidebar({ role }: { role: string | null }) {
 
   const visibleGroups = NAV_GROUPS.filter(g => !g.adminOnly || isAdmin)
 
-  const sidebarWidth = effectivelyExpanded ? '256px' : '44px'
+  const sidebarWidth = effectivelyExpanded ? '264px' : '44px'
 
   return (
     <aside
@@ -121,17 +126,17 @@ export default function Sidebar({ role }: { role: string | null }) {
       onMouseEnter={() => !isPinned && setHovered(true)}
       onMouseLeave={() => !isPinned && setHovered(false)}
     >
-      {/* Home / Dashboard */}
-      <div className="shrink-0 pt-2 pb-1 px-1.5">
+      {/* Home / Dashboard — uses same ROW height as nav items */}
+      <div className="shrink-0 pt-1.5 pb-1 px-1.5">
         <button
           onClick={() => navigate('/app')}
-          className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-[13px] transition-colors
+          className={`${ROW} gap-2 px-2 text-[13px]
             ${location.pathname === '/app'
               ? 'text-tp-accent-light bg-tp-accent/10 border border-tp-accent/20'
               : 'text-tp-text-2 hover:text-tp-text hover:bg-tp-surface-2 border border-transparent'
             }`}
         >
-          <span className="shrink-0 w-[18px] flex items-center justify-center">
+          <span className={ICON_ZONE}>
             <Icon icon={HOME_ITEM.icon} size={14} />
           </span>
           {effectivelyExpanded && (
@@ -143,21 +148,22 @@ export default function Sidebar({ role }: { role: string | null }) {
       <div className="w-full h-px bg-tp-border shrink-0" />
 
       {/* Navigation groups */}
-      <nav className="flex-1 overflow-y-auto py-1 px-1.5">
+      <nav className="flex-1 overflow-y-auto py-1 px-1.5 [scrollbar-width:thin]
+                      [scrollbar-color:theme(colors.tp-border)_transparent]">
         {visibleGroups.map(group => {
           const isOpen = prefs.openGroups.includes(group.id)
           const hasActive = group.items.some(i => i.path === location.pathname)
 
           if (!effectivelyExpanded) {
             return (
-              <div key={group.id} className="pb-1.5">
+              <div key={group.id} className="pb-2">
                 {group.items.map(item => {
                   const isActive = location.pathname === item.path
                   return (
                     <CollapseTooltip key={item.id} label={t(item.labelKey)}>
                       <button
                         onClick={() => navigate(item.path)}
-                        className={`w-full flex items-center justify-center h-[30px] rounded transition-colors
+                        className={`${ROW} justify-center
                           ${isActive
                             ? 'text-tp-accent-light bg-tp-accent/10'
                             : 'text-tp-text-3 hover:text-tp-text hover:bg-tp-surface-2'
@@ -174,12 +180,13 @@ export default function Sidebar({ role }: { role: string | null }) {
 
           return (
             <Collapsible.Root key={group.id} open={isOpen} onOpenChange={() => toggleGroup(group.id)}>
+              {/* Section heading — consistent mt-3 above, mb-0.5 below */}
               <Collapsible.Trigger asChild>
-                <button className={`w-full flex items-center justify-between px-2 py-[7px] mt-1 rounded
+                <button className={`w-full flex items-center justify-between px-2 py-[5px] mt-3 mb-0.5 rounded
                     text-[10px] font-semibold uppercase tracking-widest transition-colors
                     ${hasActive ? 'text-tp-accent-light' : 'text-tp-text-3 hover:text-tp-text-2'}`}>
-                  <span>{t(group.labelKey)}</span>
-                  <span className="text-tp-text-3 shrink-0">
+                  <span className="truncate">{t(group.labelKey)}</span>
+                  <span className="text-tp-text-3 shrink-0 ml-1">
                     {isOpen ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
                   </span>
                 </button>
@@ -192,20 +199,22 @@ export default function Sidebar({ role }: { role: string | null }) {
                 <div className="pb-0.5">
                   {group.items.map(item => {
                     const isActive = location.pathname === item.path
+                    const label = t(item.labelKey)
                     return (
                       <button
                         key={item.id}
                         onClick={() => navigate(item.path)}
-                        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-[13px] transition-colors
+                        title={label}
+                        className={`${ROW} gap-2 px-2 text-[13px]
                           ${isActive
                             ? 'text-tp-accent-light bg-tp-accent/10 border-l-2 border-tp-accent font-medium'
                             : 'text-tp-text-2 hover:text-tp-text hover:bg-tp-surface-2 border-l-2 border-transparent'
                           }`}
                       >
-                        <span className="shrink-0 w-[18px] flex items-center justify-center">
+                        <span className={ICON_ZONE}>
                           <Icon icon={item.icon} size={14} />
                         </span>
-                        <span className="truncate flex-1 text-left">{t(item.labelKey)}</span>
+                        <span className="truncate flex-1 text-left">{label}</span>
                         {item.badge === 'preview' && (
                           <PreviewBadge label={t('navPreviewBadge')} />
                         )}
