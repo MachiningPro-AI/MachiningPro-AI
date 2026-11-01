@@ -316,6 +316,8 @@ export const trTranslations: TranslationDictionary = {
   drEntityCount: 'Varlık Sayısı',
   drCapabilityLevel: 'Yetenek Düzeyi',
   drImportSuccess: 'Başarıyla ayrıştırıldı',
+  drImportPartialSuccess: 'Kısmen ayrıştırıldı — meta veri çıkarıldı',
+  drImportRecognizedOnly: 'Format tanındı — tam ayrıştırma mevcut değil',
   drImportPartial: 'Kısmen ayrıştırıldı',
   drImportFailed: 'Ayrıştırma başarısız',
   drImportUnsupported: 'Desteklenmeyen format',

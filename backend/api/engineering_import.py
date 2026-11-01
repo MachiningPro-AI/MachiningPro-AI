@@ -307,10 +307,10 @@ def import_file(
     # Map NormalizationStatus → import_status string
     status_map = {
         NormalizationStatus.SUCCESS: "SUCCESS",
-        NormalizationStatus.PARTIAL: "PARTIAL",
+        NormalizationStatus.PARTIAL: "PARTIAL_SUCCESS",
         NormalizationStatus.FAILED: "FAILED",
         NormalizationStatus.UNSUPPORTED: "UNSUPPORTED",
-        NormalizationStatus.INSUFFICIENT_DATA: "INSUFFICIENT_DATA",
+        NormalizationStatus.INSUFFICIENT_DATA: "RECOGNIZED_ONLY",
     }
     import_status = status_map.get(document.normalization_status, "UNKNOWN")
 

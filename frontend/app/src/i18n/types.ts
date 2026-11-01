@@ -314,6 +314,8 @@ export interface TranslationDictionary {
   drEntityCount: string
   drCapabilityLevel: string
   drImportSuccess: string
+  drImportPartialSuccess: string
+  drImportRecognizedOnly: string
   drImportPartial: string
   drImportFailed: string
   drImportUnsupported: string

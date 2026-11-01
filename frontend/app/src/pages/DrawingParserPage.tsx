@@ -13,6 +13,7 @@ import {
   type AnalyzeResponse,
 } from '../services/drawingParser'
 import { usePipeline } from '../context/PipelineContext'
+import { bytesToBase64 } from '../lib/encoding'
 
 // ---------------------------------------------------------------------------
 // Small reusable UI helpers
@@ -205,7 +206,7 @@ export default function DrawingParserPage() {
     try {
       const buf = await file.arrayBuffer()
       const bytes = new Uint8Array(buf)
-      const b64 = btoa(String.fromCharCode(...bytes))
+      const b64 = bytesToBase64(bytes)
       const result = await analyzeDrawing({
         source_id: `upload-${Date.now()}`,
         file_name: file.name,

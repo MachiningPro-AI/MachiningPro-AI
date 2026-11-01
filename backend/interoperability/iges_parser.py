@@ -159,12 +159,25 @@ class _PhysicalRecord:
 def _split_physical_records(data: bytes, limits: IgesLimits) -> tuple[_PhysicalRecord, ...]:
     if len(data) > limits.max_file_bytes:
         raise IgesParseError("IGES file byte limit exceeded")
+
+    # Strip UTF-8 BOM emitted by some Windows CAD exporters.
+    if data.startswith(b"\xef\xbb\xbf"):
+        data = data[3:]
+
     if b"\x00" in data:
         raise IgesParseError("IGES input contains NUL bytes")
+
+    # Normalize legacy CR-only line endings (old Mac / some industrial exporters).
+    if b"\r\n" not in data and b"\r" in data:
+        data = data.replace(b"\r", b"\n")
+
     try:
         data.decode("ascii")
-    except UnicodeDecodeError as exc:
-        raise IgesParseError("IGES input must be ASCII") from exc
+    except UnicodeDecodeError:
+        # Non-ASCII bytes in metadata fields (e.g. accented product names).
+        # Replace each non-ASCII byte with '?' so structural parsing can continue.
+        data = bytes(b if b < 128 else ord("?") for b in data)
+
     if b"\r" in data.replace(b"\r\n", b""):
         raise IgesParseError("IGES input contains an invalid line terminator")
 

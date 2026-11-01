@@ -114,7 +114,9 @@ def test_parses_custom_parameter_and_record_delimiters() -> None:
         (lambda data: data.replace(b"S0000001", b"S0000002", 1), "sequence"),
         (lambda data: data.replace(b"D0000001", b"P0000001", 1), "section order"),
         (lambda data: data.replace(b"S      1", b"S      2", 1), "Terminate"),
-        (lambda data: data[:-2] + b"\xff\n", "ASCII"),
+        # Non-ASCII in the sequence-number field is replaced with '?' which then
+        # fails the isdigit() check — raises on "sequence", not on "ASCII".
+        (lambda data: data[:-2] + b"\xff\n", "sequence"),
     ],
 )
 def test_rejects_malformed_physical_or_section_structure(mutator, message: str) -> None:
@@ -507,3 +509,45 @@ def test_accepts_null_sender_and_receiver_product_id_and_null_unit_name() -> Non
     assert model.global_section.receiver_product_id is None
     assert model.global_section.unit_flag == 6
     assert model.global_section.unit_name == "M"
+
+
+# ---------------------------------------------------------------------------
+# Real-world resilience tests (regression guards for common exporter quirks)
+# ---------------------------------------------------------------------------
+
+
+def test_strips_utf8_bom_from_windows_exported_iges() -> None:
+    """Some Windows CAD exporters prepend a UTF-8 BOM; the parser must strip it."""
+    data = b"\xef\xbb\xbf" + make_iges()
+
+    model = parse_iges_bytes(data)
+
+    assert model.section_counts["G"] >= 1
+    assert len(model.entities) >= 1
+
+
+def test_normalises_cr_only_line_endings() -> None:
+    """Old Mac / some industrial exporters use bare CR instead of LF or CRLF."""
+    data = make_iges().replace(b"\n", b"\r")
+
+    model = parse_iges_bytes(data)
+
+    assert model.section_counts["G"] >= 1
+    assert len(model.entities) >= 1
+
+
+def test_replaces_non_ascii_bytes_in_metadata_fields() -> None:
+    """Non-ASCII characters in product-ID / author fields must not abort parsing."""
+    base = make_iges()
+    # Inject a non-ASCII byte into the G section payload (simulates accented
+    # characters in a product name from a European CAD tool).
+    corrupted = base.replace(
+        b"MachiningPro",
+        b"M\xe4chiningPro",  # 'ä' as Latin-1
+        1,
+    )
+
+    model = parse_iges_bytes(corrupted)
+
+    assert model.section_counts["G"] >= 1
+    assert len(model.entities) >= 1

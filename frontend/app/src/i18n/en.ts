@@ -316,6 +316,8 @@ export const enTranslations: TranslationDictionary = {
   drEntityCount: 'Entity Count',
   drCapabilityLevel: 'Capability Level',
   drImportSuccess: 'Parsed successfully',
+  drImportPartialSuccess: 'Partially parsed — metadata extracted',
+  drImportRecognizedOnly: 'Format recognized — full parse unavailable',
   drImportPartial: 'Partially parsed',
   drImportFailed: 'Parse failed',
   drImportUnsupported: 'Unsupported format',
