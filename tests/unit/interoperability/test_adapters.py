@@ -590,7 +590,7 @@ class TestCompleteFileIngestion:
         doc = IgesTokenAdapter().ingest_file(source, IGES_DESCRIPTOR, path)
 
         header = next(ref for ref in doc.entity_refs if ref.entity_kind == "IgesHeader")
-        assert header.metadata["entity_type_summary"]["Color Definition"] == 1
+        assert header.metadata["entity_color_definition"] == 1
         assert doc.source.notes is None
 
     def test_dxf_parser_reads_entity_after_byte_512(self, tmp_path: Path) -> None:
@@ -613,7 +613,7 @@ class TestCompleteFileIngestion:
         doc = DxfTokenAdapter().ingest_file(source, DXF_DESCRIPTOR, path)
 
         header = next(ref for ref in doc.entity_refs if ref.entity_kind == "DxfHeader")
-        assert header.metadata["entity_type_summary"]["HELIX"] == 1
+        assert header.metadata["entity_helix"] == 1
         assert header.metadata["layer_count"] == 1
         assert doc.source.notes is None
 

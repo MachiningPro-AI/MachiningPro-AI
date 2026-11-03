@@ -483,6 +483,9 @@ def _parse_directory_entries(
                 sequence=first.sequence,
             )
         status_number = first_fields[8].strip() or "00000000"
+        # Many CAD exporters omit leading zeros; pad numeric fields to 8 digits
+        if status_number.isdigit() and len(status_number) < 8:
+            status_number = status_number.zfill(8)
         if len(status_number) != 8 or not status_number.isdigit():
             raise IgesParseError(
                 "Directory status number must contain eight digits",
@@ -584,8 +587,8 @@ def _parse_parameter_data(
     return tuple(entities)
 
 
-_CURVE_TYPES = {100, 110, 126}
-_SURFACE_TYPES = {108, 128, 143, 144, 190, 192, 194, 196, 198}
+_CURVE_TYPES = {100, 102, 104, 106, 110, 112, 126, 130}
+_SURFACE_TYPES = {108, 114, 118, 120, 122, 128, 140, 143, 144, 190, 192, 194, 196, 198}
 
 
 def _required_int_parameter(
