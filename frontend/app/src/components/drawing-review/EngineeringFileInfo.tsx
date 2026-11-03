@@ -123,6 +123,74 @@ export default function EngineeringFileInfo({ fileName, route, result, error, pr
             <span className="text-xs text-tp-text-3">{result.capability_level}</span>
           </div>
 
+          {/* Level-1 CAD fields */}
+          {result.units && (
+            <div className={ROW}>
+              <span className={LABEL}>Units</span>
+              <span className={VALUE}>{result.units}</span>
+            </div>
+          )}
+          {result.source_file_name && result.source_file_name !== result.file_name && (
+            <div className={ROW}>
+              <span className={LABEL}>Source File</span>
+              <span className={VALUE}>{result.source_file_name}</span>
+            </div>
+          )}
+          {result.file_size_bytes != null && (
+            <div className={ROW}>
+              <span className={LABEL}>File Size</span>
+              <span className={VALUE}>
+                {result.file_size_bytes >= 1024 * 1024
+                  ? `${(result.file_size_bytes / 1024 / 1024).toFixed(2)} MB`
+                  : `${(result.file_size_bytes / 1024).toFixed(1)} KB`}
+              </span>
+            </div>
+          )}
+          {result.bounds && (
+            <div className={ROW}>
+              <span className={LABEL}>Model Bounds</span>
+              <span className="text-[11px] text-tp-text-2 font-mono">
+                X [{result.bounds.xmin.toFixed(3)}, {result.bounds.xmax.toFixed(3)}]{' '}
+                Y [{result.bounds.ymin.toFixed(3)}, {result.bounds.ymax.toFixed(3)}]
+                {(result.bounds.zmin !== 0 || result.bounds.zmax !== 0)
+                  ? ` Z [${result.bounds.zmin.toFixed(3)}, ${result.bounds.zmax.toFixed(3)}]`
+                  : ''}
+              </span>
+            </div>
+          )}
+          {result.entity_types && Object.keys(result.entity_types).length > 0 && (
+            <div className="mt-1 border-t border-tp-border pt-1.5">
+              <div className={ROW + ' mb-0.5'}>
+                <span className={LABEL}>Entity Types</span>
+              </div>
+              <div className="pl-36 space-y-0.5">
+                {Object.entries(result.entity_types)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([etype, count]) => (
+                    <div key={etype} className="flex gap-2 text-[11px]">
+                      <span className="text-tp-text-2 w-40 shrink-0">{etype}</span>
+                      <span className="font-medium text-tp-text tabular-nums">{count}</span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+          {result.unsupported_entities && result.unsupported_entities.length > 0 && (
+            <div className={ROW}>
+              <span className={LABEL}>Unsupported</span>
+              <span className="text-[11px] text-tp-warn">
+                {result.unsupported_entities.join(', ')}
+              </span>
+            </div>
+          )}
+          {result.warnings && result.warnings.length > 0 && (
+            <div className="mt-1 border-t border-tp-border pt-1.5 space-y-0.5">
+              {result.warnings.slice(0, 5).map((w, i) => (
+                <div key={i} className="text-[11px] text-tp-warn">⚠ {w}</div>
+              ))}
+            </div>
+          )}
+
           {/* Format-specific metadata (key-value from first entity) */}
           {Object.keys(result.metadata).length > 0 && (
             <div className="mt-1 border-t border-tp-border pt-1.5 space-y-1">

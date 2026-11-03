@@ -29,8 +29,19 @@ export interface PreviewMesh {
   triangle_count: number
 }
 
+/** CAD bounding box */
+export interface CadBounds {
+  xmin: number
+  xmax: number
+  ymin: number
+  ymax: number
+  zmin: number
+  zmax: number
+}
+
 /** Structured response from POST /api/import */
 export interface ImportResult {
+  // Legacy fields
   file_name: string
   format_id: string
   format_family: string
@@ -51,6 +62,18 @@ export interface ImportResult {
   metadata: Record<string, string | number | boolean | null>
   fidelity_events?: Array<{ class: string; description: string }>
   adapter_id?: string
+  // CAD Import Level-1 common fields
+  status?: string
+  format?: string
+  source_file_name?: string
+  file_size_bytes?: number
+  units?: string | null
+  bounds?: CadBounds | null
+  entity_types?: Record<string, number>
+  geometry_summary?: Record<string, unknown>
+  unsupported_entities?: string[]
+  warnings?: string[]
+  errors?: string[]
 }
 
 export class ImportApiError extends Error {

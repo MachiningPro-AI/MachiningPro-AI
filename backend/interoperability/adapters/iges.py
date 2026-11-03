@@ -112,14 +112,23 @@ IGES_DESCRIPTOR = FormatDescriptor(
 
 _IGES_ENTITY_NAMES: dict[int, str] = {
     100: "Circular Arc",
+    102: "Composite Curve",
+    104: "Conic Arc",
+    106: "Copious Data",
     108: "Plane",
     110: "Line",
+    112: "Parametric Spline Curve",
+    114: "Parametric Spline Surface",
     116: "Point",
     118: "Ruled Surface",
+    120: "Surface of Revolution",
+    122: "Tabulated Cylinder",
     123: "Direction",
     124: "Transformation Matrix",
     126: "Rational B-Spline Curve",
     128: "Rational B-Spline Surface",
+    130: "Offset Curve",
+    140: "Offset Surface",
     141: "Boundary",
     142: "Curve on Parametric Surface",
     143: "Bounded Surface",
@@ -134,6 +143,17 @@ _IGES_ENTITY_NAMES: dict[int, str] = {
     314: "Color Definition",
     320: "Attribute Table Instance",
     322: "Attribute Definition Table",
+    402: "Associativity Instance",
+    404: "Drawing",
+    406: "Property",
+    408: "Singular Subfigure Instance",
+    410: "View",
+    412: "Rectangular Array Subfigure Instance",
+    414: "Circular Array Subfigure Instance",
+    416: "External Reference",
+    418: "Nodal Load/Constraint",
+    420: "Network Subfigure Definition",
+    422: "Attribute Table Definition",
     502: "Vertex List",
     504: "Edge List",
     508: "Loop",
@@ -259,37 +279,70 @@ class IgesTokenAdapter(FormatAdapter):
             entity_type = entity.directory.entity_type
             entity_counts[entity_type] = entity_counts.get(entity_type, 0) + 1
 
+        # Build entity type distribution for metadata — only JSON-serializable values
+        entity_type_named: dict[str, int] = {
+            _IGES_ENTITY_NAMES.get(etype, f"type_{etype}"): cnt
+            for etype, cnt in sorted(entity_counts.items())
+        }
+
+        # Determine unsupported entity types (not in our known-names dict)
+        _KNOWN_ENTITY_TYPES = frozenset(_IGES_ENTITY_NAMES)
+        unsupported_entity_types: list[str] = [
+            f"type_{etype}"
+            for etype in sorted(entity_counts)
+            if etype not in _KNOWN_ENTITY_TYPES
+        ][:20]
+
+        # Convert Decimal fields to float for JSON serialisation
+        def _to_float(val: object) -> float | None:
+            if val is None:
+                return None
+            try:
+                return float(val)  # type: ignore[arg-type]
+            except (TypeError, ValueError):
+                return None
+
+        # Header entity ref metadata: all values must be str | int | float | bool | None
+        header_meta: dict[str, object] = {
+            "iges_version": model.global_section.version,
+            "source_unit": model.global_section.unit_name,
+            "model_scale": _to_float(model.global_section.model_scale),
+            "minimum_resolution": _to_float(model.global_section.minimum_resolution),
+            "source_file_name": model.global_section.file_name,
+            "native_system_id": model.global_section.native_system_id,
+            "preprocessor_version": model.global_section.preprocessor_version,
+            "creation_timestamp": model.global_section.creation_timestamp,
+            "modified_timestamp": model.global_section.modified_timestamp,
+            "section_counts": str(dict(model.section_counts)),
+            "entity_count": len(model.entities),
+        }
+        # Promote individual entity type counts as top-level keys
+        for ename, cnt in entity_type_named.items():
+            safe_key = "entity_" + ename.lower().replace(" ", "_")[:40]
+            header_meta[safe_key] = cnt
+        if unsupported_entity_types:
+            header_meta["unsupported_entity_types"] = ", ".join(unsupported_entity_types[:10])
+
         session.add_entity_ref(
             CanonicalEntityRef(
                 entity_id=make_uid("IGES-HEADER-"),
                 entity_kind="IgesHeader",
-                metadata={
-                    "sections": tuple(model.section_counts),
-                    "entity_count": len(model.entities),
-                    "entity_type_summary": {
-                        _IGES_ENTITY_NAMES.get(entity_type, f"type_{entity_type}"): count
-                        for entity_type, count in entity_counts.items()
-                    },
-                    "source_unit": model.global_section.unit_name,
-                    "model_scale": model.global_section.model_scale,
-                    "minimum_resolution": model.global_section.minimum_resolution,
-                    "source_file_name": model.global_section.file_name,
-                    "native_system_id": model.global_section.native_system_id,
-                    "preprocessor_version": (
-                        model.global_section.preprocessor_version
-                    ),
-                    "creation_timestamp": (
-                        model.global_section.creation_timestamp
-                    ),
-                    "modified_timestamp": (
-                        model.global_section.modified_timestamp
-                    ),
-                    "iges_version": model.global_section.version,
-                },
+                metadata=header_meta,
             )
         )
 
-        mapping = map_iges_model(model)
+        # --- map_iges_model: isolated so its failure doesn't lose the Level-1 data ---
+        try:
+            mapping = map_iges_model(model)
+        except Exception as exc:  # noqa: BLE001
+            session.record(
+                FidelityClass.PARTIALLY_PRESERVED,
+                f"IGES geometry mapping failed (Level 1 parse preserved): {exc}",
+            )
+            session.mark_partial()
+            session.set_fidelity_completeness(FidelityReportCompleteness.PARTIAL)
+            return session.build()
+
         for ref in mapping.entity_refs:
             session.add_entity_ref(ref)
         if mapping.geometry is not None:

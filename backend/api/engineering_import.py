@@ -314,32 +314,89 @@ def import_file(
     }
     import_status = status_map.get(document.normalization_status, "UNKNOWN")
 
-    # Collect entity metadata (first entity ref's metadata dict)
+    # Collect entity metadata from the first (header) entity ref
     entity_meta: dict[str, Any] = {}
     if document.entity_refs:
-        raw = document.entity_refs[0].metadata
-        # Sanitize: only JSON-safe scalar types pass through
-        entity_meta = {
-            k: v
-            for k, v in (raw or {}).items()
-            if isinstance(v, (str, int, float, bool)) or v is None
-        }
+        raw = document.entity_refs[0].metadata or {}
+        # Convert all values to JSON-safe types; Decimal → float; dicts/lists skipped.
+        for k, v in raw.items():
+            if isinstance(v, (str, int, float, bool)) or v is None:
+                entity_meta[k] = v
+            else:
+                # Try numeric coercion (handles Decimal)
+                try:
+                    entity_meta[k] = float(v)  # type: ignore[arg-type]
+                except (TypeError, ValueError):
+                    entity_meta[k] = str(v)
 
-    # If the format provides its own entity count in metadata (e.g. DXF header
-    # reports 843 entities before ezdxf is available), promote that count to the
-    # top-level field and remove it from the metadata block to avoid duplication.
-    display_entity_count = len(document.entity_refs)
+    # Promote format-reported entity count to top-level
+    fidelity_src_count = (
+        document.fidelity_report.source_entity_count
+        if document.fidelity_report
+        else None
+    )
+    display_entity_count = fidelity_src_count or len(document.entity_refs)
     if "entity_count" in entity_meta and isinstance(entity_meta["entity_count"], int):
         display_entity_count = int(entity_meta.pop("entity_count"))
 
-    # Fidelity summary
-    fidelity_events = [
-        {
-            "class": e.fidelity_class.value,
-            "description": e.description[:200] if e.description else "",
+    # --- Build CAD Import common response fields ---
+
+    # units: scalar string in metadata
+    units: str | None = entity_meta.pop("units", None) or entity_meta.pop("source_unit", None)
+
+    # bounds: DXF stores xmin/xmax/ymin/ymax as scalars; IGES bounds not yet computed
+    bounds: dict[str, float] | None = None
+    if all(k in entity_meta for k in ("xmin", "xmax", "ymin", "ymax")):
+        bounds = {
+            "xmin": float(entity_meta.pop("xmin")),
+            "xmax": float(entity_meta.pop("xmax")),
+            "ymin": float(entity_meta.pop("ymin")),
+            "ymax": float(entity_meta.pop("ymax")),
+            "zmin": float(entity_meta.pop("zmin", 0.0)),
+            "zmax": float(entity_meta.pop("zmax", 0.0)),
         }
-        for e in (document.fidelity_report.events if document.fidelity_report else [])
-    ]
+
+    # entity_types: collect entity_* metadata keys (produced by DXF and IGES adapters)
+    entity_types: dict[str, int] = {}
+    for k in list(entity_meta.keys()):
+        if k.startswith("entity_"):
+            label = k[len("entity_"):].replace("_", " ").title()
+            val = entity_meta.pop(k)
+            if isinstance(val, (int, float)) and val > 0:
+                entity_types[label] = int(val)
+
+    # source_file_name: may appear in IGES metadata
+    source_file_name: str | None = entity_meta.pop("source_file_name", None) or filename
+
+    # unsupported_entities: comma-separated string in metadata → list
+    unsupported_raw: str | None = entity_meta.pop("unsupported_entity_types", None) or \
+        entity_meta.pop("unsupported_entities", None)
+    unsupported_entities: list[str] = (
+        [s.strip() for s in unsupported_raw.split(",") if s.strip()]
+        if unsupported_raw
+        else []
+    )
+
+    # geometry_summary
+    geometry_summary: dict[str, Any] = {}
+
+    # warnings and errors from fidelity events
+    fidelity_events_raw = document.fidelity_report.events if document.fidelity_report else []
+    fidelity_events: list[dict[str, str]] = []
+    warnings: list[str] = []
+    errors: list[str] = []
+    for e in fidelity_events_raw:
+        cls = e.fidelity_class.value if hasattr(e, "fidelity_class") else str(e)
+        desc = (
+            (e.description[:300] if e.description else "")
+            if hasattr(e, "description")
+            else str(e)
+        )
+        fidelity_events.append({"class": cls, "description": desc})
+        if cls in ("LOST", "UNSUPPORTED"):
+            errors.append(desc)
+        elif cls in ("PARTIALLY_PRESERVED", "INFERRED", "RECONSTRUCTED", "DOWNGRADED"):
+            warnings.append(desc)
 
     from backend.interoperability.geometry import CanonicalGeometry
 
@@ -348,12 +405,11 @@ def import_file(
         isinstance(geom, CanonicalGeometry)
         and (len(geom.curves) > 0 or len(geom.surfaces) > 0)
     ) or (
-        # Mesh formats (STL/OBJ/3MF): renderable when triangle count is positive
         document.format_descriptor.family == FormatFamily.MESH
         and int(entity_meta.get("triangle_count") or 0) > 0
     )
 
-    # STEP preview: local gmsh tessellation (HARD RULE 03, 05, 09, 11, 17)
+    # STEP preview: local gmsh tessellation
     preview_mesh: dict[str, Any] | None = None
     if (
         document.format_descriptor.family == FormatFamily.NEUTRAL_EXCHANGE
@@ -362,10 +418,10 @@ def import_file(
     ):
         preview_mesh = _tessellate_step(data)
         if preview_mesh is not None:
-            # Tessellation proves renderable geometry (HARD RULE 14)
             has_renderable_geometry = True
 
     return {
+        # Legacy fields (preserved for backward compatibility)
         "file_name": filename,
         "format_id": document.format_descriptor.format_id,
         "format_family": document.format_descriptor.family.value,
@@ -379,8 +435,20 @@ def import_file(
         "has_renderable_geometry": has_renderable_geometry,
         "preview_mesh": preview_mesh,
         "metadata": entity_meta,
-        "fidelity_events": fidelity_events[:10],  # cap at 10 for API response
+        "fidelity_events": fidelity_events[:10],
         "adapter_id": document.adapter_id,
+        # CAD Import Level-1 common fields
+        "status": import_status,
+        "format": document.format_descriptor.format_id,
+        "source_file_name": source_file_name,
+        "file_size_bytes": len(data),
+        "units": units,
+        "bounds": bounds,
+        "entity_types": entity_types,
+        "geometry_summary": geometry_summary,
+        "unsupported_entities": unsupported_entities,
+        "warnings": warnings[:20],
+        "errors": errors[:20],
     }
 
 
