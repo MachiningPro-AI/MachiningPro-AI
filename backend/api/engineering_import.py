@@ -377,9 +377,6 @@ def import_file(
         else []
     )
 
-    # geometry_summary
-    geometry_summary: dict[str, Any] = {}
-
     # warnings and errors from fidelity events
     fidelity_events_raw = document.fidelity_report.events if document.fidelity_report else []
     fidelity_events: list[dict[str, str]] = []
@@ -398,7 +395,10 @@ def import_file(
         elif cls in ("PARTIALLY_PRESERVED", "INFERRED", "RECONSTRUCTED", "DOWNGRADED"):
             warnings.append(desc)
 
-    from backend.interoperability.geometry import CanonicalGeometry
+    from backend.interoperability.geometry import (
+        CanonicalCurveType,
+        CanonicalGeometry,
+    )
 
     geom = document.geometry
     has_renderable_geometry = (
@@ -408,6 +408,65 @@ def import_file(
         document.format_descriptor.family == FormatFamily.MESH
         and int(entity_meta.get("triangle_count") or 0) > 0
     )
+
+    # geometry_summary: populate from CanonicalGeometry when present
+    geometry_summary: dict[str, Any] = {}
+    if isinstance(geom, CanonicalGeometry):
+        standalone_pts = geom.metadata.get("standalone_points") or ()
+        pt_count = len(standalone_pts)
+        lines_count = sum(1 for c in geom.curves if c.curve_type == CanonicalCurveType.LINE)
+        arcs_count = sum(1 for c in geom.curves if c.curve_type == CanonicalCurveType.ARC)
+        circles_count = sum(1 for c in geom.curves if c.curve_type == CanonicalCurveType.CIRCLE)
+        ellipses_count = sum(1 for c in geom.curves if c.curve_type == CanonicalCurveType.ELLIPSE)
+        polylines_count = sum(1 for c in geom.curves if c.curve_type == CanonicalCurveType.POLYLINE)
+        bsplines_count = sum(
+            1 for c in geom.curves
+            if c.curve_type in (CanonicalCurveType.BSPLINE, CanonicalCurveType.NURBS)
+        )
+        from backend.interoperability.geometry import CanonicalSurfaceType
+        planes_count = sum(
+            1 for s in geom.surfaces
+            if s.surface_type == CanonicalSurfaceType.PLANE
+        )
+        parsed_count = len(geom.curves) + len(geom.surfaces) + pt_count
+        unsupported_count = sum(1 for ev in fidelity_events if ev.get("class") == "UNSUPPORTED")
+        total_for_ratio = parsed_count + unsupported_count
+        parse_ratio = round(parsed_count / total_for_ratio, 4) if total_for_ratio > 0 else 1.0
+        bb = geom.bounding_box
+        if bb is not None:
+            bounds_status = "PARTIAL" if unsupported_count > 0 else "COMPLETE"
+        else:
+            bounds_status = "UNAVAILABLE"
+        dimensionality = "3D" if (
+            bb is not None and (bb.min_point.z.value != 0 or bb.max_point.z.value != 0)
+        ) else "2D"
+        geometry_summary = {
+            "parsed_geometry_count": parsed_count,
+            "partial_geometry_count": 0,
+            "unsupported_geometry_count": unsupported_count,
+            "points": pt_count,
+            "lines": lines_count,
+            "arcs": arcs_count,
+            "circles": circles_count,
+            "ellipses": ellipses_count,
+            "polylines": polylines_count,
+            "bspline_curves": bsplines_count,
+            "planes": planes_count,
+            "surfaces": len(geom.surfaces),
+            "bounds_status": bounds_status,
+            "dimensionality": dimensionality,
+            "geometry_parse_ratio": parse_ratio,
+        }
+        # Populate IGES bounds from bounding box when not already set from metadata
+        if bounds is None and bb is not None:
+            bounds = {
+                "xmin": float(bb.min_point.x.value),
+                "xmax": float(bb.max_point.x.value),
+                "ymin": float(bb.min_point.y.value),
+                "ymax": float(bb.max_point.y.value),
+                "zmin": float(bb.min_point.z.value),
+                "zmax": float(bb.max_point.z.value),
+            }
 
     # STEP preview: local gmsh tessellation
     preview_mesh: dict[str, Any] | None = None
@@ -419,6 +478,46 @@ def import_file(
         preview_mesh = _tessellate_step(data)
         if preview_mesh is not None:
             has_renderable_geometry = True
+
+    # Separated status model: individual concern statuses preserved for
+    # backward compatibility alongside the existing import_status field.
+    from backend.interoperability.enums import CapabilityLevel as _CL
+    file_parse_status = (
+        "SUCCESS"
+        if document.capability_level not in (
+            _CL.LEVEL_0_RECOGNIZED,
+        )
+        else "FAILED"
+    )
+    if isinstance(geom, CanonicalGeometry) and (len(geom.curves) + len(geom.surfaces) > 0):
+        _geom_lost = sum(1 for ev in fidelity_events if ev.get("class") == "LOST")
+        _geom_unsup = sum(
+            1 for ev in fidelity_events
+            if ev.get("class") == "UNSUPPORTED"
+            and "metadata" not in ev.get("description", "").lower()
+            and "presentation" not in ev.get("description", "").lower()
+            and "annotation" not in ev.get("description", "").lower()
+            and "color" not in ev.get("description", "").lower()
+            and "property" not in ev.get("description", "").lower()
+            and "view" not in ev.get("description", "").lower()
+            and "associativity" not in ev.get("description", "").lower()
+        )
+        geometry_status = "COMPLETE" if (_geom_lost == 0 and _geom_unsup == 0) else "PARTIAL"
+    elif isinstance(geom, CanonicalGeometry):
+        geometry_status = "FAILED"
+    else:
+        geometry_status = "NONE"
+
+    _meta_kws = (
+        "metadata", "presentation", "annotation", "color", "property", "view", "associativity"
+    )
+    _meta_unsup = sum(
+        1 for ev in fidelity_events
+        if ev.get("class") == "UNSUPPORTED"
+        and any(kw in ev.get("description", "").lower() for kw in _meta_kws)
+    )
+    metadata_status = "PARTIAL" if _meta_unsup > 0 else "NONE"
+    topology_status = "PRESENT" if document.topology is not None else "NONE"
 
     return {
         # Legacy fields (preserved for backward compatibility)
@@ -449,6 +548,11 @@ def import_file(
         "unsupported_entities": unsupported_entities,
         "warnings": warnings[:20],
         "errors": errors[:20],
+        # Separated status model (backward-compatible additions)
+        "file_parse_status": file_parse_status,
+        "geometry_status": geometry_status,
+        "metadata_status": metadata_status,
+        "topology_status": topology_status,
     }
 
 

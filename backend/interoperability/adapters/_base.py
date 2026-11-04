@@ -79,6 +79,9 @@ class AdapterSession:
         self._capability_level = CapabilityLevel.LEVEL_1_PARSED
         self._normalization_status = NormalizationStatus.SUCCESS
 
+    def mark_geometry(self) -> None:
+        self._capability_level = CapabilityLevel.LEVEL_2_GEOMETRY
+
     def mark_normalized(self) -> None:
         self._capability_level = CapabilityLevel.LEVEL_2_NORMALIZED
 

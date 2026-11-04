@@ -9,7 +9,7 @@
 
 import { LoaderCircle } from 'lucide-react'
 import { useLocale } from '../../i18n'
-import type { ImportResult } from '../../services/engineeringImport'
+import type { GeometrySummary, ImportResult } from '../../services/engineeringImport'
 import type { FormatRoute } from '../../lib/engineeringFormats'
 
 interface Props {
@@ -175,6 +175,59 @@ export default function EngineeringFileInfo({ fileName, route, result, error, pr
               </div>
             </div>
           )}
+          {/* Level-2 Geometry summary */}
+          {(() => {
+            const gs = result.geometry_summary as GeometrySummary | undefined
+            if (!gs || typeof gs.parsed_geometry_count !== 'number') return null
+            const typeRows: [string, number][] = [
+              ['Lines', gs.lines],
+              ['Arcs', gs.arcs],
+              ['Circles', gs.circles],
+              ['Ellipses', gs.ellipses],
+              ['Polylines', gs.polylines],
+              ['B-Spline Curves', gs.bspline_curves],
+              ['Planes', gs.planes],
+              ['Surfaces', gs.surfaces],
+              ['Points', gs.points],
+            ].filter(([, v]) => (v as number) > 0) as [string, number][]
+            return (
+              <div className="mt-1 border-t border-tp-border pt-1.5 space-y-0.5">
+                <div className={ROW + ' mb-0.5'}>
+                  <span className={LABEL}>Geometry</span>
+                  <span className={VALUE}>
+                    {gs.parsed_geometry_count} parsed
+                    {gs.unsupported_geometry_count > 0 && ` · ${gs.unsupported_geometry_count} unsupported`}
+                    {' '}({(gs.geometry_parse_ratio * 100).toFixed(1)}%)
+                  </span>
+                </div>
+                {typeRows.length > 0 && (
+                  <div className="pl-36 space-y-0.5">
+                    {typeRows.map(([label, count]) => (
+                      <div key={label} className="flex gap-2 text-[11px]">
+                        <span className="text-tp-text-2 w-40 shrink-0">{label}</span>
+                        <span className="font-medium text-tp-text tabular-nums">{count}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className={ROW}>
+                  <span className={LABEL}>Dimensionality</span>
+                  <span className="text-[11px] text-tp-text-2">{gs.dimensionality}</span>
+                </div>
+                <div className={ROW}>
+                  <span className={LABEL}>Bounds Status</span>
+                  <span className={`text-[11px] ${
+                    gs.bounds_status === 'COMPLETE' ? 'text-tp-accent-light' :
+                    gs.bounds_status === 'PARTIAL' ? 'text-tp-warn' : 'text-tp-text-3'
+                  }`}>{gs.bounds_status}</span>
+                </div>
+                <div className={ROW}>
+                  <span className={LABEL}>Topology</span>
+                  <span className="text-[11px] text-tp-text-3">Not available (3D visualization requires topology reconstruction)</span>
+                </div>
+              </div>
+            )
+          })()}
           {result.unsupported_entities && result.unsupported_entities.length > 0 && (
             <div className={ROW}>
               <span className={LABEL}>Unsupported</span>

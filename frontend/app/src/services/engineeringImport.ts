@@ -39,6 +39,25 @@ export interface CadBounds {
   zmax: number
 }
 
+/** Geometry summary populated at CAD_IMPORT_LEVEL_2_GEOMETRY and above */
+export interface GeometrySummary {
+  parsed_geometry_count: number
+  partial_geometry_count: number
+  unsupported_geometry_count: number
+  points: number
+  lines: number
+  arcs: number
+  circles: number
+  ellipses: number
+  polylines: number
+  bspline_curves: number
+  planes: number
+  surfaces: number
+  bounds_status: 'COMPLETE' | 'PARTIAL' | 'UNAVAILABLE'
+  dimensionality: '2D' | '3D'
+  geometry_parse_ratio: number
+}
+
 /** Structured response from POST /api/import */
 export interface ImportResult {
   // Legacy fields
@@ -70,7 +89,7 @@ export interface ImportResult {
   units?: string | null
   bounds?: CadBounds | null
   entity_types?: Record<string, number>
-  geometry_summary?: Record<string, unknown>
+  geometry_summary?: GeometrySummary | Record<string, unknown>
   unsupported_entities?: string[]
   warnings?: string[]
   errors?: string[]

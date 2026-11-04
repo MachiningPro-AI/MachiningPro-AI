@@ -224,7 +224,9 @@ class IgesTokenAdapter(FormatAdapter):
             except (TypeError, ValueError):
                 return None
 
-        # Header entity ref metadata: all values must be str | int | float | bool | None
+        # Level-1 header metadata — all values must be str | int | float | bool | None.
+        # The separate status model fields (file_parse_status etc.) are added after mapping
+        # so the CanonicalEntityRef is created once with complete metadata.
         header_meta: dict[str, object] = {
             "iges_version": model.global_section.version,
             "source_unit": model.global_section.unit_name,
@@ -245,18 +247,20 @@ class IgesTokenAdapter(FormatAdapter):
         if unsupported_entity_types:
             header_meta["unsupported_entity_types"] = ", ".join(unsupported_entity_types[:10])
 
-        session.add_entity_ref(
-            CanonicalEntityRef(
-                entity_id=make_uid("IGES-HEADER-"),
-                entity_kind="IgesHeader",
-                metadata=header_meta,
-            )
-        )
+        _header_entity_id = make_uid("IGES-HEADER-")
 
         # --- map_iges_model: isolated so its failure doesn't lose the Level-1 data ---
         try:
             mapping = map_iges_model(model)
         except Exception as exc:  # noqa: BLE001
+            # Level-1 data is preserved; add header ref without status model fields.
+            session.add_entity_ref(
+                CanonicalEntityRef(
+                    entity_id=_header_entity_id,
+                    entity_kind="IgesHeader",
+                    metadata=header_meta,
+                )
+            )
             session.record(
                 FidelityClass.PARTIALLY_PRESERVED,
                 f"IGES geometry mapping failed (Level 1 parse preserved): {exc}",
@@ -265,11 +269,58 @@ class IgesTokenAdapter(FormatAdapter):
             session.set_fidelity_completeness(FidelityReportCompleteness.PARTIAL)
             return session.build()
 
+        # Compute separate status model dimensions before creating the header entity ref.
+        # This allows the ref to be created once with all fields, respecting the immutable
+        # MappingProxyType that CanonicalEntityRef.__post_init__ applies to metadata.
+        # FILE_PARSE_STATUS: always SUCCESS (parse errors are caught above).
+        # GEOMETRY_STATUS: SUCCESS=all geometry extracted; PARTIAL=some unsupported/failed;
+        #                  FAILED=fatal (corrupting) geometry errors; NONE=no geometry.
+        # METADATA_STATUS: PARTIAL when non-fatal metadata/presentation entities skipped.
+        # TOPOLOGY_STATUS: NONE when no topology produced.
+        fatal_geometry_issues = [
+            i for i in mapping.issues
+            if i.fatal and "unsupported" not in i.reason.lower()
+        ]
+        unsupported_fatal_issues = [
+            i for i in mapping.issues
+            if i.fatal and "unsupported" in i.reason.lower()
+        ]
+        non_fatal_issues = [i for i in mapping.issues if not i.fatal]
+
+        if fatal_geometry_issues:
+            geometry_status = "FAILED"
+        elif unsupported_fatal_issues or non_fatal_issues:
+            geometry_status = "PARTIAL"
+        elif mapping.geometry is None:
+            geometry_status = "NONE"
+        else:
+            geometry_status = "SUCCESS"
+
+        metadata_issues = [
+            i for i in non_fatal_issues
+            if "metadata" in i.reason.lower() or "presentation" in i.reason.lower()
+        ]
+        metadata_status = "PARTIAL" if metadata_issues else "SUCCESS"
+        topology_status = "NONE" if mapping.topology is None else "SUCCESS"
+
+        header_meta["file_parse_status"] = "SUCCESS"
+        header_meta["geometry_status"] = geometry_status
+        header_meta["metadata_status"] = metadata_status
+        header_meta["topology_status"] = topology_status
+
+        session.add_entity_ref(
+            CanonicalEntityRef(
+                entity_id=_header_entity_id,
+                entity_kind="IgesHeader",
+                metadata=header_meta,
+            )
+        )
+
         for ref in mapping.entity_refs:
             session.add_entity_ref(ref)
         if mapping.geometry is not None:
             session.set_geometry(mapping.geometry)
-            session.mark_normalized()
+            session.mark_geometry()  # upgrade to Level-2; mark_normalized only on clean pass below
         if mapping.topology is not None:
             session.set_topology(mapping.topology)
 
@@ -295,14 +346,8 @@ class IgesTokenAdapter(FormatAdapter):
                 source_ref=refs_by_source.get(str(issue.de_pointer)),
             )
 
-        invalid_fatal_issue = any(
-            issue.fatal and "unsupported" not in issue.reason.lower()
-            for issue in mapping.issues
-        )
-        unsupported_fatal_issue = any(
-            issue.fatal and "unsupported" in issue.reason.lower()
-            for issue in mapping.issues
-        )
+        invalid_fatal_issue = bool(fatal_geometry_issues)
+        unsupported_fatal_issue = bool(unsupported_fatal_issues)
         if invalid_fatal_issue:
             session.mark_failed()
             session.set_fidelity_completeness(FidelityReportCompleteness.PARTIAL)
@@ -319,5 +364,6 @@ class IgesTokenAdapter(FormatAdapter):
             session.mark_partial()
             session.set_fidelity_completeness(FidelityReportCompleteness.PARTIAL)
         else:
+            session.mark_normalized()
             session.set_fidelity_completeness(FidelityReportCompleteness.COMPLETE)
         return session.build()

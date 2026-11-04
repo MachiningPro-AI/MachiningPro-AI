@@ -50,8 +50,9 @@ class TestCapabilityLevel:
     def test_all_levels_present(self) -> None:
         levels = {cl.value for cl in CapabilityLevel}
         assert "LEVEL_0_RECOGNIZED" in levels
+        assert "LEVEL_2_GEOMETRY" in levels
         assert "LEVEL_7_CONVERTED_WITH_FIDELITY_REPORT" in levels
-        assert len(levels) == 8
+        assert len(levels) == 9
 
     def test_all_values_are_strings(self) -> None:
         for cl in CapabilityLevel:

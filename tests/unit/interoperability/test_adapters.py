@@ -387,7 +387,7 @@ class TestIgesTokenAdapter:
         )
 
         assert doc.geometry is not None
-        assert doc.capability_level is CapabilityLevel.LEVEL_2_NORMALIZED
+        assert doc.capability_level is CapabilityLevel.LEVEL_2_GEOMETRY
         assert doc.normalization_status is NormalizationStatus.PARTIAL
         assert any("type 212" in event.description for event in doc.fidelity_report.events)
 
@@ -509,6 +509,7 @@ class TestDxfTokenAdapter:
         )
         assert doc.capability_level in (
             CapabilityLevel.LEVEL_1_PARSED,
+            CapabilityLevel.LEVEL_2_GEOMETRY,
             CapabilityLevel.LEVEL_2_NORMALIZED,
         )
 
