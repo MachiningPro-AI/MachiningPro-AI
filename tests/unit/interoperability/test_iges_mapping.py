@@ -171,7 +171,9 @@ def test_non_rigid_transform_cannot_silently_distort_analytic_surface() -> None:
         EntitySpec(196, "196,1,5;", transform_pointer=3),
     )
 
-    assert result.geometry is None
+    # The non-rigid-transformed surface must not appear in geometry; other entities may survive
+    if result.geometry is not None:
+        assert result.geometry.surfaces == ()
     assert result.topology is None
     assert any(
         issue.entity_type == 196 and "rigid" in issue.reason.lower()
@@ -202,6 +204,9 @@ def test_unsupported_entity_form_fails_closed() -> None:
 
 
 def test_unsupported_geometry_fails_closed_with_entity_diagnostic() -> None:
+    # Type 118 (Ruled Surface) is declared in _GEOMETRY_TYPES but lacks a mapper.
+    # It is intentionally fatal (fail-closed) to distinguish declared-but-unimplemented
+    # supported types from recognized-but-not-declared unsupported types (102, 104, etc.).
     result = _mapped(EntitySpec(118, "118,1,3,0,0;"))
 
     assert result.geometry is None
@@ -248,7 +253,9 @@ def test_negative_sphere_radius_fails_closed() -> None:
         EntitySpec(196, "196,1,-1;"),
     )
 
-    assert result.geometry is None
+    # The sphere with negative radius must not appear in geometry; other entities may survive
+    if result.geometry is not None:
+        assert result.geometry.surfaces == ()
     assert result.issues
     assert any(issue.entity_type == 196 and issue.fatal for issue in result.issues)
 

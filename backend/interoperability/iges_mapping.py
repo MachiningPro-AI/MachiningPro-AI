@@ -8,6 +8,7 @@ from decimal import Decimal, InvalidOperation, localcontext
 from backend.domain.exceptions import ValidationError
 from backend.domain.units import Quantity, Unit
 from backend.interoperability.geometry import (
+    BoundingBox3D,
     CanonicalCurve,
     CanonicalCurveType,
     CanonicalGeometry,
@@ -39,6 +40,7 @@ from backend.interoperability.topology import (
 __all__ = [
     "IgesMappingIssue",
     "IgesMappingResult",
+    "_UNSUPPORTED_CURVE_SURFACE_TYPES",
     "map_iges_model",
 ]
 
@@ -46,6 +48,9 @@ _GEOMETRY_TYPES = {100, 108, 110, 116, 118, 126, 128, 190, 192, 194, 196, 198}
 _AUXILIARY_TYPES = {123, 124, 320, 322}  # 320/322: Attribute Table entities (metadata only)
 _BOUNDARY_TYPES = {141, 142, 143, 144}
 _TOPOLOGY_TYPES = {186, 502, 504, 508, 510, 514}
+# Non-geometric metadata: unsupported but NOT fatal — do not prevent geometry extraction.
+# 402: Associativity Instance (grouping); 406: Property (material/weight/etc.); 410: View (display)
+_METADATA_TYPES = {402, 406, 410}
 _PRESENTATION_TYPES = {
     202,
     206,
@@ -60,6 +65,33 @@ _PRESENTATION_TYPES = {
     228,
     314,
 }
+# Recognized IGES curve/surface types that have no mapper in this adapter version.
+# These are real geometric data, not metadata.  Their absence from the output does NOT
+# corrupt or invalidate the other extracted geometry — the remaining geometry (arcs, lines,
+# B-spline curves/surfaces, planes, etc.) stands on its own without them.
+#
+# FATAL criteria:
+#   corrupted parameter structure, invalid required references, malformed transformation,
+#   geometry parameters that make the entity mathematically unusable.
+# NON-FATAL criteria (applies here):
+#   the entity is structurally valid but the adapter does not implement a mapper for it.
+#   Its coordinates are absent from the output, but no existing geometry is invalidated.
+#
+#  102 Composite Curve   — list of component curves; components still extracted individually
+#  104 Conic Arc         — conic section (ellipse/parabola/hyperbola); real geometry, no mapper
+#  112 Parametric Spline Curve   — legacy spline; no mapper
+#  114 Parametric Spline Surface — legacy spline surface; no mapper
+#  120 Surface of Revolution — revolved surface; no mapper
+#  122 Tabulated Cylinder — extruded surface; no mapper
+#  130 Offset Curve      — curve offset from another curve; no mapper
+#  140 Offset Surface    — surface offset from another surface; no mapper
+#
+# NOTE: Type 118 (Ruled Surface) is declared in _GEOMETRY_TYPES but lacks a mapper.
+# It is intentionally NOT listed here — it hits the fatal fallthrough to preserve
+# fail-closed behavior for types that are both declared supported and lacking a mapper.
+_UNSUPPORTED_CURVE_SURFACE_TYPES: frozenset[int] = frozenset({
+    102, 104, 112, 114, 120, 122, 130, 140,
+})
 _SUPPORTED_FORMS: dict[int, frozenset[int]] = {
     100: frozenset({0}),
     108: frozenset({0}),
@@ -245,7 +277,11 @@ def _compose(first: _Matrix, second: _Matrix) -> _Matrix:
 
 
 def _is_rigid(matrix: _Matrix) -> bool:
-    tolerance = Decimal("1e-24")
+    # Column vectors of a rigid (orthonormal) matrix must be unit-length and
+    # mutually orthogonal.  Use 1e-10 relative tolerance to accommodate decimal
+    # approximations of irrational values stored in IGES files; scaling factors
+    # (non-rigid) produce deviations orders of magnitude larger than 1e-10.
+    tolerance = Decimal("1e-10")
     for first in range(3):
         for second in range(3):
             dot = sum(matrix[row][first] * matrix[row][second] for row in range(3))
@@ -470,11 +506,24 @@ class _MappingContext:
         end_delta = tuple(end_raw[index] - center_raw[index] for index in range(3))
         start_radius_squared = sum(value * value for value in start_delta)
         end_radius_squared = sum(value * value for value in end_delta)
-        if start_radius_squared <= 0 or start_radius_squared != end_radius_squared:
-            raise _MappingError("type 100 arc start/end radii must be equal and positive")
+        if start_radius_squared <= 0:
+            raise _MappingError(
+                "type 100 arc radius must be positive (start point coincides with center)"
+            )
         with localcontext() as context:
             context.prec = 50
             radius = start_radius_squared.sqrt()
+            r_end = end_radius_squared.sqrt()
+        # Allow radii to differ by at most the model minimum resolution (IGES §2.2.4).
+        # Exact Decimal equality fails for valid arcs whose coordinates are stored at
+        # different decimal precisions in the IGES file.
+        _res = self.model.global_section.minimum_resolution
+        _tol = Decimal(str(_res)) if _res else Decimal("1e-6")
+        if abs(radius - r_end) > _tol:
+            raise _MappingError(
+                f"type 100 arc start/end radii inconsistent: "
+                f"|r_start-r_end|={abs(radius - r_end):.3e} exceeds tolerance {_tol}"
+            )
         pointer = entity.directory.de_pointer
         normal_raw = _apply_matrix_to_raw_vector(matrix, (Decimal(0), Decimal(0), Decimal(1)))
         return CanonicalCurve(
@@ -922,6 +971,25 @@ class _MappingContext:
                     affects_topology=False,
                 )
                 self._add_ref(entity, "IgesUnsupportedPresentationEntity")
+                continue
+            if entity_type in _METADATA_TYPES:
+                self._record_issue(
+                    entity,
+                    f"unsupported metadata IGES entity type {entity_type}",
+                    fatal=False,
+                    affects_topology=False,
+                )
+                self._add_ref(entity, "IgesUnsupportedMetadataEntity")
+                continue
+            if entity_type in _UNSUPPORTED_CURVE_SURFACE_TYPES:
+                self._record_issue(
+                    entity,
+                    f"unsupported curve/surface IGES entity type {entity_type}: "
+                    "entity cannot be extracted but does not prevent supported geometry extraction",
+                    fatal=False,
+                    affects_topology=False,
+                )
+                self._add_ref(entity, "IgesUnsupportedGeometryType")
                 continue
             self._record_issue(
                 entity,
@@ -1426,10 +1494,76 @@ class _MappingContext:
         if not (self.curves or self.surfaces or self.points):
             return None
         tolerance = self.model.global_section.minimum_resolution
+
+        # Collect coordinate samples (all in MM) for bounding box computation
+        coord_samples: list[tuple[Decimal, Decimal, Decimal]] = []
+
+        def _add_pt(pt: CanonicalPoint3D) -> None:
+            coord_samples.append((pt.x.value, pt.y.value, pt.z.value))
+
+        for pt in self.points.values():
+            _add_pt(pt)
+        for curve in self.curves.values():
+            if curve.origin is not None:
+                _add_pt(curve.origin)
+            if curve.center is not None:
+                _add_pt(curve.center)
+                if curve.radius is not None:
+                    r = curve.radius.value
+                    cx, cy, cz = curve.center.x.value, curve.center.y.value, curve.center.z.value
+                    coord_samples.extend([
+                        (cx + r, cy, cz), (cx - r, cy, cz),
+                        (cx, cy + r, cz), (cx, cy - r, cz),
+                    ])
+            for cp in curve.control_points:
+                _add_pt(cp)
+            if curve.metadata:
+                for key in ("end_point", "start_point"):
+                    ep = curve.metadata.get(key)
+                    if isinstance(ep, CanonicalPoint3D):
+                        _add_pt(ep)
+        for surf in self.surfaces.values():
+            if surf.origin is not None:
+                _add_pt(surf.origin)
+            if surf.center is not None:
+                _add_pt(surf.center)
+                if surf.radius is not None:
+                    r = surf.radius.value
+                    cx, cy, cz = surf.center.x.value, surf.center.y.value, surf.center.z.value
+                    coord_samples.extend([
+                        (cx + r, cy, cz), (cx - r, cy, cz),
+                        (cx, cy + r, cz), (cx, cy - r, cz),
+                        (cx, cy, cz + r), (cx, cy, cz - r),
+                    ])
+            for cp in surf.control_points:
+                _add_pt(cp)
+
+        bounding_box: BoundingBox3D | None = None
+        if coord_samples:
+            xs = [s[0] for s in coord_samples]
+            ys = [s[1] for s in coord_samples]
+            zs = [s[2] for s in coord_samples]
+            try:
+                bounding_box = BoundingBox3D(
+                    min_point=CanonicalPoint3D(
+                        x=Quantity(min(xs), Unit.MM),
+                        y=Quantity(min(ys), Unit.MM),
+                        z=Quantity(min(zs), Unit.MM),
+                    ),
+                    max_point=CanonicalPoint3D(
+                        x=Quantity(max(xs), Unit.MM),
+                        y=Quantity(max(ys), Unit.MM),
+                        z=Quantity(max(zs), Unit.MM),
+                    ),
+                )
+            except Exception:  # noqa: BLE001
+                bounding_box = None
+
         self.geometry = CanonicalGeometry(
             geometry_id="geometry-iges",
             curves=tuple(self.curves[pointer] for pointer in sorted(self.curves)),
             surfaces=tuple(self.surfaces[pointer] for pointer in sorted(self.surfaces)),
+            bounding_box=bounding_box,
             metadata={
                 "iges_source_unit": self.model.global_section.unit_name,
                 "iges_model_scale": self.model.global_section.model_scale,
@@ -1494,7 +1628,8 @@ class _MappingContext:
 
     def build_result(self) -> IgesMappingResult:
         fatal = any(issue.fatal for issue in self.issues)
-        geometry = None if fatal else self._build_geometry()
+        # Extract whatever mapped; fatal controls normalization status, not geometry extraction
+        geometry = self._build_geometry()
         topology = None if fatal else self.topology
         return IgesMappingResult(
             geometry=geometry,

@@ -19,9 +19,11 @@ DXF R12 fixed-format specification (public domain)
 from __future__ import annotations
 
 from collections import Counter
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from backend.domain.units import Quantity, Unit
 from backend.interoperability.adapter import FormatAdapter
 from backend.interoperability.adapters._base import (
     AdapterSession,
@@ -34,6 +36,13 @@ from backend.interoperability.enums import (
     FidelityClass,
     FidelityReportCompleteness,
     FormatFamily,
+)
+from backend.interoperability.geometry import (
+    BoundingBox3D,
+    CanonicalCurve,
+    CanonicalCurveType,
+    CanonicalGeometry,
+    CanonicalPoint3D,
 )
 from backend.interoperability.models import (
     AdapterMetadata,
@@ -97,6 +106,30 @@ _ALL_ENTITY_TYPES = _GEOMETRY_ENTITY_TYPES | frozenset(
 >>>>>>> 93314d9 (feat(cad): complete Level 1 DXF and IGES parsing)
 
 # $INSUNITS mapping (group code 70 value → unit name)
+_DXF_INSUNITS_TO_MM: dict[int, float] = {
+    0:  1.0,           # Unitless — treat as mm
+    1:  25.4,          # Inches
+    2:  304.8,         # Feet
+    3:  1_609_344.0,   # Miles
+    4:  1.0,           # Millimeters
+    5:  10.0,          # Centimeters
+    6:  1_000.0,       # Meters
+    7:  1_000_000.0,   # Kilometers
+    8:  0.0000254,     # Microinches
+    9:  0.0254,        # Mils
+    10: 914.4,         # Yards
+    11: 1e-7,          # Angstroms
+    12: 1e-6,          # Nanometers
+    13: 0.001,         # Microns
+    14: 100.0,         # Decimeters
+    15: 10_000.0,      # Decameters
+    16: 100_000.0,     # Hectometers
+    17: 1e12,          # Gigameters
+    18: 1.495978707e14, # Astronomical Units
+    19: 9.4607304725e18, # Light Years
+    20: 3.08567758e19,  # Parsecs
+}
+
 _DXF_INSUNITS: dict[int, str] = {
     0:  "Unitless",
     1:  "Inches",
@@ -127,6 +160,295 @@ def _safe_float(s: str) -> float | None:
         return float(s.strip())
     except (ValueError, AttributeError):
         return None
+
+
+def _collect_dxf_geometry(
+    text: str,
+    insunits_code: int,
+) -> tuple[list[CanonicalCurve], list[CanonicalPoint3D], list[str]]:
+    """Second pass: extract CanonicalCurve/Point3D from DXF geometry entities.
+
+    Returns (curves, standalone_points, warnings).
+    Only entities with sufficient coordinate data are produced.
+    Invalid/unsupported entities are silently skipped with a warning appended.
+    """
+    mm_per_unit = Decimal(str(_DXF_INSUNITS_TO_MM.get(insunits_code, 1.0)))
+
+    def _q(val: float) -> Quantity:
+        return Quantity(Decimal(str(val)) * mm_per_unit, Unit.MM)
+
+    def _pt(x: float, y: float, z: float, ref: str | None = None) -> CanonicalPoint3D:
+        return CanonicalPoint3D(
+            x=_q(x), y=_q(y), z=_q(z),
+            source_entity_ref=ref,
+        )
+
+    curves: list[CanonicalCurve] = []
+    standalone_points: list[CanonicalPoint3D] = []
+    warnings: list[str] = []
+
+    lines = text.splitlines()
+    n = len(lines)
+    i = 0
+    in_geometry_section = False
+    current_entity: str | None = None
+    entity_index = 0
+    coords: dict[int, float] = {}
+    handle: str | None = None
+    layer: str | None = None
+    # LWPOLYLINE vertex accumulation
+    lw_vertices: list[tuple[float, float]] = []
+    lw_pending_x: float | None = None
+
+    def flush() -> None:
+        nonlocal current_entity, entity_index, handle, layer, lw_vertices, lw_pending_x
+        etype = current_entity
+        if etype is None:
+            return
+        idx = entity_index
+        entity_index += 1
+        cur_handle = handle or f"dxf-{etype.lower()}-{idx:06d}"
+
+        try:
+            import math
+
+            if etype == "LINE":
+                x0 = coords.get(10, 0.0)
+                y0 = coords.get(20, 0.0)
+                z0 = coords.get(30, 0.0)
+                x1 = coords.get(11, x0)
+                y1 = coords.get(21, y0)
+                z1 = coords.get(31, z0)
+                origin = _pt(x0, y0, z0, cur_handle)
+                end_pt = _pt(x1, y1, z1, cur_handle)
+                curves.append(CanonicalCurve(
+                    curve_id=f"dxf-line-{idx:06d}",
+                    curve_type=CanonicalCurveType.LINE,
+                    source_entity_ref=cur_handle,
+                    origin=origin,
+                    metadata={"end_point": end_pt, "layer": layer or ""},
+                ))
+
+            elif etype == "CIRCLE":
+                cx, cy, cz = coords.get(10, 0.0), coords.get(20, 0.0), coords.get(30, 0.0)
+                r = coords.get(40)
+                if r is None or r <= 0.0:
+                    warnings.append(f"CIRCLE {cur_handle}: invalid radius {r}")
+                    return
+                curves.append(CanonicalCurve(
+                    curve_id=f"dxf-circle-{idx:06d}",
+                    curve_type=CanonicalCurveType.CIRCLE,
+                    source_entity_ref=cur_handle,
+                    center=_pt(cx, cy, cz, cur_handle),
+                    radius=_q(r),
+                    metadata={"layer": layer or ""},
+                ))
+
+            elif etype == "ARC":
+                cx, cy, cz = coords.get(10, 0.0), coords.get(20, 0.0), coords.get(30, 0.0)
+                r = coords.get(40)
+                if r is None or r <= 0.0:
+                    warnings.append(f"ARC {cur_handle}: invalid radius {r}")
+                    return
+                curves.append(CanonicalCurve(
+                    curve_id=f"dxf-arc-{idx:06d}",
+                    curve_type=CanonicalCurveType.ARC,
+                    source_entity_ref=cur_handle,
+                    center=_pt(cx, cy, cz, cur_handle),
+                    radius=_q(r),
+                    metadata={
+                        "start_angle_deg": coords.get(50, 0.0),
+                        "end_angle_deg": coords.get(51, 360.0),
+                        "layer": layer or "",
+                    },
+                ))
+
+            elif etype == "POINT":
+                px = coords.get(10, 0.0)
+                py = coords.get(20, 0.0)
+                pz = coords.get(30, 0.0)
+                standalone_points.append(CanonicalPoint3D(
+                    x=_q(px), y=_q(py), z=_q(pz),
+                    point_id=f"dxf-point-{idx:06d}",
+                    source_entity_ref=cur_handle,
+                    metadata={"layer": layer or ""},
+                ))
+
+            elif etype == "LWPOLYLINE":
+                if lw_pending_x is not None:
+                    lw_vertices.append((lw_pending_x, 0.0))
+                    lw_pending_x = None
+                if len(lw_vertices) >= 2:
+                    cps = tuple(
+                        CanonicalPoint3D(
+                            x=_q(vx), y=_q(vy),
+                            z=Quantity(Decimal("0"), Unit.MM),
+                            source_entity_ref=cur_handle,
+                        )
+                        for vx, vy in lw_vertices
+                    )
+                    curves.append(CanonicalCurve(
+                        curve_id=f"dxf-polyline-{idx:06d}",
+                        curve_type=CanonicalCurveType.POLYLINE,
+                        source_entity_ref=cur_handle,
+                        control_points=cps,
+                        metadata={"layer": layer or "", "vertex_count": len(lw_vertices)},
+                    ))
+
+            elif etype == "ELLIPSE":
+                cx, cy, cz = coords.get(10, 0.0), coords.get(20, 0.0), coords.get(30, 0.0)
+                ex = coords.get(11, 1.0)
+                ey = coords.get(21, 0.0)
+                ez = coords.get(31, 0.0)
+                ratio = coords.get(40, 1.0)
+                major = math.hypot(ex, ey, ez)
+                if major <= 0.0 or ratio <= 0.0:
+                    warnings.append(f"ELLIPSE {cur_handle}: invalid major axis or ratio")
+                    return
+                major_r = _q(major)
+                minor_val = major_r.value * Decimal(str(ratio))
+                if minor_val <= 0:
+                    warnings.append(f"ELLIPSE {cur_handle}: computed minor radius ≤ 0")
+                    return
+                curves.append(CanonicalCurve(
+                    curve_id=f"dxf-ellipse-{idx:06d}",
+                    curve_type=CanonicalCurveType.ELLIPSE,
+                    source_entity_ref=cur_handle,
+                    center=_pt(cx, cy, cz, cur_handle),
+                    major_radius=major_r,
+                    minor_radius=Quantity(minor_val, Unit.MM),
+                    metadata={"layer": layer or "", "ratio": ratio},
+                ))
+
+        except Exception as exc:  # noqa: BLE001
+            warnings.append(f"{etype} {cur_handle}: geometry extraction failed: {exc}")
+
+        current_entity = None
+        handle = None
+        layer = None
+        coords.clear()
+        lw_vertices = []
+        lw_pending_x = None
+
+    while i < n - 1:
+        try:
+            gc_raw = lines[i].strip()
+            value = lines[i + 1].strip()
+        except IndexError:
+            break
+        i += 2
+
+        try:
+            gc = int(gc_raw)
+        except ValueError:
+            continue
+
+        if gc == 0 and value == "SECTION":
+            flush()
+            current_entity = None
+            if i < n - 1 and lines[i].strip() == "2":
+                sname = lines[i + 1].strip().upper()
+                in_geometry_section = sname in ("ENTITIES", "BLOCKS")
+                i += 2
+            else:
+                in_geometry_section = False
+        elif gc == 0 and value in ("ENDSEC", "EOF"):
+            flush()
+            current_entity = None
+            in_geometry_section = False
+        elif gc == 0 and in_geometry_section:
+            flush()
+            if value in _GEOMETRY_ENTITY_TYPES:
+                current_entity = value
+                handle = None
+                layer = None
+                coords = {}
+                lw_vertices = []
+                lw_pending_x = None
+        elif current_entity is not None:
+            if gc == 5:
+                handle = value or None
+            elif gc == 8:
+                layer = value
+            elif current_entity == "LWPOLYLINE" and gc == 10:
+                f = _safe_float(value)
+                if f is not None:
+                    lw_pending_x = f
+            elif current_entity == "LWPOLYLINE" and gc == 20:
+                f = _safe_float(value)
+                if f is not None and lw_pending_x is not None:
+                    lw_vertices.append((lw_pending_x, f))
+                    lw_pending_x = None
+            elif gc in (10, 11, 20, 21, 30, 31, 40, 50, 51):
+                if current_entity != "LWPOLYLINE":
+                    f = _safe_float(value)
+                    if f is not None:
+                        coords[gc] = f
+
+    flush()
+    return curves, standalone_points, warnings
+
+
+def _build_dxf_canonical_geometry(
+    curves: list[CanonicalCurve],
+    standalone_points: list[CanonicalPoint3D],
+) -> CanonicalGeometry | None:
+    """Assemble CanonicalGeometry with bounding box from DXF-extracted primitives."""
+    if not curves and not standalone_points:
+        return None
+
+    # Compute bounding box from all known coordinate samples
+    coord_samples: list[tuple[Decimal, Decimal, Decimal]] = []
+    for pt in standalone_points:
+        coord_samples.append((pt.x.value, pt.y.value, pt.z.value))
+    for c in curves:
+        if c.origin is not None:
+            coord_samples.append((c.origin.x.value, c.origin.y.value, c.origin.z.value))
+        if c.center is not None:
+            coord_samples.append((c.center.x.value, c.center.y.value, c.center.z.value))
+            if c.radius is not None:
+                r = c.radius.value
+                cx, cy, cz = c.center.x.value, c.center.y.value, c.center.z.value
+                coord_samples.extend([
+                    (cx + r, cy, cz), (cx - r, cy, cz),
+                    (cx, cy + r, cz), (cx, cy - r, cz),
+                ])
+        for cp in c.control_points:
+            coord_samples.append((cp.x.value, cp.y.value, cp.z.value))
+        if c.metadata:
+            ep = c.metadata.get("end_point")
+            if isinstance(ep, CanonicalPoint3D):
+                coord_samples.append((ep.x.value, ep.y.value, ep.z.value))
+
+    bounding_box: BoundingBox3D | None = None
+    if coord_samples:
+        xs = [s[0] for s in coord_samples]
+        ys = [s[1] for s in coord_samples]
+        zs = [s[2] for s in coord_samples]
+        try:
+            bounding_box = BoundingBox3D(
+                min_point=CanonicalPoint3D(
+                    x=Quantity(min(xs), Unit.MM),
+                    y=Quantity(min(ys), Unit.MM),
+                    z=Quantity(min(zs), Unit.MM),
+                ),
+                max_point=CanonicalPoint3D(
+                    x=Quantity(max(xs), Unit.MM),
+                    y=Quantity(max(ys), Unit.MM),
+                    z=Quantity(max(zs), Unit.MM),
+                ),
+            )
+        except Exception:  # noqa: BLE001
+            bounding_box = None
+
+    return CanonicalGeometry(
+        geometry_id="geometry-dxf",
+        curves=tuple(curves),
+        bounding_box=bounding_box,
+        metadata={
+            "standalone_points": tuple(standalone_points),
+        },
+    )
 
 
 def _parse_dxf_text(text: str) -> dict[str, Any]:
@@ -481,12 +803,28 @@ class DxfTokenAdapter(FormatAdapter):
         for etype in meta.get("unsupported_entities", []):
             session.record_unsupported(f"Unsupported DXF entity type: {etype}")
 
-        # Level 2 via ezdxf (optional)
+        # Level 2 geometry extraction — pure Python (no external deps)
+        insunits_code = 0
+        raw_units = meta.get("units")
+        if raw_units is not None:
+            for code, name in _DXF_INSUNITS.items():
+                if name == raw_units:
+                    insunits_code = code
+                    break
+        geo_curves, geo_points, geo_warnings = _collect_dxf_geometry(text, insunits_code)
+        for w in geo_warnings:
+            session.record_partial(f"DXF geometry: {w}")
+        geometry = _build_dxf_canonical_geometry(geo_curves, geo_points)
+        if geometry is not None:
+            session.set_geometry(geometry)
+            session.mark_geometry()
+
+        # Level 2 full normalization via ezdxf (optional — upgrades to LEVEL_2_NORMALIZED)
         if self._ezdxf_available():
             self._normalize_geometry_ezdxf(text, session)
         else:
             session.record_unsupported(
-                "Level 2 geometry normalization requires ezdxf (MIT license). "
+                "Full ezdxf geometry normalization not available (MIT license). "
                 "Install via: pip install ezdxf"
             )
             session.set_fidelity_completeness(FidelityReportCompleteness.PARTIAL)

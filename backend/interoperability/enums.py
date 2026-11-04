@@ -85,6 +85,10 @@ class CapabilityLevel(StrEnum):
     LEVEL_1_PARSED = "LEVEL_1_PARSED"
     """File opened and raw data structure read without error."""
 
+    LEVEL_2_GEOMETRY = "LEVEL_2_GEOMETRY"
+    """Geometric primitives extracted into canonical geometry model (curves, surfaces,
+    points, bounding box) without full topology or normalization."""
+
     LEVEL_2_NORMALIZED = "LEVEL_2_NORMALIZED"
     """Data placed into Canonical Engineering Representation (CER)."""
 

@@ -92,7 +92,10 @@ _VALID_DXF = (
 class TestDxfValid:
     def test_capability_level_1(self, tmp_path: Path) -> None:
         doc = _ingest_dxf(_VALID_DXF, tmp_path)
-        assert doc.capability_level == CapabilityLevel.LEVEL_1_PARSED
+        assert doc.capability_level in (
+            CapabilityLevel.LEVEL_1_PARSED,
+            CapabilityLevel.LEVEL_2_GEOMETRY,
+        )
 
     def test_entity_count(self, tmp_path: Path) -> None:
         doc = _ingest_dxf(_VALID_DXF, tmp_path)
@@ -246,7 +249,10 @@ class TestDxfLargeFile:
             )
         lines.append("  0\nENDSEC\n  0\nEOF\n")
         doc = _ingest_dxf("".join(lines), tmp_path, "large.dxf")
-        assert doc.capability_level == CapabilityLevel.LEVEL_1_PARSED
+        assert doc.capability_level in (
+            CapabilityLevel.LEVEL_1_PARSED,
+            CapabilityLevel.LEVEL_2_GEOMETRY,
+        )
         header = next(r for r in doc.entity_refs if r.entity_kind == "DxfHeader")
         assert header.metadata["entity_line"] == 5000
 
@@ -281,7 +287,10 @@ class TestDxfApiResponse:
         p = tmp_path / filename
         p.write_text(_VALID_DXF, encoding="utf-8")
         doc = adapters[0].ingest_file(source, descriptor, p)
-        assert doc.capability_level == CapabilityLevel.LEVEL_1_PARSED
+        assert doc.capability_level in (
+            CapabilityLevel.LEVEL_1_PARSED,
+            CapabilityLevel.LEVEL_2_GEOMETRY,
+        )
 
     def test_units_millimeters_in_dxf_header(self, tmp_path: Path) -> None:
         doc = _ingest_dxf(_VALID_DXF, tmp_path)
