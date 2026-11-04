@@ -839,6 +839,15 @@ class DxfTokenAdapter(FormatAdapter):
                 session.set_process_intelligence(pi_result)
                 if pi_result.process_candidates:
                     session.mark_process_intelligence()
+                # Level-5: machine and tool selection intelligence.
+                from backend.interoperability.machine_tool_selection import (
+                    derive_machine_tool_intelligence,
+                )
+
+                mti_result = derive_machine_tool_intelligence(pi_result, geometry)
+                session.set_machine_tool_intelligence(mti_result)
+                if mti_result.machine_candidates:
+                    session.mark_machine_tool_selection()
             session.record_unsupported(
                 "Full ezdxf geometry normalization not available (MIT license). "
                 "Install via: pip install ezdxf"
@@ -866,6 +875,16 @@ class DxfTokenAdapter(FormatAdapter):
             session.set_process_intelligence(pi_result)
             if pi_result.process_candidates:
                 session.mark_process_intelligence()
+
+            # Level-5: machine and tool selection intelligence.
+            from backend.interoperability.machine_tool_selection import (
+                derive_machine_tool_intelligence,
+            )
+
+            mti_result = derive_machine_tool_intelligence(pi_result, geo)
+            session.set_machine_tool_intelligence(mti_result)
+            if mti_result.machine_candidates:
+                session.mark_machine_tool_selection()
 
         return session.build()
 

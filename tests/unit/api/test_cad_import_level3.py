@@ -782,6 +782,7 @@ class TestProductionFileRegressions:
             CapabilityLevel.LEVEL_2_NORMALIZED,
             CapabilityLevel.LEVEL_3_ENGINEERING_SEMANTICS,
             CapabilityLevel.LEVEL_4_MANUFACTURING_FEATURES,
+            CapabilityLevel.LEVEL_5_PROCESS_CONTENT,
         )
 
     def test_dxf_level3_features_object_present(self) -> None:
