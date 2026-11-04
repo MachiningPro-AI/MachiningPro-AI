@@ -70,6 +70,7 @@ class AdapterSession:
         self._geometry: object | None = None
         self._topology: object | None = None
         self._features: object | None = None
+        self._process_intelligence: object | None = None
         self._built = False
 
     # ------------------------------------------------------------------
@@ -88,6 +89,9 @@ class AdapterSession:
 
     def mark_features(self) -> None:
         self._capability_level = CapabilityLevel.LEVEL_3_ENGINEERING_SEMANTICS
+
+    def mark_process_intelligence(self) -> None:
+        self._capability_level = CapabilityLevel.LEVEL_4_MANUFACTURING_FEATURES
 
     def mark_failed(self) -> None:
         self._normalization_status = NormalizationStatus.FAILED
@@ -170,6 +174,15 @@ class AdapterSession:
             raise TypeError("features must be a FeatureRecognitionResult")
         self._features = features
 
+    def set_process_intelligence(self, process_intelligence: object) -> None:
+        if self._built:
+            raise RuntimeError("adapter session has already been built")
+        from backend.interoperability.process_intelligence import ProcessIntelligenceResult
+
+        if not isinstance(process_intelligence, ProcessIntelligenceResult):
+            raise TypeError("process_intelligence must be a ProcessIntelligenceResult")
+        self._process_intelligence = process_intelligence
+
     # ------------------------------------------------------------------
     # Build output
     # ------------------------------------------------------------------
@@ -200,6 +213,7 @@ class AdapterSession:
             geometry=self._geometry,
             topology=self._topology,
             features=self._features,
+            process_intelligence=self._process_intelligence,
         )
         self._built = True
         return document

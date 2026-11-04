@@ -830,6 +830,15 @@ class DxfTokenAdapter(FormatAdapter):
                 session.set_features(feat_result)
                 if feat_result.features:
                     session.mark_features()
+                # Level-4: process intelligence.
+                from backend.interoperability.process_recognition import (
+                    recognize_process_intelligence,
+                )
+
+                pi_result = recognize_process_intelligence(feat_result, geometry, None)
+                session.set_process_intelligence(pi_result)
+                if pi_result.process_candidates:
+                    session.mark_process_intelligence()
             session.record_unsupported(
                 "Full ezdxf geometry normalization not available (MIT license). "
                 "Install via: pip install ezdxf"
@@ -847,6 +856,16 @@ class DxfTokenAdapter(FormatAdapter):
             session.set_features(feat_result)
             if feat_result.features:
                 session.mark_features()
+
+            # Level-4: process intelligence derived from Level-3 features.
+            from backend.interoperability.process_recognition import (
+                recognize_process_intelligence,
+            )
+
+            pi_result = recognize_process_intelligence(feat_result, geo, None)
+            session.set_process_intelligence(pi_result)
+            if pi_result.process_candidates:
+                session.mark_process_intelligence()
 
         return session.build()
 

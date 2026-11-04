@@ -518,6 +518,24 @@ def import_file(
     )
     metadata_status = "PARTIAL" if _meta_unsup > 0 else "NONE"
     topology_status = "PRESENT" if document.topology is not None else "NONE"
+    feature_status = "PRESENT" if document.features is not None else "NONE"
+
+    manufacturing_intelligence: dict | None = None
+    if document.process_intelligence is not None:
+        pi = document.process_intelligence
+        manufacturing_intelligence = {
+            "status": pi.status.value,
+            "dfm_observation_count": len(pi.dfm_observations),
+            "process_candidate_count": len(pi.process_candidates),
+            "setup_candidate_count": len(pi.setups),
+            "machine_requirement_count": len(pi.machine_requirements),
+            "tool_requirement_count": len(pi.tool_requirements),
+            "operation_plan_count": len(pi.operation_plan),
+            "turning_indicator": pi.turning_indicator.value,
+            "missing_input_count": len(pi.missing_inputs),
+            "missing_inputs": list(pi.missing_inputs),
+            "warnings": list(pi.warnings),
+        }
 
     return {
         # Legacy fields (preserved for backward compatibility)
@@ -553,6 +571,8 @@ def import_file(
         "geometry_status": geometry_status,
         "metadata_status": metadata_status,
         "topology_status": topology_status,
+        "feature_status": feature_status,
+        "manufacturing_intelligence": manufacturing_intelligence,
     }
 
 
