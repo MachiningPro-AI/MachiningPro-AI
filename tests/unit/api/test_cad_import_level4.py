@@ -1125,11 +1125,14 @@ class TestProductionDxfLevel4:
         assert doc.process_intelligence is not None
         assert doc.process_intelligence.turning_indicator == TurningIndicator.TURNING_NOT_INDICATED
 
-    def test_dxf_capability_level_is_level4(self) -> None:
+    def test_dxf_capability_level_is_level4_or_higher(self) -> None:
         from backend.interoperability.enums import CapabilityLevel
 
         doc = _load_dxf_doc()
-        assert doc.capability_level == CapabilityLevel.LEVEL_4_MANUFACTURING_FEATURES
+        assert doc.capability_level in (
+            CapabilityLevel.LEVEL_4_MANUFACTURING_FEATURES,
+            CapabilityLevel.LEVEL_5_PROCESS_CONTENT,
+        )
 
     def test_dxf_operation_plan_has_operations(self) -> None:
         doc = _load_dxf_doc()

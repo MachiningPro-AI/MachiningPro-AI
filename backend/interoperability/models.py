@@ -716,6 +716,7 @@ class CanonicalDocument:
     topology: object | None = None
     features: object | None = None
     process_intelligence: object | None = None
+    machine_tool_intelligence: object | None = None
     schema_version: str = "4A.0"
     notes: str | None = None
 
@@ -787,6 +788,15 @@ class CanonicalDocument:
             if not isinstance(self.process_intelligence, ProcessIntelligenceResult):
                 raise ValidationError(
                     "process_intelligence must be a ProcessIntelligenceResult or None"
+                )
+        if self.machine_tool_intelligence is not None:
+            from backend.interoperability.machine_tool_intelligence import (
+                MachineToolIntelligenceResult,
+            )
+
+            if not isinstance(self.machine_tool_intelligence, MachineToolIntelligenceResult):
+                raise ValidationError(
+                    "machine_tool_intelligence must be a MachineToolIntelligenceResult or None"
                 )
         _set(
             self,

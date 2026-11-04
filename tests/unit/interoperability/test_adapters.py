@@ -513,6 +513,7 @@ class TestDxfTokenAdapter:
             CapabilityLevel.LEVEL_2_NORMALIZED,
             CapabilityLevel.LEVEL_3_ENGINEERING_SEMANTICS,
             CapabilityLevel.LEVEL_4_MANUFACTURING_FEATURES,
+            CapabilityLevel.LEVEL_5_PROCESS_CONTENT,
         )
 
     def test_ingest_dxf_has_header_ref(self) -> None:

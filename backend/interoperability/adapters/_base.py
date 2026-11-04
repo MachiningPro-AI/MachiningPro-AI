@@ -71,6 +71,7 @@ class AdapterSession:
         self._topology: object | None = None
         self._features: object | None = None
         self._process_intelligence: object | None = None
+        self._machine_tool_intelligence: object | None = None
         self._built = False
 
     # ------------------------------------------------------------------
@@ -92,6 +93,9 @@ class AdapterSession:
 
     def mark_process_intelligence(self) -> None:
         self._capability_level = CapabilityLevel.LEVEL_4_MANUFACTURING_FEATURES
+
+    def mark_machine_tool_selection(self) -> None:
+        self._capability_level = CapabilityLevel.LEVEL_5_PROCESS_CONTENT
 
     def mark_failed(self) -> None:
         self._normalization_status = NormalizationStatus.FAILED
@@ -183,6 +187,19 @@ class AdapterSession:
             raise TypeError("process_intelligence must be a ProcessIntelligenceResult")
         self._process_intelligence = process_intelligence
 
+    def set_machine_tool_intelligence(self, machine_tool_intelligence: object) -> None:
+        if self._built:
+            raise RuntimeError("adapter session has already been built")
+        from backend.interoperability.machine_tool_intelligence import (
+            MachineToolIntelligenceResult,
+        )
+
+        if not isinstance(machine_tool_intelligence, MachineToolIntelligenceResult):
+            raise TypeError(
+                "machine_tool_intelligence must be a MachineToolIntelligenceResult"
+            )
+        self._machine_tool_intelligence = machine_tool_intelligence
+
     # ------------------------------------------------------------------
     # Build output
     # ------------------------------------------------------------------
@@ -214,6 +231,7 @@ class AdapterSession:
             topology=self._topology,
             features=self._features,
             process_intelligence=self._process_intelligence,
+            machine_tool_intelligence=self._machine_tool_intelligence,
         )
         self._built = True
         return document

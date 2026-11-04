@@ -537,6 +537,28 @@ def import_file(
             "warnings": list(pi.warnings),
         }
 
+    machine_intelligence_status = (
+        "PRESENT" if document.machine_tool_intelligence is not None else "NONE"
+    )
+    machine_tool_intelligence: dict | None = None
+    if document.machine_tool_intelligence is not None:
+        mti = document.machine_tool_intelligence
+        machine_tool_intelligence = {
+            "status": mti.status.value,
+            "machine_capability_requirement_count": len(mti.machine_capability_requirements),
+            "machine_candidate_count": len(mti.machine_candidates),
+            "tool_capability_requirement_count": len(mti.tool_capability_requirements),
+            "tool_candidate_count": len(mti.tool_candidates),
+            "holder_requirement_count": len(mti.holder_requirements),
+            "compatibility_result_count": len(mti.compatibility_results),
+            "compatible_machine_count": mti.compatible_machine_count,
+            "compatible_tool_count": mti.compatible_tool_count,
+            "source_process_candidate_count": mti.source_process_candidate_count,
+            "missing_input_count": len(mti.missing_inputs),
+            "missing_inputs": list(mti.missing_inputs),
+            "warnings": list(mti.warnings),
+        }
+
     return {
         # Legacy fields (preserved for backward compatibility)
         "file_name": filename,
@@ -573,6 +595,8 @@ def import_file(
         "topology_status": topology_status,
         "feature_status": feature_status,
         "manufacturing_intelligence": manufacturing_intelligence,
+        "machine_intelligence_status": machine_intelligence_status,
+        "machine_tool_intelligence": machine_tool_intelligence,
     }
 
 

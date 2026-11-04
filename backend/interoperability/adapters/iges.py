@@ -388,4 +388,16 @@ class IgesTokenAdapter(FormatAdapter):
             if pi_result.process_candidates:
                 session.mark_process_intelligence()
 
+            # Level-5: machine and tool selection intelligence.
+            from backend.interoperability.machine_tool_selection import (
+                derive_machine_tool_intelligence,
+            )
+
+            mti_result = derive_machine_tool_intelligence(
+                pi_result, mapping.geometry
+            )
+            session.set_machine_tool_intelligence(mti_result)
+            if mti_result.machine_candidates:
+                session.mark_machine_tool_selection()
+
         return session.build()
