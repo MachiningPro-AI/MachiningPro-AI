@@ -95,6 +95,7 @@ class TestDxfValid:
         assert doc.capability_level in (
             CapabilityLevel.LEVEL_1_PARSED,
             CapabilityLevel.LEVEL_2_GEOMETRY,
+            CapabilityLevel.LEVEL_3_ENGINEERING_SEMANTICS,
         )
 
     def test_entity_count(self, tmp_path: Path) -> None:
@@ -290,6 +291,7 @@ class TestDxfApiResponse:
         assert doc.capability_level in (
             CapabilityLevel.LEVEL_1_PARSED,
             CapabilityLevel.LEVEL_2_GEOMETRY,
+            CapabilityLevel.LEVEL_3_ENGINEERING_SEMANTICS,
         )
 
     def test_units_millimeters_in_dxf_header(self, tmp_path: Path) -> None:

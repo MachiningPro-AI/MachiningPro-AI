@@ -69,6 +69,7 @@ class AdapterSession:
         self._extra_canonical_payloads: dict[str, object] = {}
         self._geometry: object | None = None
         self._topology: object | None = None
+        self._features: object | None = None
         self._built = False
 
     # ------------------------------------------------------------------
@@ -84,6 +85,9 @@ class AdapterSession:
 
     def mark_normalized(self) -> None:
         self._capability_level = CapabilityLevel.LEVEL_2_NORMALIZED
+
+    def mark_features(self) -> None:
+        self._capability_level = CapabilityLevel.LEVEL_3_ENGINEERING_SEMANTICS
 
     def mark_failed(self) -> None:
         self._normalization_status = NormalizationStatus.FAILED
@@ -157,6 +161,15 @@ class AdapterSession:
             raise TypeError("topology must be a CanonicalTopology")
         self._topology = topology
 
+    def set_features(self, features: object) -> None:
+        if self._built:
+            raise RuntimeError("adapter session has already been built")
+        from backend.interoperability.features import FeatureRecognitionResult
+
+        if not isinstance(features, FeatureRecognitionResult):
+            raise TypeError("features must be a FeatureRecognitionResult")
+        self._features = features
+
     # ------------------------------------------------------------------
     # Build output
     # ------------------------------------------------------------------
@@ -186,6 +199,7 @@ class AdapterSession:
             fidelity_report=report,
             geometry=self._geometry,
             topology=self._topology,
+            features=self._features,
         )
         self._built = True
         return document
