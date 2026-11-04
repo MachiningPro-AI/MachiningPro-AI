@@ -715,6 +715,7 @@ class CanonicalDocument:
     geometry: object | None = None
     topology: object | None = None
     features: object | None = None
+    process_intelligence: object | None = None
     schema_version: str = "4A.0"
     notes: str | None = None
 
@@ -777,6 +778,15 @@ class CanonicalDocument:
             if not isinstance(self.features, FeatureRecognitionResult):
                 raise ValidationError(
                     "features must be a FeatureRecognitionResult or None"
+                )
+        if self.process_intelligence is not None:
+            from backend.interoperability.process_intelligence import (
+                ProcessIntelligenceResult,
+            )
+
+            if not isinstance(self.process_intelligence, ProcessIntelligenceResult):
+                raise ValidationError(
+                    "process_intelligence must be a ProcessIntelligenceResult or None"
                 )
         _set(
             self,

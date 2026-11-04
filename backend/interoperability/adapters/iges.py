@@ -376,4 +376,16 @@ class IgesTokenAdapter(FormatAdapter):
             if feat_result.features:
                 session.mark_features()
 
+            # Level-4: process intelligence derived from Level-3 features.
+            from backend.interoperability.process_recognition import (
+                recognize_process_intelligence,
+            )
+
+            pi_result = recognize_process_intelligence(
+                feat_result, mapping.geometry, mapping.topology
+            )
+            session.set_process_intelligence(pi_result)
+            if pi_result.process_candidates:
+                session.mark_process_intelligence()
+
         return session.build()
