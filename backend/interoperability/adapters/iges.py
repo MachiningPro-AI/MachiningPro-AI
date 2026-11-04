@@ -19,6 +19,7 @@ from backend.interoperability.enums import (
     FidelityReportCompleteness,
     FormatFamily,
 )
+from backend.interoperability.feature_recognition import recognize_features
 from backend.interoperability.iges_mapping import map_iges_model
 from backend.interoperability.iges_parser import IgesParseError, parse_iges_bytes
 from backend.interoperability.models import (
@@ -366,4 +367,13 @@ class IgesTokenAdapter(FormatAdapter):
         else:
             session.mark_normalized()
             session.set_fidelity_completeness(FidelityReportCompleteness.COMPLETE)
+
+        # Level-3: manufacturing feature recognition on extracted geometry/topology.
+        # Runs regardless of normalization status — partial geometry is still recognizable.
+        if mapping.geometry is not None:
+            feat_result = recognize_features(mapping.geometry, mapping.topology)
+            session.set_features(feat_result)
+            if feat_result.features:
+                session.mark_features()
+
         return session.build()

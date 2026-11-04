@@ -511,6 +511,7 @@ class TestDxfTokenAdapter:
             CapabilityLevel.LEVEL_1_PARSED,
             CapabilityLevel.LEVEL_2_GEOMETRY,
             CapabilityLevel.LEVEL_2_NORMALIZED,
+            CapabilityLevel.LEVEL_3_ENGINEERING_SEMANTICS,
         )
 
     def test_ingest_dxf_has_header_ref(self) -> None:

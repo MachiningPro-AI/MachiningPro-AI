@@ -714,6 +714,7 @@ class CanonicalDocument:
     provenance: Provenance | None = None
     geometry: object | None = None
     topology: object | None = None
+    features: object | None = None
     schema_version: str = "4A.0"
     notes: str | None = None
 
@@ -769,6 +770,13 @@ class CanonicalDocument:
             if self.geometry is not None and self.topology.geometry is not self.geometry:
                 raise ValidationError(
                     "topology geometry must reference the document geometry"
+                )
+        if self.features is not None:
+            from backend.interoperability.features import FeatureRecognitionResult
+
+            if not isinstance(self.features, FeatureRecognitionResult):
+                raise ValidationError(
+                    "features must be a FeatureRecognitionResult or None"
                 )
         _set(
             self,

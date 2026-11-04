@@ -37,6 +37,7 @@ from backend.interoperability.enums import (
     FidelityReportCompleteness,
     FormatFamily,
 )
+from backend.interoperability.feature_recognition import recognize_features
 from backend.interoperability.geometry import (
     BoundingBox3D,
     CanonicalCurve,
@@ -812,6 +813,12 @@ class DxfTokenAdapter(FormatAdapter):
         if self._ezdxf_available():
             self._normalize_geometry_ezdxf(text, session)
         else:
+            # Level-3 feature recognition still runs on the pure-Python geometry.
+            if geometry is not None:
+                feat_result = recognize_features(geometry, None)
+                session.set_features(feat_result)
+                if feat_result.features:
+                    session.mark_features()
             session.record_unsupported(
                 "Full ezdxf geometry normalization not available (MIT license). "
                 "Install via: pip install ezdxf"
@@ -821,6 +828,15 @@ class DxfTokenAdapter(FormatAdapter):
 
         session.mark_normalized()
         session.set_fidelity_completeness(FidelityReportCompleteness.COMPLETE)
+
+        # Level-3: feature recognition on DXF 2-D geometry.
+        geo = session._geometry
+        if geo is not None:
+            feat_result = recognize_features(geo, None)
+            session.set_features(feat_result)
+            if feat_result.features:
+                session.mark_features()
+
         return session.build()
 
     @staticmethod
