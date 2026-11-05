@@ -52,7 +52,8 @@ class TestCapabilityLevel:
         assert "LEVEL_0_RECOGNIZED" in levels
         assert "LEVEL_2_GEOMETRY" in levels
         assert "LEVEL_7_CONVERTED_WITH_FIDELITY_REPORT" in levels
-        assert len(levels) == 9
+        assert "LEVEL_7_CYCLE_TIME_INTELLIGENCE" in levels
+        assert len(levels) == 10
 
     def test_all_values_are_strings(self) -> None:
         for cl in CapabilityLevel:

@@ -73,6 +73,7 @@ class AdapterSession:
         self._process_intelligence: object | None = None
         self._machine_tool_intelligence: object | None = None
         self._cutting_data_intelligence: object | None = None
+        self._cycle_time_intelligence: object | None = None
         self._built = False
 
     # ------------------------------------------------------------------
@@ -100,6 +101,9 @@ class AdapterSession:
 
     def mark_cutting_data_intelligence(self) -> None:
         self._capability_level = CapabilityLevel.LEVEL_6_ENGINEERING_VALIDATED
+
+    def mark_cycle_time_intelligence(self) -> None:
+        self._capability_level = CapabilityLevel.LEVEL_7_CYCLE_TIME_INTELLIGENCE
 
     def mark_failed(self) -> None:
         self._normalization_status = NormalizationStatus.FAILED
@@ -217,6 +221,19 @@ class AdapterSession:
             )
         self._cutting_data_intelligence = cutting_data_intelligence
 
+    def set_cycle_time_intelligence(self, cycle_time_intelligence: object) -> None:
+        if self._built:
+            raise RuntimeError("adapter session has already been built")
+        from backend.interoperability.cycle_time_intelligence import (
+            CycleTimeIntelligenceResult,
+        )
+
+        if not isinstance(cycle_time_intelligence, CycleTimeIntelligenceResult):
+            raise TypeError(
+                "cycle_time_intelligence must be a CycleTimeIntelligenceResult"
+            )
+        self._cycle_time_intelligence = cycle_time_intelligence
+
     # ------------------------------------------------------------------
     # Build output
     # ------------------------------------------------------------------
@@ -250,6 +267,7 @@ class AdapterSession:
             process_intelligence=self._process_intelligence,
             machine_tool_intelligence=self._machine_tool_intelligence,
             cutting_data_intelligence=self._cutting_data_intelligence,
+            cycle_time_intelligence=self._cycle_time_intelligence,
         )
         self._built = True
         return document

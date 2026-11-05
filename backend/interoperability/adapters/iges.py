@@ -488,4 +488,14 @@ class IgesTokenAdapter(FormatAdapter):
             if cdi_result.has_cutting_data:
                 session.mark_cutting_data_intelligence()
 
+            # Level-7: cycle time and manufacturing performance intelligence.
+            from backend.interoperability.cycle_time_engine import (
+                derive_cycle_time_intelligence,
+            )
+
+            cti_result = derive_cycle_time_intelligence(cdi_result, mapping.geometry)
+            session.set_cycle_time_intelligence(cti_result)
+            if cti_result.has_any_known_time:
+                session.mark_cycle_time_intelligence()
+
         return session.build()
