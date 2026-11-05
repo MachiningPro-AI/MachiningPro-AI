@@ -88,7 +88,6 @@ _GEOMETRY_ENTITY_TYPES = frozenset(
     }
 )
 
-<<<<<<< HEAD
 # DXF entity types that carry annotation/drawing semantics (Level 2)
 _ANNOTATION_ENTITY_TYPES = frozenset(
     {
@@ -97,14 +96,12 @@ _ANNOTATION_ENTITY_TYPES = frozenset(
     }
 )
 
-=======
 # All entity types we recognize
 _ALL_ENTITY_TYPES = _GEOMETRY_ENTITY_TYPES | frozenset(
     {"TEXT", "MTEXT", "INSERT", "BLOCK", "ENDBLK", "ATTDEF", "ATTRIB",
      "DIMENSION", "LEADER", "VIEWPORT", "HATCH", "IMAGE", "WIPEOUT",
      "BODY", "REGION", "ACIS", "TOLERANCE", "SHAPE"}
 )
->>>>>>> 93314d9 (feat(cad): complete Level 1 DXF and IGES parsing)
 
 # $INSUNITS mapping (group code 70 value → unit name)
 _DXF_INSUNITS_TO_MM: dict[int, float] = {
@@ -976,10 +973,7 @@ class DxfTokenAdapter(FormatAdapter):
                     "DXF modelspace contains no recognized geometry entities"
                 )
             else:
-<<<<<<< HEAD
-=======
                 # Full CanonicalGeometry mapping deferred to Stage 4C-c
->>>>>>> 93314d9 (feat(cad): complete Level 1 DXF and IGES parsing)
                 session.record_partial(
                     f"ezdxf read {len(geometry_entities)} geometry entity(ies); "
                     "entity → CER mapping deferred to Stage 4C-c DXFGeometryBridge"
