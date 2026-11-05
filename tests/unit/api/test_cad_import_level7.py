@@ -33,7 +33,6 @@ from __future__ import annotations
 import ast
 import math
 from pathlib import Path
-from typing import Any
 
 import pytest
 
@@ -975,11 +974,11 @@ class TestOperationTimeModel:
 
 class TestPartCycleTime:
     def test_no_candidates_insufficient(self) -> None:
-        from backend.interoperability.cycle_time_engine import derive_cycle_time_intelligence
         from backend.interoperability.cutting_data_intelligence import (
             CuttingDataIntelligenceResult,
             CuttingDataPlanStatus,
         )
+        from backend.interoperability.cycle_time_engine import derive_cycle_time_intelligence
 
         empty_cdi = CuttingDataIntelligenceResult(
             plan_id="PLAN-EMPTY",
@@ -1107,11 +1106,11 @@ class TestCycleTimeEngine:
         assert result.status.value == "INSUFFICIENT_DATA"
 
     def test_empty_candidates_insufficient(self) -> None:
-        from backend.interoperability.cycle_time_engine import derive_cycle_time_intelligence
         from backend.interoperability.cutting_data_intelligence import (
             CuttingDataIntelligenceResult,
             CuttingDataPlanStatus,
         )
+        from backend.interoperability.cycle_time_engine import derive_cycle_time_intelligence
 
         cdi = CuttingDataIntelligenceResult(
             plan_id="PLAN-EMPTY",
