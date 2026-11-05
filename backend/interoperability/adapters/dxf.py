@@ -837,6 +837,15 @@ class DxfTokenAdapter(FormatAdapter):
                 session.set_machine_tool_intelligence(mti_result)
                 if mti_result.machine_candidates:
                     session.mark_machine_tool_selection()
+                # Level-6: cutting data and catalog intelligence.
+                from backend.interoperability.cutting_data_engine import (
+                    derive_cutting_data_intelligence,
+                )
+
+                cdi_result = derive_cutting_data_intelligence(mti_result, geometry)
+                session.set_cutting_data_intelligence(cdi_result)
+                if cdi_result.has_cutting_data:
+                    session.mark_cutting_data_intelligence()
             session.record_unsupported(
                 "Full ezdxf geometry normalization not available (MIT license). "
                 "Install via: pip install ezdxf"
@@ -874,6 +883,16 @@ class DxfTokenAdapter(FormatAdapter):
             session.set_machine_tool_intelligence(mti_result)
             if mti_result.machine_candidates:
                 session.mark_machine_tool_selection()
+
+            # Level-6: cutting data and catalog intelligence.
+            from backend.interoperability.cutting_data_engine import (
+                derive_cutting_data_intelligence,
+            )
+
+            cdi_result = derive_cutting_data_intelligence(mti_result, geo)
+            session.set_cutting_data_intelligence(cdi_result)
+            if cdi_result.has_cutting_data:
+                session.mark_cutting_data_intelligence()
 
         return session.build()
 

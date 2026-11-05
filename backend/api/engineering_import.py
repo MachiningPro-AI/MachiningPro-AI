@@ -559,6 +559,60 @@ def import_file(
             "warnings": list(mti.warnings),
         }
 
+    cutting_data_intelligence_status = (
+        "PRESENT" if document.cutting_data_intelligence is not None else "NONE"
+    )
+    cutting_data_summary: dict | None = None
+    cutting_data_candidates_out: list | None = None
+    if document.cutting_data_intelligence is not None:
+        cdi = document.cutting_data_intelligence
+        cutting_data_summary = {
+            "status": cdi.status.value,
+            "plan_id": cdi.plan_id,
+            "recognition_basis": cdi.recognition_basis,
+            "material_group": cdi.material_record.material_group,
+            "candidate_count": cdi.candidate_count,
+            "has_cutting_data": cdi.has_cutting_data,
+            "has_verified_candidates": cdi.has_verified_candidates,
+            "source_mti_candidate_count": cdi.source_mti_candidate_count,
+            "missing_input_count": len(cdi.missing_inputs),
+            "missing_inputs": list(cdi.missing_inputs),
+            "warnings": list(cdi.warnings),
+        }
+        cutting_data_candidates_out = []
+        for cd in cdi.cutting_data_candidates:
+            entry: dict = {
+                "candidate_id": cd.candidate_id,
+                "operation": cd.operation.value,
+                "tool_family": cd.tool_family,
+                "material_group": cd.material_record.material_group,
+                "status": cd.status.value,
+                "coolant": cd.coolant.value,
+                "source_type": cd.source.source_type.value,
+                "source_name": cd.source.source_name,
+                "warnings": list(cd.warnings),
+                "evidence_notes": cd.evidence_notes,
+            }
+            if cd.vc_range.is_known:
+                entry["vc_range"] = {
+                    "min": cd.vc_range.min_val,
+                    "nominal": cd.vc_range.nominal_val,
+                    "max": cd.vc_range.max_val,
+                    "unit": cd.vc_range.unit,
+                }
+            if cd.feed_range.is_known:
+                entry["feed_range"] = {
+                    "min": cd.feed_range.min_val,
+                    "nominal": cd.feed_range.nominal_val,
+                    "max": cd.feed_range.max_val,
+                    "unit": cd.feed_range.unit,
+                }
+            if cd.rpm_result.is_calculable:
+                entry["rpm_nominal"] = cd.rpm_result.n_nominal
+                entry["rpm_formula"] = cd.rpm_result.formula
+            entry["machine_constraint_status"] = cd.machine_constraint.status.value
+            cutting_data_candidates_out.append(entry)
+
     return {
         # Legacy fields (preserved for backward compatibility)
         "file_name": filename,
@@ -597,6 +651,9 @@ def import_file(
         "manufacturing_intelligence": manufacturing_intelligence,
         "machine_intelligence_status": machine_intelligence_status,
         "machine_tool_intelligence": machine_tool_intelligence,
+        "cutting_data_intelligence_status": cutting_data_intelligence_status,
+        "cutting_data_summary": cutting_data_summary,
+        "cutting_data_candidates": cutting_data_candidates_out,
     }
 
 

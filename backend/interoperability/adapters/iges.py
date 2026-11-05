@@ -400,4 +400,14 @@ class IgesTokenAdapter(FormatAdapter):
             if mti_result.machine_candidates:
                 session.mark_machine_tool_selection()
 
+            # Level-6: cutting data and catalog intelligence.
+            from backend.interoperability.cutting_data_engine import (
+                derive_cutting_data_intelligence,
+            )
+
+            cdi_result = derive_cutting_data_intelligence(mti_result, mapping.geometry)
+            session.set_cutting_data_intelligence(cdi_result)
+            if cdi_result.has_cutting_data:
+                session.mark_cutting_data_intelligence()
+
         return session.build()
