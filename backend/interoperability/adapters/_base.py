@@ -72,6 +72,7 @@ class AdapterSession:
         self._features: object | None = None
         self._process_intelligence: object | None = None
         self._machine_tool_intelligence: object | None = None
+        self._cutting_data_intelligence: object | None = None
         self._built = False
 
     # ------------------------------------------------------------------
@@ -96,6 +97,9 @@ class AdapterSession:
 
     def mark_machine_tool_selection(self) -> None:
         self._capability_level = CapabilityLevel.LEVEL_5_PROCESS_CONTENT
+
+    def mark_cutting_data_intelligence(self) -> None:
+        self._capability_level = CapabilityLevel.LEVEL_6_ENGINEERING_VALIDATED
 
     def mark_failed(self) -> None:
         self._normalization_status = NormalizationStatus.FAILED
@@ -200,6 +204,19 @@ class AdapterSession:
             )
         self._machine_tool_intelligence = machine_tool_intelligence
 
+    def set_cutting_data_intelligence(self, cutting_data_intelligence: object) -> None:
+        if self._built:
+            raise RuntimeError("adapter session has already been built")
+        from backend.interoperability.cutting_data_intelligence import (
+            CuttingDataIntelligenceResult,
+        )
+
+        if not isinstance(cutting_data_intelligence, CuttingDataIntelligenceResult):
+            raise TypeError(
+                "cutting_data_intelligence must be a CuttingDataIntelligenceResult"
+            )
+        self._cutting_data_intelligence = cutting_data_intelligence
+
     # ------------------------------------------------------------------
     # Build output
     # ------------------------------------------------------------------
@@ -232,6 +249,7 @@ class AdapterSession:
             features=self._features,
             process_intelligence=self._process_intelligence,
             machine_tool_intelligence=self._machine_tool_intelligence,
+            cutting_data_intelligence=self._cutting_data_intelligence,
         )
         self._built = True
         return document

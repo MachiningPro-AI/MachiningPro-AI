@@ -1132,6 +1132,7 @@ class TestProductionDxfLevel4:
         assert doc.capability_level in (
             CapabilityLevel.LEVEL_4_MANUFACTURING_FEATURES,
             CapabilityLevel.LEVEL_5_PROCESS_CONTENT,
+            CapabilityLevel.LEVEL_6_ENGINEERING_VALIDATED,
         )
 
     def test_dxf_operation_plan_has_operations(self) -> None:
