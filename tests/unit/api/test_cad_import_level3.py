@@ -17,11 +17,11 @@ Negative rules:
 from __future__ import annotations
 
 from decimal import Decimal
-from types import MappingProxyType
 
 import pytest
 
 from backend.domain.units import Quantity, Unit
+from backend.interoperability.feature_recognition import recognize_features
 from backend.interoperability.features import (
     ClassifiedFace,
     FaceAdjacency,
@@ -32,7 +32,6 @@ from backend.interoperability.features import (
     ManufacturingFeature,
     ManufacturingFeatureType,
 )
-from backend.interoperability.feature_recognition import recognize_features
 from backend.interoperability.geometry import (
     CanonicalCurve,
     CanonicalCurveType,
@@ -52,10 +51,8 @@ from backend.interoperability.topology import (
     CanonicalTopology,
     CanonicalVertex,
     LoopType,
-    Orientation,
     ShellClosure,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -515,10 +512,22 @@ class TestRecognitionBasis:
 
     def test_geometry_and_topology_produces_topology_basis(self) -> None:
         # Build minimal geometry with curves (needed for edge references)
-        c_top = CanonicalCurve("curve-top", CanonicalCurveType.CIRCLE, center=_pt(0,0,10), radius=_mm(5), axis=_vec(0,0,1))
-        c_bot = CanonicalCurve("curve-bot", CanonicalCurveType.CIRCLE, center=_pt(0,0,0), radius=_mm(5), axis=_vec(0,0,1))
-        c_l1 = CanonicalCurve("curve-line1", CanonicalCurveType.LINE, origin=_pt(5,0,10), direction=_vec(0,0,-1))
-        c_l2 = CanonicalCurve("curve-line2", CanonicalCurveType.LINE, origin=_pt(-5,0,10), direction=_vec(0,0,-1))
+        c_top = CanonicalCurve(
+            "curve-top", CanonicalCurveType.CIRCLE,
+            center=_pt(0, 0, 10), radius=_mm(5), axis=_vec(0, 0, 1),
+        )
+        c_bot = CanonicalCurve(
+            "curve-bot", CanonicalCurveType.CIRCLE,
+            center=_pt(0, 0, 0), radius=_mm(5), axis=_vec(0, 0, 1),
+        )
+        c_l1 = CanonicalCurve(
+            "curve-line1", CanonicalCurveType.LINE,
+            origin=_pt(5, 0, 10), direction=_vec(0, 0, -1),
+        )
+        c_l2 = CanonicalCurve(
+            "curve-line2", CanonicalCurveType.LINE,
+            origin=_pt(-5, 0, 10), direction=_vec(0, 0, -1),
+        )
         s_cyl = _cylinder_surface("S-cyl")
         s_top = _plane_surface("S-top")
         s_bot = _plane_surface("S-bot")
@@ -541,10 +550,22 @@ class TestTopologyConfirmation:
     """Tests for CONFIRMED features when topology is available."""
 
     def _build_hole_geometry(self) -> CanonicalGeometry:
-        c_top = CanonicalCurve("curve-top", CanonicalCurveType.CIRCLE, center=_pt(0,0,10), radius=_mm(5), axis=_vec(0,0,1))
-        c_bot = CanonicalCurve("curve-bot", CanonicalCurveType.CIRCLE, center=_pt(0,0,0), radius=_mm(5), axis=_vec(0,0,1))
-        c_l1 = CanonicalCurve("curve-line1", CanonicalCurveType.LINE, origin=_pt(5,0,10), direction=_vec(0,0,-1))
-        c_l2 = CanonicalCurve("curve-line2", CanonicalCurveType.LINE, origin=_pt(-5,0,10), direction=_vec(0,0,-1))
+        c_top = CanonicalCurve(
+            "curve-top", CanonicalCurveType.CIRCLE,
+            center=_pt(0, 0, 10), radius=_mm(5), axis=_vec(0, 0, 1),
+        )
+        c_bot = CanonicalCurve(
+            "curve-bot", CanonicalCurveType.CIRCLE,
+            center=_pt(0, 0, 0), radius=_mm(5), axis=_vec(0, 0, 1),
+        )
+        c_l1 = CanonicalCurve(
+            "curve-line1", CanonicalCurveType.LINE,
+            origin=_pt(5, 0, 10), direction=_vec(0, 0, -1),
+        )
+        c_l2 = CanonicalCurve(
+            "curve-line2", CanonicalCurveType.LINE,
+            origin=_pt(-5, 0, 10), direction=_vec(0, 0, -1),
+        )
         s_cyl = _cylinder_surface("S-cyl")
         s_top = _plane_surface("S-top")
         s_bot = _plane_surface("S-bot")
@@ -669,11 +690,11 @@ class TestProductionFileRegressions:
 
     def _load_iges_doc(self):
         """Load the production IGES file via ingest_file."""
-        from pathlib import Path
-        from backend.interoperability.adapters.iges import IgesTokenAdapter, IGES_DESCRIPTOR
-        from backend.interoperability.models import EngineeringSource
-
         import os
+        from pathlib import Path
+
+        from backend.interoperability.adapters.iges import IGES_DESCRIPTOR, IgesTokenAdapter
+        from backend.interoperability.models import EngineeringSource
         igs_path = (
             r"C:\Users\ilhan\AppData\Local\Temp\claude"
             r"\C--Users-ilhan-Downloads-MachiningPro-AI-NEXT"
@@ -693,7 +714,8 @@ class TestProductionFileRegressions:
     def _load_dxf_doc(self):
         """Load the production DXF file via ingest."""
         import os
-        from backend.interoperability.adapters.dxf import DxfTokenAdapter, DXF_DESCRIPTOR
+
+        from backend.interoperability.adapters.dxf import DXF_DESCRIPTOR, DxfTokenAdapter
         from backend.interoperability.models import EngineeringSource
 
         dxf_path = (
