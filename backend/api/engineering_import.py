@@ -613,6 +613,60 @@ def import_file(
             entry["machine_constraint_status"] = cd.machine_constraint.status.value
             cutting_data_candidates_out.append(entry)
 
+    # Level-7: cycle time intelligence
+    cycle_time_intelligence_status = (
+        "PRESENT" if document.cycle_time_intelligence is not None else "NONE"
+    )
+    cycle_time_summary: dict | None = None
+    operation_time_results_out: list | None = None
+    if document.cycle_time_intelligence is not None:
+        cti = document.cycle_time_intelligence
+        pct = cti.part_cycle_time
+        cycle_time_summary = {
+            "status": cti.status.value,
+            "plan_id": cti.plan_id,
+            "recognition_basis": cti.recognition_basis,
+            "operation_count": cti.operation_count,
+            "known_operation_count": cti.known_operation_count,
+            "has_any_known_time": cti.has_any_known_time,
+            "source_cdi_candidate_count": cti.source_cdi_candidate_count,
+            "fidelity": cti.fidelity.value,
+            "cycle_time_fidelity": pct.cycle_time_fidelity.value,
+            "cycle_time_status": pct.cycle_time_status.value,
+            "known_cutting_time_min": pct.known_cutting_time_min,
+            "known_non_cutting_time_min": pct.known_non_cutting_time_min,
+            "known_total_time_min": pct.known_total_time_min,
+            "unknown_components": list(pct.unknown_components),
+            "oee_status": cti.oee_foundation.status,
+            "spindle_utilization_status": cti.spindle_cutting_utilization.status,
+            "spindle_utilization": cti.spindle_cutting_utilization.utilization,
+            "missing_input_count": len(cti.missing_inputs),
+            "missing_inputs": list(cti.missing_inputs),
+            "warnings": list(cti.warnings),
+        }
+        operation_time_results_out = []
+        for op in cti.operation_time_results:
+            entry: dict = {
+                "operation_ref": op.operation_ref,
+                "operation_type": op.operation_type,
+                "status": op.status.value,
+                "path_fidelity": op.path_fidelity.value,
+                "unknown_components": list(op.unknown_components),
+                "warnings": list(op.warnings),
+            }
+            if op.cutting_time.is_known:
+                entry["cutting_time_min"] = op.cutting_time.value
+                entry["cutting_time_source"] = op.cutting_time.source_type.value
+            else:
+                entry["cutting_time_min"] = None
+                entry["cutting_time_source"] = "UNKNOWN"
+            if op.mrr_based_time.is_known:
+                entry["mrr_based_time_min"] = op.mrr_based_time.value
+            else:
+                entry["mrr_based_time_min"] = None
+            entry["method_comparison_status"] = op.method_comparison.status
+            operation_time_results_out.append(entry)
+
     return {
         # Legacy fields (preserved for backward compatibility)
         "file_name": filename,
@@ -654,6 +708,10 @@ def import_file(
         "cutting_data_intelligence_status": cutting_data_intelligence_status,
         "cutting_data_summary": cutting_data_summary,
         "cutting_data_candidates": cutting_data_candidates_out,
+        # Level-7 cycle time intelligence
+        "cycle_time_intelligence_status": cycle_time_intelligence_status,
+        "cycle_time_summary": cycle_time_summary,
+        "operation_time_results": operation_time_results_out,
     }
 
 

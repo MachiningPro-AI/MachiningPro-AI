@@ -104,6 +104,9 @@ class CapabilityLevel(StrEnum):
     LEVEL_6_ENGINEERING_VALIDATED = "LEVEL_6_ENGINEERING_VALIDATED"
     """Data validated against MachineryPro engineering models."""
 
+    LEVEL_7_CYCLE_TIME_INTELLIGENCE = "LEVEL_7_CYCLE_TIME_INTELLIGENCE"
+    """Cycle time and manufacturing performance intelligence derived from Level-6."""
+
     LEVEL_7_CONVERTED_WITH_FIDELITY_REPORT = "LEVEL_7_CONVERTED_WITH_FIDELITY_REPORT"
     """Data exported to target format with Conversion Fidelity Report."""
 

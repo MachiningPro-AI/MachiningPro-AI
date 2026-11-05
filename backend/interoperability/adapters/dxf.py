@@ -846,6 +846,15 @@ class DxfTokenAdapter(FormatAdapter):
                 session.set_cutting_data_intelligence(cdi_result)
                 if cdi_result.has_cutting_data:
                     session.mark_cutting_data_intelligence()
+                # Level-7: cycle time and manufacturing performance intelligence.
+                from backend.interoperability.cycle_time_engine import (
+                    derive_cycle_time_intelligence,
+                )
+
+                cti_result = derive_cycle_time_intelligence(cdi_result, geometry)
+                session.set_cycle_time_intelligence(cti_result)
+                if cti_result.has_any_known_time:
+                    session.mark_cycle_time_intelligence()
             session.record_unsupported(
                 "Full ezdxf geometry normalization not available (MIT license). "
                 "Install via: pip install ezdxf"
@@ -893,6 +902,16 @@ class DxfTokenAdapter(FormatAdapter):
             session.set_cutting_data_intelligence(cdi_result)
             if cdi_result.has_cutting_data:
                 session.mark_cutting_data_intelligence()
+
+            # Level-7: cycle time and manufacturing performance intelligence.
+            from backend.interoperability.cycle_time_engine import (
+                derive_cycle_time_intelligence,
+            )
+
+            cti_result = derive_cycle_time_intelligence(cdi_result, geo)
+            session.set_cycle_time_intelligence(cti_result)
+            if cti_result.has_any_known_time:
+                session.mark_cycle_time_intelligence()
 
         return session.build()
 

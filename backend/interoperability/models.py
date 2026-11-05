@@ -718,6 +718,7 @@ class CanonicalDocument:
     process_intelligence: object | None = None
     machine_tool_intelligence: object | None = None
     cutting_data_intelligence: object | None = None
+    cycle_time_intelligence: object | None = None
     schema_version: str = "4A.0"
     notes: str | None = None
 
@@ -807,6 +808,15 @@ class CanonicalDocument:
             if not isinstance(self.cutting_data_intelligence, CuttingDataIntelligenceResult):
                 raise ValidationError(
                     "cutting_data_intelligence must be a CuttingDataIntelligenceResult or None"
+                )
+        if self.cycle_time_intelligence is not None:
+            from backend.interoperability.cycle_time_intelligence import (
+                CycleTimeIntelligenceResult,
+            )
+
+            if not isinstance(self.cycle_time_intelligence, CycleTimeIntelligenceResult):
+                raise ValidationError(
+                    "cycle_time_intelligence must be a CycleTimeIntelligenceResult or None"
                 )
         _set(
             self,
