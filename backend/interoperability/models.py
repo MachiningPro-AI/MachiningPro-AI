@@ -719,6 +719,7 @@ class CanonicalDocument:
     machine_tool_intelligence: object | None = None
     cutting_data_intelligence: object | None = None
     cycle_time_intelligence: object | None = None
+    manufacturing_cost_intelligence: object | None = None
     schema_version: str = "4A.0"
     notes: str | None = None
 

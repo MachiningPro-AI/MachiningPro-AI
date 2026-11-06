@@ -667,6 +667,126 @@ def import_file(
             entry["method_comparison_status"] = op.method_comparison.status
             operation_time_results_out.append(entry)
 
+    # Level-8: manufacturing cost and RFQ intelligence
+    cost_intelligence_status = (
+        "PRESENT" if document.manufacturing_cost_intelligence is not None else "NONE"
+    )
+    cost_summary: dict | None = None
+    cost_components_out: dict | None = None
+    cost_drivers_out: list | None = None
+    cost_reduction_opps_out: list | None = None
+    rfq_summary_out: dict | None = None
+    quote_candidate_out: dict | None = None
+    quote_completeness_out: dict | None = None
+    if document.manufacturing_cost_intelligence is not None:
+        mci = document.manufacturing_cost_intelligence
+        ucr = mci.unit_cost_result
+        cost_summary = {
+            "status": mci.status.value,
+            "fidelity": mci.fidelity.value,
+            "has_any_known_cost": mci.has_any_known_cost,
+            "plan_id": mci.plan_id,
+            "recognition_basis": mci.recognition_basis,
+            "known_cost_subtotal": ucr.known_cost_subtotal,
+            "known_cost_currency": ucr.known_cost_currency,
+            "unknown_cost_components": list(ucr.unknown_cost_components),
+            "quantity_scenario_count": len(mci.quantity_scenarios),
+            "cost_driver_count": len(mci.cost_drivers),
+            "cost_reduction_opportunity_count": len(mci.cost_reduction_opportunities),
+            "missing_input_count": len(mci.missing_inputs),
+            "missing_inputs": list(mci.missing_inputs),
+            "warnings": list(mci.warnings),
+        }
+
+        def _ev_to_dict(ev: object) -> dict:
+            from backend.interoperability.cost_intelligence import CostEvidence
+            if not isinstance(ev, CostEvidence):
+                return {"status": "UNKNOWN"}
+            return {
+                "value": ev.value,
+                "currency": ev.currency,
+                "unit_basis": ev.unit_basis,
+                "source_type": ev.source_type.value,
+                "source_name": ev.source_name,
+                "evidence": ev.evidence,
+                "status": ev.status,
+                "warnings": list(ev.warnings),
+            }
+
+        cost_components_out = {
+            "material_cost": _ev_to_dict(ucr.material_cost),
+            "machine_cost": _ev_to_dict(ucr.machine_cost),
+            "labor_cost": _ev_to_dict(ucr.labor_cost),
+            "setup_cost": _ev_to_dict(ucr.setup_cost),
+            "programming_cost": _ev_to_dict(ucr.programming_cost),
+            "tooling_cost": _ev_to_dict(ucr.tooling_cost),
+            "inspection_cost": _ev_to_dict(ucr.inspection_cost),
+            "subcontract_cost": _ev_to_dict(ucr.subcontract_cost),
+            "overhead_cost": _ev_to_dict(ucr.overhead_cost),
+        }
+
+        cost_drivers_out = []
+        for d in mci.cost_drivers:
+            cost_drivers_out.append({
+                "driver_type": d.driver_type.value,
+                "component_ref": d.component_ref,
+                "share_pct": d.share_pct,
+                "description": d.description,
+                "evidence": d.evidence,
+            })
+
+        cost_reduction_opps_out = []
+        for opp in mci.cost_reduction_opportunities:
+            cost_reduction_opps_out.append({
+                "opportunity_type": opp.opportunity_type.value,
+                "description": opp.description,
+                "affected_component": opp.affected_component,
+                "candidate_only": opp.candidate_only,
+            })
+
+        rfq = mci.rfq
+        rfq_summary_out = {
+            "rfq_id": rfq.rfq_id,
+            "status": rfq.status.value,
+            "quantity": rfq.quantity,
+            "currency": rfq.currency,
+            "material": rfq.material,
+        }
+
+        qc = mci.quote_candidate
+        quote_candidate_out = {
+            "rfq_ref": qc.rfq_ref,
+            "quantity": qc.quantity,
+            "quote_status": qc.quote_status.value,
+            "fidelity": qc.fidelity.value,
+            "currency": qc.currency,
+            "manufacturing_cost_known_subtotal": qc.manufacturing_cost.known_cost_subtotal,
+            "selling_price": (
+                qc.selling_price.selling_price.value
+                if qc.selling_price.selling_price.is_known
+                else None
+            ),
+            "selling_price_status": (
+                "KNOWN" if qc.selling_price.is_known else "UNKNOWN"
+            ),
+            "engineering_warnings": list(qc.engineering_warnings),
+            "commercial_warnings": list(qc.commercial_warnings),
+        }
+
+        comp = mci.quote_completeness
+        quote_completeness_out = {
+            "quantity_known": comp.quantity_known,
+            "currency_known": comp.currency_known,
+            "material_status_known": comp.material_status_known,
+            "cycle_time_acceptable": comp.cycle_time_acceptable,
+            "machine_rate_supplied": comp.machine_rate_supplied,
+            "labor_policy_known": comp.labor_policy_known,
+            "setup_cost_acknowledged": comp.setup_cost_acknowledged,
+            "unknown_subcontract_reviewed": comp.unknown_subcontract_reviewed,
+            "missing_inputs": list(comp.missing_inputs),
+            "is_complete": comp.is_complete,
+        }
+
     return {
         # Legacy fields (preserved for backward compatibility)
         "file_name": filename,
@@ -712,6 +832,15 @@ def import_file(
         "cycle_time_intelligence_status": cycle_time_intelligence_status,
         "cycle_time_summary": cycle_time_summary,
         "operation_time_results": operation_time_results_out,
+        # Level-8 manufacturing cost and RFQ intelligence
+        "cost_intelligence_status": cost_intelligence_status,
+        "cost_summary": cost_summary,
+        "cost_components": cost_components_out,
+        "cost_drivers": cost_drivers_out,
+        "cost_reduction_opportunities": cost_reduction_opps_out,
+        "rfq_summary": rfq_summary_out,
+        "quote_candidate": quote_candidate_out,
+        "quote_completeness": quote_completeness_out,
     }
 
 

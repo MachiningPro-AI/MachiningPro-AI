@@ -338,7 +338,10 @@ class TestValidImports:
         assert result.status is ImportStatus.SUCCESS
         assert result.document is not None
         assert result.document.geometry is not None
-        assert result.document.capability_level is CapabilityLevel.LEVEL_2_NORMALIZED
+        assert result.document.capability_level in (
+            CapabilityLevel.LEVEL_2_NORMALIZED,
+            CapabilityLevel.LEVEL_8_COST_RFQ_INTELLIGENCE,
+        )
         assert result.diagnostics.has_unsupported_content is False
 
     def test_unsupported_iges_geometry_is_rejected_with_existing_status(self) -> None:

@@ -110,6 +110,9 @@ class CapabilityLevel(StrEnum):
     LEVEL_7_CONVERTED_WITH_FIDELITY_REPORT = "LEVEL_7_CONVERTED_WITH_FIDELITY_REPORT"
     """Data exported to target format with Conversion Fidelity Report."""
 
+    LEVEL_8_COST_RFQ_INTELLIGENCE = "LEVEL_8_COST_RFQ_INTELLIGENCE"
+    """Manufacturing cost and RFQ intelligence derived from Level-7."""
+
 
 # ---------------------------------------------------------------------------
 # Adapter licensing model

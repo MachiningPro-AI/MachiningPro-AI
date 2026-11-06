@@ -1134,6 +1134,7 @@ class TestProductionDxfLevel4:
             CapabilityLevel.LEVEL_5_PROCESS_CONTENT,
             CapabilityLevel.LEVEL_6_ENGINEERING_VALIDATED,
             CapabilityLevel.LEVEL_7_CYCLE_TIME_INTELLIGENCE,
+            CapabilityLevel.LEVEL_8_COST_RFQ_INTELLIGENCE,
         )
 
     def test_dxf_operation_plan_has_operations(self) -> None:

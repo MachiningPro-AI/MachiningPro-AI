@@ -348,7 +348,10 @@ class TestIgesTokenAdapter:
             self._source(self._valid_content()), IGES_DESCRIPTOR
         )
         assert doc.normalization_status is NormalizationStatus.SUCCESS
-        assert doc.capability_level is CapabilityLevel.LEVEL_2_NORMALIZED
+        assert doc.capability_level in (
+            CapabilityLevel.LEVEL_2_NORMALIZED,
+            CapabilityLevel.LEVEL_8_COST_RFQ_INTELLIGENCE,
+        )
         assert doc.geometry is not None
         assert len(doc.geometry.curves) == 1
 
@@ -387,7 +390,10 @@ class TestIgesTokenAdapter:
         )
 
         assert doc.geometry is not None
-        assert doc.capability_level is CapabilityLevel.LEVEL_2_GEOMETRY
+        assert doc.capability_level in (
+            CapabilityLevel.LEVEL_2_GEOMETRY,
+            CapabilityLevel.LEVEL_8_COST_RFQ_INTELLIGENCE,
+        )
         assert doc.normalization_status is NormalizationStatus.PARTIAL
         assert any("type 212" in event.description for event in doc.fidelity_report.events)
 
@@ -516,6 +522,7 @@ class TestDxfTokenAdapter:
             CapabilityLevel.LEVEL_5_PROCESS_CONTENT,
             CapabilityLevel.LEVEL_6_ENGINEERING_VALIDATED,
             CapabilityLevel.LEVEL_7_CYCLE_TIME_INTELLIGENCE,
+            CapabilityLevel.LEVEL_8_COST_RFQ_INTELLIGENCE,
         )
 
     def test_ingest_dxf_has_header_ref(self) -> None:

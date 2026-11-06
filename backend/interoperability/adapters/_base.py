@@ -74,6 +74,7 @@ class AdapterSession:
         self._machine_tool_intelligence: object | None = None
         self._cutting_data_intelligence: object | None = None
         self._cycle_time_intelligence: object | None = None
+        self._manufacturing_cost_intelligence: object | None = None
         self._built = False
 
     # ------------------------------------------------------------------
@@ -104,6 +105,9 @@ class AdapterSession:
 
     def mark_cycle_time_intelligence(self) -> None:
         self._capability_level = CapabilityLevel.LEVEL_7_CYCLE_TIME_INTELLIGENCE
+
+    def mark_cost_intelligence(self) -> None:
+        self._capability_level = CapabilityLevel.LEVEL_8_COST_RFQ_INTELLIGENCE
 
     def mark_failed(self) -> None:
         self._normalization_status = NormalizationStatus.FAILED
@@ -234,6 +238,19 @@ class AdapterSession:
             )
         self._cycle_time_intelligence = cycle_time_intelligence
 
+    def set_manufacturing_cost_intelligence(
+        self, manufacturing_cost_intelligence: object
+    ) -> None:
+        if self._built:
+            raise RuntimeError("adapter session has already been built")
+        from backend.interoperability.cost_intelligence import CostIntelligenceResult
+
+        if not isinstance(manufacturing_cost_intelligence, CostIntelligenceResult):
+            raise TypeError(
+                "manufacturing_cost_intelligence must be a CostIntelligenceResult"
+            )
+        self._manufacturing_cost_intelligence = manufacturing_cost_intelligence
+
     # ------------------------------------------------------------------
     # Build output
     # ------------------------------------------------------------------
@@ -268,6 +285,7 @@ class AdapterSession:
             machine_tool_intelligence=self._machine_tool_intelligence,
             cutting_data_intelligence=self._cutting_data_intelligence,
             cycle_time_intelligence=self._cycle_time_intelligence,
+            manufacturing_cost_intelligence=self._manufacturing_cost_intelligence,
         )
         self._built = True
         return document

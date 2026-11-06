@@ -420,4 +420,11 @@ class IgesTokenAdapter(FormatAdapter):
             if cti_result.has_any_known_time:
                 session.mark_cycle_time_intelligence()
 
+            # Level-8: manufacturing cost and RFQ intelligence.
+            from backend.interoperability.cost_engine import derive_cost_intelligence
+
+            mci_result = derive_cost_intelligence(cti_result)
+            session.set_manufacturing_cost_intelligence(mci_result)
+            session.mark_cost_intelligence()
+
         return session.build()

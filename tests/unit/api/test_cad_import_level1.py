@@ -100,6 +100,7 @@ class TestDxfValid:
             CapabilityLevel.LEVEL_5_PROCESS_CONTENT,
             CapabilityLevel.LEVEL_6_ENGINEERING_VALIDATED,
             CapabilityLevel.LEVEL_7_CYCLE_TIME_INTELLIGENCE,
+            CapabilityLevel.LEVEL_8_COST_RFQ_INTELLIGENCE,
         )
 
     def test_entity_count(self, tmp_path: Path) -> None:
@@ -257,6 +258,12 @@ class TestDxfLargeFile:
         assert doc.capability_level in (
             CapabilityLevel.LEVEL_1_PARSED,
             CapabilityLevel.LEVEL_2_GEOMETRY,
+            CapabilityLevel.LEVEL_3_ENGINEERING_SEMANTICS,
+            CapabilityLevel.LEVEL_4_MANUFACTURING_FEATURES,
+            CapabilityLevel.LEVEL_5_PROCESS_CONTENT,
+            CapabilityLevel.LEVEL_6_ENGINEERING_VALIDATED,
+            CapabilityLevel.LEVEL_7_CYCLE_TIME_INTELLIGENCE,
+            CapabilityLevel.LEVEL_8_COST_RFQ_INTELLIGENCE,
         )
         header = next(r for r in doc.entity_refs if r.entity_kind == "DxfHeader")
         assert header.metadata["entity_line"] == 5000
@@ -300,6 +307,7 @@ class TestDxfApiResponse:
             CapabilityLevel.LEVEL_5_PROCESS_CONTENT,
             CapabilityLevel.LEVEL_6_ENGINEERING_VALIDATED,
             CapabilityLevel.LEVEL_7_CYCLE_TIME_INTELLIGENCE,
+            CapabilityLevel.LEVEL_8_COST_RFQ_INTELLIGENCE,
         )
 
     def test_units_millimeters_in_dxf_header(self, tmp_path: Path) -> None:

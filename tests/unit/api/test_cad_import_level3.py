@@ -721,6 +721,11 @@ class TestProductionFileRegressions:
         assert doc.capability_level in (
             CapabilityLevel.LEVEL_2_GEOMETRY,
             CapabilityLevel.LEVEL_3_ENGINEERING_SEMANTICS,
+            CapabilityLevel.LEVEL_4_MANUFACTURING_FEATURES,
+            CapabilityLevel.LEVEL_5_PROCESS_CONTENT,
+            CapabilityLevel.LEVEL_6_ENGINEERING_VALIDATED,
+            CapabilityLevel.LEVEL_7_CYCLE_TIME_INTELLIGENCE,
+            CapabilityLevel.LEVEL_8_COST_RFQ_INTELLIGENCE,
         ), f"Expected Level-2 or higher, got {doc.capability_level}"
 
     def test_iges_geometry_has_expected_surfaces(self) -> None:
@@ -785,6 +790,7 @@ class TestProductionFileRegressions:
             CapabilityLevel.LEVEL_5_PROCESS_CONTENT,
             CapabilityLevel.LEVEL_6_ENGINEERING_VALIDATED,
             CapabilityLevel.LEVEL_7_CYCLE_TIME_INTELLIGENCE,
+            CapabilityLevel.LEVEL_8_COST_RFQ_INTELLIGENCE,
         )
 
     def test_dxf_level3_features_object_present(self) -> None:

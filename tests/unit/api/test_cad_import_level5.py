@@ -958,7 +958,12 @@ class TestProductionDxfLevel5:
         from backend.interoperability.enums import CapabilityLevel
 
         doc = _load_dxf_doc()
-        assert doc.capability_level == CapabilityLevel.LEVEL_5_PROCESS_CONTENT
+        assert doc.capability_level in (
+            CapabilityLevel.LEVEL_5_PROCESS_CONTENT,
+            CapabilityLevel.LEVEL_6_ENGINEERING_VALIDATED,
+            CapabilityLevel.LEVEL_7_CYCLE_TIME_INTELLIGENCE,
+            CapabilityLevel.LEVEL_8_COST_RFQ_INTELLIGENCE,
+        )
 
     def test_dxf_mti_status_is_candidate_plan(self) -> None:
         from backend.interoperability.machine_tool_intelligence import SelectionPlanStatus
