@@ -25,7 +25,21 @@ Quick start
     coverage = lib.family_coverage()
 """
 
+from .assembly_compatibility import check_assembly_geometry, validate_assembly
+from .assembly_models import (
+    ToolAssemblyComponent,
+    ToolAssemblyGeometry,
+    ToolAssemblyRecord,
+    ToolAssemblySourceMetadata,
+    ToolAssemblyValidationResult,
+)
 from .catalog_models import CuttingToolCatalogRecord, CuttingToolCatalogSummary
+from .compatibility import (
+    CompatibilityResult,
+    CompatibilityStatus,
+    check_insert_holder_compatibility,
+    check_tool_holder_compatibility,
+)
 from .families import (
     CATEGORY_CODE_TO_FAMILY,
     FAMILY_TO_CATEGORY_CODES,
@@ -33,13 +47,34 @@ from .families import (
     category_codes_for_family,
     family_for_category_code,
 )
+from .holder_models import (
+    HolderCapacity,
+    HolderInterface,
+    HolderSourceMetadata,
+    ToolHolderRecord,
+)
 from .import_pipeline import (
     ImportPipelineResult,
     parse_csv_tools,
     parse_json_tools,
     run_import_pipeline,
 )
+from .insert_models import (
+    InsertDesignation,
+    InsertGeometry,
+    InsertGrade,
+    InsertRecord,
+    InsertSourceMetadata,
+)
+from .iso1832_parser import parse_iso1832
 from .library import ToolLibrary, ToolLibraryQuery
+from .machining_readiness import (
+    MachiningReadinessRequest,
+    MachiningReadinessResult,
+    OperationCompatibility,
+    ToolAssemblyCompatibility,
+    assess_machining_readiness,
+)
 from .seed_catalog import (
     get_catalog,
     get_categories,
@@ -50,6 +85,13 @@ from .seed_catalog import (
     get_operations,
     get_substrate_codes,
     get_tool_materials,
+)
+from .selection_engine import (
+    ToolSelectionCandidate,
+    ToolSelectionEngine,
+    ToolSelectionReason,
+    ToolSelectionRequest,
+    ToolSelectionResult,
 )
 
 __all__ = [
@@ -80,4 +122,41 @@ __all__ = [
     "parse_csv_tools",
     "parse_json_tools",
     "run_import_pipeline",
+    # Insert taxonomy
+    "InsertRecord",
+    "InsertDesignation",
+    "InsertGeometry",
+    "InsertGrade",
+    "InsertSourceMetadata",
+    "parse_iso1832",
+    # Holder models
+    "HolderInterface",
+    "HolderCapacity",
+    "HolderSourceMetadata",
+    "ToolHolderRecord",
+    # Compatibility engine
+    "CompatibilityStatus",
+    "CompatibilityResult",
+    "check_tool_holder_compatibility",
+    "check_insert_holder_compatibility",
+    # Assembly models
+    "ToolAssemblyRecord",
+    "ToolAssemblyComponent",
+    "ToolAssemblyGeometry",
+    "ToolAssemblySourceMetadata",
+    "ToolAssemblyValidationResult",
+    "validate_assembly",
+    "check_assembly_geometry",
+    # Selection engine
+    "ToolSelectionRequest",
+    "ToolSelectionReason",
+    "ToolSelectionCandidate",
+    "ToolSelectionResult",
+    "ToolSelectionEngine",
+    # Machining readiness
+    "MachiningReadinessRequest",
+    "MachiningReadinessResult",
+    "OperationCompatibility",
+    "ToolAssemblyCompatibility",
+    "assess_machining_readiness",
 ]

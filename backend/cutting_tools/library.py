@@ -23,6 +23,7 @@ Usage
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 
 from .catalog_models import CuttingToolCatalogRecord, CuttingToolCatalogSummary
@@ -44,35 +45,35 @@ class ToolLibraryQuery:
 
     # ── Filter methods ────────────────────────────────────────────────────────
 
-    def by_family(self, family: ToolFamily) -> "ToolLibraryQuery":
+    def by_family(self, family: ToolFamily) -> ToolLibraryQuery:
         """Keep only tools whose tool_category_code maps to *family*."""
         codes = category_codes_for_family(family)
         return ToolLibraryQuery(
             [r for r in self._records if r.tool_category_code in codes]
         )
 
-    def by_operation(self, operation: str) -> "ToolLibraryQuery":
+    def by_operation(self, operation: str) -> ToolLibraryQuery:
         """Keep only tools that list *operation* in supported_operations."""
         op = operation.lower().strip()
         return ToolLibraryQuery(
             [r for r in self._records if op in [o.lower() for o in r.supported_operations]]
         )
 
-    def by_manufacturer(self, manufacturer: str) -> "ToolLibraryQuery":
+    def by_manufacturer(self, manufacturer: str) -> ToolLibraryQuery:
         """Case-insensitive exact match on manufacturer name."""
         target = manufacturer.strip().lower()
         return ToolLibraryQuery(
             [r for r in self._records if r.manufacturer.lower() == target]
         )
 
-    def by_material_groups(self, groups: list[str]) -> "ToolLibraryQuery":
+    def by_material_groups(self, groups: list[str]) -> ToolLibraryQuery:
         """Keep tools compatible with *any* of the supplied ISO material groups."""
         targets = {g.upper() for g in groups}
         return ToolLibraryQuery(
             [r for r in self._records if targets & set(r.iso_material_groups)]
         )
 
-    def by_material_groups_all(self, groups: list[str]) -> "ToolLibraryQuery":
+    def by_material_groups_all(self, groups: list[str]) -> ToolLibraryQuery:
         """Keep tools compatible with *all* of the supplied ISO material groups."""
         targets = {g.upper() for g in groups}
         return ToolLibraryQuery(
@@ -84,7 +85,7 @@ class ToolLibraryQuery:
         *,
         min_mm: float | None = None,
         max_mm: float | None = None,
-    ) -> "ToolLibraryQuery":
+    ) -> ToolLibraryQuery:
         """Filter by cutting_diameter_mm range (inclusive).
 
         Records without a cutting_diameter_mm are excluded when either bound
@@ -108,7 +109,7 @@ class ToolLibraryQuery:
         *,
         min_mm: float | None = None,
         max_mm: float | None = None,
-    ) -> "ToolLibraryQuery":
+    ) -> ToolLibraryQuery:
         """Filter by shank_diameter_mm range (inclusive)."""
         filtered = []
         for r in self._records:
@@ -128,17 +129,17 @@ class ToolLibraryQuery:
         *,
         min_mm: float | None = None,
         max_mm: float | None = None,
-    ) -> "ToolLibraryQuery":
+    ) -> ToolLibraryQuery:
         """Filter by overall_length_mm range (inclusive)."""
         filtered = []
         for r in self._records:
-            L = r.overall_length_mm
+            length = r.overall_length_mm
             if min_mm is not None or max_mm is not None:
-                if L is None:
+                if length is None:
                     continue
-                if min_mm is not None and L < min_mm:
+                if min_mm is not None and length < min_mm:
                     continue
-                if max_mm is not None and L > max_mm:
+                if max_mm is not None and length > max_mm:
                     continue
             filtered.append(r)
         return ToolLibraryQuery(filtered)
@@ -148,7 +149,7 @@ class ToolLibraryQuery:
         *,
         min_mm: float | None = None,
         max_mm: float | None = None,
-    ) -> "ToolLibraryQuery":
+    ) -> ToolLibraryQuery:
         """Filter by cutting_length_mm range (inclusive)."""
         filtered = []
         for r in self._records:
@@ -168,7 +169,7 @@ class ToolLibraryQuery:
         *,
         min_flutes: int | None = None,
         max_flutes: int | None = None,
-    ) -> "ToolLibraryQuery":
+    ) -> ToolLibraryQuery:
         """Filter by number_of_flutes range (inclusive)."""
         filtered = []
         for r in self._records:
@@ -183,7 +184,7 @@ class ToolLibraryQuery:
             filtered.append(r)
         return ToolLibraryQuery(filtered)
 
-    def by_substrate_code(self, code: str) -> "ToolLibraryQuery":
+    def by_substrate_code(self, code: str) -> ToolLibraryQuery:
         """Filter by substrate_material_code (case-insensitive)."""
         target = code.strip().upper()
         return ToolLibraryQuery(
@@ -193,7 +194,7 @@ class ToolLibraryQuery:
             ]
         )
 
-    def by_coating_type(self, coating_type: str) -> "ToolLibraryQuery":
+    def by_coating_type(self, coating_type: str) -> ToolLibraryQuery:
         """Filter by coating_type (case-insensitive, e.g. 'CVD', 'PVD')."""
         target = coating_type.strip().upper()
         return ToolLibraryQuery(
@@ -203,19 +204,19 @@ class ToolLibraryQuery:
             ]
         )
 
-    def by_through_coolant(self, enabled: bool) -> "ToolLibraryQuery":
+    def by_through_coolant(self, enabled: bool) -> ToolLibraryQuery:
         """Filter by through-coolant availability."""
         return ToolLibraryQuery(
             [r for r in self._records if r.through_coolant is enabled]
         )
 
-    def by_category_code(self, code: str) -> "ToolLibraryQuery":
+    def by_category_code(self, code: str) -> ToolLibraryQuery:
         """Filter by exact tool_category_code."""
         return ToolLibraryQuery(
             [r for r in self._records if r.tool_category_code == code]
         )
 
-    def by_shank_interface(self, interface_keyword: str) -> "ToolLibraryQuery":
+    def by_shank_interface(self, interface_keyword: str) -> ToolLibraryQuery:
         """Case-insensitive substring match on shank_interface."""
         kw = interface_keyword.lower()
         return ToolLibraryQuery(
@@ -223,6 +224,16 @@ class ToolLibraryQuery:
                 r for r in self._records
                 if r.shank_interface and kw in r.shank_interface.lower()
             ]
+        )
+
+    def by_evidence_status(self, status: str) -> ToolLibraryQuery:
+        """Filter by exact evidence_status value.
+
+        Use ``'MANUFACTURER_CATALOG'`` for verified records only, or
+        ``'UNVERIFIED'`` to surface records lacking a resolvable catalog reference.
+        """
+        return ToolLibraryQuery(
+            [r for r in self._records if r.evidence_status == status]
         )
 
     # ── Terminal methods ──────────────────────────────────────────────────────
@@ -297,8 +308,10 @@ class ToolLibrary:
 
         source_titles = {r.source_title for r in records}
         source_title = next(iter(source_titles)) if source_titles else ""
-        evidence_statuses = {r.evidence_status for r in records}
-        evidence_status = next(iter(evidence_statuses)) if evidence_statuses else ""
+        evidence_status_counts = Counter(r.evidence_status for r in records)
+        evidence_status = (
+            evidence_status_counts.most_common(1)[0][0] if evidence_status_counts else ""
+        )
 
         return CuttingToolCatalogSummary(
             tool_count=len(records),

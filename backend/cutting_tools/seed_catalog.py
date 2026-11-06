@@ -389,6 +389,7 @@ _RECORDS: list[CuttingToolCatalogRecord] = [
         number_of_flutes=4,
         helix_angle_deg=35.0,
         shank_interface="Straight (DIN 6535 HA)",
+        evidence_status="UNVERIFIED",
     ),
 
     # ── Iscar — Turning Inserts ───────────────────────────────────────────────
@@ -893,6 +894,7 @@ _RECORDS: list[CuttingToolCatalogRecord] = [
         number_of_flutes=4,
         helix_angle_deg=35.0,
         shank_interface="Straight (DIN 6535 HA)",
+        evidence_status="UNVERIFIED",
     ),
 
     _make(
@@ -917,6 +919,7 @@ _RECORDS: list[CuttingToolCatalogRecord] = [
         number_of_flutes=4,
         helix_angle_deg=35.0,
         shank_interface="Straight (DIN 6535 HA)",
+        evidence_status="UNVERIFIED",
     ),
 
     _make(
