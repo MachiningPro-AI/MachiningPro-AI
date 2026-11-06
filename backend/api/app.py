@@ -31,6 +31,7 @@ from .process_planning import router as process_planning_router
 from .selection import router as selection_router
 from .tool_holders import router as tool_holders_router
 from .tool_life import router as tool_life_router
+from .cam_planning import router as cam_planning_router
 
 
 class ChangePasswordRequest(BaseModel):
@@ -66,6 +67,7 @@ app.include_router(process_planning_router)
 app.include_router(selection_router)
 app.include_router(tool_holders_router)
 app.include_router(tool_life_router)
+app.include_router(cam_planning_router)
 
 
 @app.get("/api/health")
