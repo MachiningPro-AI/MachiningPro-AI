@@ -4,12 +4,14 @@ This package must NOT be imported by any individual library module.
 Dependency direction: integration → libraries (never the reverse).
 
 Adapter modules:
-  material_namespace  — resolve MaterialCondition name collision
-  spindle_adapter     — normalize holder spindle_interface strings
-  result_mapping      — unify PASS/FAIL/UNKNOWN across library types
-  machine_adapter     — MC-1: opt-in Machine Library pipeline bridge
-  material_adapter    — MC-2: opt-in Material Library pipeline bridge
-  tool_adapter        — MC-3: opt-in Tool Library selection-engine bridge
+  material_namespace      — resolve MaterialCondition name collision
+  spindle_adapter         — normalize holder spindle_interface strings
+  result_mapping          — unify PASS/FAIL/UNKNOWN across library types
+  machine_adapter         — MC-1: opt-in Machine Library pipeline bridge
+  material_adapter        — MC-2: opt-in Material Library pipeline bridge
+  tool_adapter            — MC-3: opt-in Tool Library selection-engine bridge
+  compatibility_wiring    — MC-4/MC-5: spindle normalization + IntegrationVerdict wiring
+  material_resolution     — MC-6: material name → ISO group for operation planning
 
 Design constraints:
   CIRCULAR_DEPENDENCY=NO
@@ -19,6 +21,11 @@ Design constraints:
   LEGACY_PIPELINE_UNCHANGED=YES (opt-in only; backend.machines/materials untouched)
 """
 
+from .compatibility_wiring import (
+    EnhancedCompatibilityResult,
+    SpindleCheckDetail,
+    enhanced_evaluate,
+)
 from .machine_adapter import (
     MachineLookupResult,
     MachineLookupStatus,
@@ -30,6 +37,11 @@ from .material_adapter import (
     MaterialPipelineAdapter,
 )
 from .material_namespace import MachineConditionState, MaterialConditionModel
+from .material_resolution import (
+    MaterialResolutionResult,
+    resolve_iso_group_for_selection,
+    resolve_material_for_selection,
+)
 from .result_mapping import IntegrationVerdict, combine_verdicts
 from .spindle_adapter import (
     check_holder_machine_spindle_compatibility,
@@ -53,4 +65,10 @@ __all__ = [
     "ToolPipelineAdapter",
     "ToolPipelineRequest",
     "ToolPipelineResult",
+    "SpindleCheckDetail",
+    "EnhancedCompatibilityResult",
+    "enhanced_evaluate",
+    "MaterialResolutionResult",
+    "resolve_material_for_selection",
+    "resolve_iso_group_for_selection",
 ]
