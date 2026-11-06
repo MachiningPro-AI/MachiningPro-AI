@@ -33,6 +33,7 @@ from .selection import router as selection_router
 from .tool_holders import router as tool_holders_router
 from .tool_life import router as tool_life_router
 from .toolpath import router as toolpath_router
+from .verification import router as verification_router
 
 
 class ChangePasswordRequest(BaseModel):
@@ -70,6 +71,7 @@ app.include_router(tool_holders_router)
 app.include_router(tool_life_router)
 app.include_router(cam_planning_router)
 app.include_router(toolpath_router)
+app.include_router(verification_router)
 
 
 @app.get("/api/health")
