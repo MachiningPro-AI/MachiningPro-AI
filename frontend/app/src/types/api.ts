@@ -97,3 +97,105 @@ export interface CamPlanResponse {
   readiness: CamReadinessSummary
   cam_job: Record<string, unknown>
 }
+
+// ---------------------------------------------------------------------------
+// Level-10 Toolpath Generation Types (vendor-neutral; NO G-code)
+// ---------------------------------------------------------------------------
+
+export type ToolpathStatus =
+  | 'NOT_GENERATED' | 'GENERATED' | 'VERIFICATION_REQUIRED'
+  | 'BLOCKED' | 'PARTIAL'
+
+export type ToolpathFidelity =
+  | 'NOT_GENERATED' | 'EXACT_GENERATED' | 'APPROXIMATE'
+  | 'PARTIAL' | 'BLOCKED'
+
+export type MotionType =
+  | 'RAPID' | 'APPROACH' | 'PLUNGE' | 'RAMP' | 'HELIX'
+  | 'CUT' | 'RETRACT' | 'LINK' | 'ENTRY' | 'EXIT' | 'DWELL' | 'ARC'
+
+export type CoordinateFrame =
+  | 'WCS_COORDINATES' | 'MCS_COORDINATES' | 'LATHE_XZ' | 'UNKNOWN_FRAME'
+
+export type VerificationCheckStatus = 'NOT_PERFORMED' | 'PERFORMED' | 'FAILED' | 'PASSED'
+
+export type PathLengthType =
+  | 'EXACT_GENERATED_PATH' | 'APPROXIMATE_GEOMETRIC_PATH' | 'UNKNOWN'
+
+export interface ToolpathMetrics {
+  cut_length_mm: number
+  link_or_rapid_length_mm: number
+  total_length_mm: number
+  segment_count: number
+  retract_count: number
+  depth_level_count: number
+  max_depth_mm: number | null
+  is_exact: boolean
+}
+
+export interface VerificationRequirements {
+  collision_check: VerificationCheckStatus
+  gouge_check: VerificationCheckStatus
+  fixture_check: VerificationCheckStatus
+  machine_collision_check: VerificationCheckStatus
+  note: string
+  simulation_required: true  // always true — Level-10 invariant
+}
+
+export interface CycleTimeBridge {
+  cut_path_mm: number | null
+  total_path_mm: number | null
+  path_length_type: PathLengthType
+  path_length_source: string
+  cycle_time_ready: boolean
+  missing_inputs: string[]
+  limitations: string[]
+}
+
+export interface ToolpathResponse {
+  toolpath_id: string
+  operation_ref: string
+  status: ToolpathStatus
+  fidelity: ToolpathFidelity
+  simulation_required: true  // always true — Level-10 invariant
+  is_verified: false          // always false — Level-10 invariant
+  toolpath_summary: string
+  toolpaths: Record<string, unknown>[]
+  toolpath_metrics: ToolpathMetrics
+  toolpath_fidelity: ToolpathFidelity
+  verification_requirements: VerificationRequirements
+  cycle_time_bridge: CycleTimeBridge
+  warnings: string[]
+  missing_inputs: string[]
+}
+
+export interface DrillToolpathRequest {
+  operation_ref: string
+  hole_x: number
+  hole_y: number
+  hole_top_z: number
+  hole_depth_mm: number
+  peck_depth_mm?: number | null
+  clearance_z?: number | null
+  clearance_source?: string
+  setup_ref?: string | null
+  wcs_ref?: string | null
+  tool_ref?: string | null
+  feature_refs?: string[]
+}
+
+export interface ProfileToolpathRequest {
+  operation_ref: string
+  contour_points: [number, number][]
+  contour_z: number
+  tool_diameter_mm?: number | null
+  profile_side?: string
+  compensation_side?: string
+  clearance_z?: number | null
+  clearance_source?: string
+  setup_ref?: string | null
+  wcs_ref?: string | null
+  tool_ref?: string | null
+  feature_refs?: string[]
+  closed?: boolean
+}
