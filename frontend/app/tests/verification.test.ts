@@ -3,20 +3,21 @@
  * Tests: type contracts, service functions, is_verified invariants, fail-closed policy.
  */
 
-import { describe, expect, it } from 'vitest';
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
 import {
   VerificationContractViolation,
   countChecks,
   enforceSimulationContract,
   isVerificationPassing,
-} from '../src/services/verification';
+} from '../src/services/verification.ts';
 import type {
   SimulationResult,
   VerificationCheckType,
   VerificationResult,
   VerificationState,
   VerificationStatus,
-} from '../src/types/verification';
+} from '../src/types/verification.ts';
 
 function makeCheck(
   checkType: VerificationCheckType,
@@ -70,17 +71,17 @@ function makeResult(
 describe('SimulationResult contracts', () => {
   it('valid unverified result passes contract', () => {
     const result = makeResult();
-    expect(() => enforceSimulationContract(result, '/simulate')).not.toThrow();
+    assert.doesNotThrow(() => enforceSimulationContract(result, '/simulate'));
   });
 
   it('is_verified=false with UNVERIFIED state passes', () => {
     const result = makeResult({ is_verified: false, verification_state: 'UNVERIFIED' });
-    expect(() => enforceSimulationContract(result, '/simulate')).not.toThrow();
+    assert.doesNotThrow(() => enforceSimulationContract(result, '/simulate'));
   });
 
   it('is_verified=false with FAILED state passes', () => {
     const result = makeResult({ is_verified: false, verification_state: 'FAILED' });
-    expect(() => enforceSimulationContract(result, '/simulate')).not.toThrow();
+    assert.doesNotThrow(() => enforceSimulationContract(result, '/simulate'));
   });
 
   it('is_verified=true with VERIFIED state and all PASS checks passes', () => {
@@ -92,7 +93,7 @@ describe('SimulationResult contracts', () => {
         STOCK_GOUGE: makeCheck('STOCK_GOUGE', 'PASS'),
       },
     });
-    expect(() => enforceSimulationContract(result, '/simulate')).not.toThrow();
+    assert.doesNotThrow(() => enforceSimulationContract(result, '/simulate'));
   });
 
   it('throws when is_verified=true but state is not VERIFIED', () => {
@@ -100,7 +101,8 @@ describe('SimulationResult contracts', () => {
       is_verified: true,
       verification_state: 'PARTIALLY_VERIFIED',
     });
-    expect(() => enforceSimulationContract(result, '/simulate')).toThrow(
+    assert.throws(
+      () => enforceSimulationContract(result, '/simulate'),
       VerificationContractViolation,
     );
   });
@@ -114,7 +116,8 @@ describe('SimulationResult contracts', () => {
         STOCK_GOUGE: makeCheck('STOCK_GOUGE', 'NOT_PERFORMED'),
       },
     });
-    expect(() => enforceSimulationContract(result, '/simulate')).toThrow(
+    assert.throws(
+      () => enforceSimulationContract(result, '/simulate'),
       VerificationContractViolation,
     );
   });
@@ -127,7 +130,8 @@ describe('SimulationResult contracts', () => {
         PART_GOUGE: makeCheck('PART_GOUGE', 'INSUFFICIENT_DATA'),
       },
     });
-    expect(() => enforceSimulationContract(result, '/simulate')).toThrow(
+    assert.throws(
+      () => enforceSimulationContract(result, '/simulate'),
       VerificationContractViolation,
     );
   });
@@ -154,7 +158,8 @@ describe('SimulationResult contracts', () => {
         is_verified: false,
       },
     });
-    expect(() => enforceSimulationContract(result, '/simulate')).toThrow(
+    assert.throws(
+      () => enforceSimulationContract(result, '/simulate'),
       VerificationContractViolation,
     );
   });
@@ -162,35 +167,37 @@ describe('SimulationResult contracts', () => {
 
 describe('isVerificationPassing invariants', () => {
   it('returns false for unverified result', () => {
-    expect(isVerificationPassing(makeResult())).toBe(false);
+    assert.strictEqual(isVerificationPassing(makeResult()), false);
   });
 
   it('returns false for FAILED state', () => {
-    expect(
+    assert.strictEqual(
       isVerificationPassing(makeResult({ verification_state: 'FAILED', is_verified: false })),
-    ).toBe(false);
+      false,
+    );
   });
 
   it('returns false for PARTIALLY_VERIFIED', () => {
-    expect(
+    assert.strictEqual(
       isVerificationPassing(
         makeResult({ verification_state: 'PARTIALLY_VERIFIED', is_verified: false }),
       ),
-    ).toBe(false);
+      false,
+    );
   });
 
   it('returns false for BLOCKED', () => {
-    expect(
+    assert.strictEqual(
       isVerificationPassing(makeResult({ verification_state: 'BLOCKED', is_verified: false })),
-    ).toBe(false);
+      false,
+    );
   });
 
   it('returns true only when is_verified=true and state=VERIFIED', () => {
-    expect(
-      isVerificationPassing(
-        makeResult({ verification_state: 'VERIFIED', is_verified: true }),
-      ),
-    ).toBe(true);
+    assert.strictEqual(
+      isVerificationPassing(makeResult({ verification_state: 'VERIFIED', is_verified: true })),
+      true,
+    );
   });
 });
 
@@ -201,7 +208,7 @@ describe('COMPLETED != VERIFIED invariant', () => {
       verification_state: 'UNVERIFIED',
       is_verified: false,
     });
-    expect(isVerificationPassing(result)).toBe(false);
+    assert.strictEqual(isVerificationPassing(result), false);
   });
 
   it('COMPLETED simulation with FAILED checks is not verified', () => {
@@ -213,8 +220,8 @@ describe('COMPLETED != VERIFIED invariant', () => {
         PART_GOUGE: makeCheck('PART_GOUGE', 'FAIL'),
       },
     });
-    expect(isVerificationPassing(result)).toBe(false);
-    expect(() => enforceSimulationContract(result, '/simulate')).not.toThrow();
+    assert.strictEqual(isVerificationPassing(result), false);
+    assert.doesNotThrow(() => enforceSimulationContract(result, '/simulate'));
   });
 });
 
@@ -229,7 +236,7 @@ describe('Non-pass statuses are never PASS', () => {
 
   for (const s of nonPassStatuses) {
     it(`status ${s} is not PASS`, () => {
-      expect(s === 'PASS').toBe(false);
+      assert.strictEqual(s === 'PASS', false);
     });
   }
 
@@ -239,7 +246,8 @@ describe('Non-pass statuses are never PASS', () => {
       verification_state: 'VERIFIED',
       checks: { PART_GOUGE: makeCheck('PART_GOUGE', 'ERROR') },
     });
-    expect(() => enforceSimulationContract(result, '/simulate')).toThrow(
+    assert.throws(
+      () => enforceSimulationContract(result, '/simulate'),
       VerificationContractViolation,
     );
   });
@@ -253,8 +261,8 @@ describe('countChecks utility', () => {
         STOCK_GOUGE: makeCheck('STOCK_GOUGE', 'PASS'),
       },
     });
-    expect(countChecks(result).pass).toBe(2);
-    expect(countChecks(result).fail).toBe(0);
+    assert.strictEqual(countChecks(result).pass, 2);
+    assert.strictEqual(countChecks(result).fail, 0);
   });
 
   it('counts failed checks', () => {
@@ -264,8 +272,8 @@ describe('countChecks utility', () => {
         STOCK_GOUGE: makeCheck('STOCK_GOUGE', 'PASS'),
       },
     });
-    expect(countChecks(result).fail).toBe(1);
-    expect(countChecks(result).pass).toBe(1);
+    assert.strictEqual(countChecks(result).fail, 1);
+    assert.strictEqual(countChecks(result).pass, 1);
   });
 
   it('counts not_performed checks', () => {
@@ -275,7 +283,7 @@ describe('countChecks utility', () => {
         HOLDER_COLLISION: makeCheck('HOLDER_COLLISION', 'NOT_PERFORMED'),
       },
     });
-    expect(countChecks(result).not_performed).toBe(2);
+    assert.strictEqual(countChecks(result).not_performed, 2);
   });
 
   it('counts insufficient_data checks', () => {
@@ -284,35 +292,35 @@ describe('countChecks utility', () => {
         MACHINE_ENVELOPE: makeCheck('MACHINE_ENVELOPE', 'INSUFFICIENT_DATA'),
       },
     });
-    expect(countChecks(result).insufficient_data).toBe(1);
+    assert.strictEqual(countChecks(result).insufficient_data, 1);
   });
 });
 
 describe('VerificationState enumeration', () => {
   it('VERIFIED state string value is correct', () => {
     const s: VerificationState = 'VERIFIED';
-    expect(s).toBe('VERIFIED');
+    assert.strictEqual(s, 'VERIFIED');
   });
 
   it('BLOCKED state is not VERIFIED', () => {
     const s: VerificationState = 'BLOCKED';
-    expect(s === 'VERIFIED').toBe(false);
+    assert.strictEqual(s === 'VERIFIED', false);
   });
 });
 
 describe('No fabricated verification data', () => {
   it('service does not hard-code is_verified=true', () => {
     const result = makeResult();
-    expect(result.is_verified).toBe(false);
+    assert.strictEqual(result.is_verified, false);
   });
 
   it('default checks object is empty', () => {
     const result = makeResult();
-    expect(Object.keys(result.checks)).toHaveLength(0);
+    assert.strictEqual(Object.keys(result.checks).length, 0);
   });
 
   it('resource_limit_hit default is false', () => {
     const result = makeResult();
-    expect(result.resource_limit_hit).toBe(false);
+    assert.strictEqual(result.resource_limit_hit, false);
   });
 });

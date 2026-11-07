@@ -5,7 +5,8 @@
  * NO tests attempt machine dispatch or CNC communication.
  */
 
-import { describe, expect, it } from "vitest";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import {
   NCContractViolation,
   enforceNCContract,
@@ -13,8 +14,8 @@ import {
   isManifestStale,
   isNCBlocked,
   isNCCandidate,
-} from "../src/services/nc";
-import type { NCBuildResponse, NCGenerationManifest } from "../src/types/nc";
+} from "../src/services/nc.ts";
+import type { NCBuildResponse, NCGenerationManifest } from "../src/types/nc.ts";
 
 // -------------------------------------------------------------------------
 // Test helpers
@@ -76,57 +77,60 @@ function makeManifest(overrides: Partial<NCGenerationManifest> = {}): NCGenerati
 
 describe("enforceNCContract", () => {
   it("passes for a valid CANDIDATE response", () => {
-    expect(() => enforceNCContract(makeCandidateResponse())).not.toThrow();
+    assert.doesNotThrow(() => enforceNCContract(makeCandidateResponse()));
   });
 
   it("passes for VALIDATED_OFFLINE status", () => {
-    expect(() =>
+    assert.doesNotThrow(() =>
       enforceNCContract(makeCandidateResponse({ status: "VALIDATED_OFFLINE" }))
-    ).not.toThrow();
+    );
   });
 
   it("passes for BLOCKED status", () => {
-    expect(() =>
+    assert.doesNotThrow(() =>
       enforceNCContract(makeCandidateResponse({ status: "BLOCKED" }))
-    ).not.toThrow();
+    );
   });
 
   it("passes for REVIEW_REQUIRED status", () => {
-    expect(() =>
+    assert.doesNotThrow(() =>
       enforceNCContract(makeCandidateResponse({ status: "REVIEW_REQUIRED" }))
-    ).not.toThrow();
+    );
   });
 
   it("throws when is_dispatchable=true", () => {
-    expect(() =>
-      enforceNCContract(makeCandidateResponse({ is_dispatchable: true as never }))
-    ).toThrow(NCContractViolation);
+    assert.throws(
+      () => enforceNCContract(makeCandidateResponse({ is_dispatchable: true as never })),
+      NCContractViolation,
+    );
   });
 
   it("throws when status is READY_TO_RUN (forbidden)", () => {
-    expect(() =>
-      enforceNCContract(makeCandidateResponse({ status: "READY_TO_RUN" as never }))
-    ).toThrow(NCContractViolation);
+    assert.throws(
+      () => enforceNCContract(makeCandidateResponse({ status: "READY_TO_RUN" as never })),
+      NCContractViolation,
+    );
   });
 
   it("throws when status is MACHINE_APPROVED (forbidden)", () => {
-    expect(() =>
-      enforceNCContract(makeCandidateResponse({ status: "MACHINE_APPROVED" as never }))
-    ).toThrow(NCContractViolation);
+    assert.throws(
+      () => enforceNCContract(makeCandidateResponse({ status: "MACHINE_APPROVED" as never })),
+      NCContractViolation,
+    );
   });
 
   it("throws when manifest.is_dispatchable=true", () => {
     const response = makeCandidateResponse({
       manifest: makeManifest({ is_dispatchable: true as never }),
     });
-    expect(() => enforceNCContract(response)).toThrow(NCContractViolation);
+    assert.throws(() => enforceNCContract(response), NCContractViolation);
   });
 
   it("throws when manifest.program_status is READY_TO_RUN", () => {
     const response = makeCandidateResponse({
       manifest: makeManifest({ program_status: "READY_TO_RUN" as never }),
     });
-    expect(() => enforceNCContract(response)).toThrow(NCContractViolation);
+    assert.throws(() => enforceNCContract(response), NCContractViolation);
   });
 });
 
@@ -136,29 +140,29 @@ describe("enforceNCContract", () => {
 
 describe("isNCCandidate", () => {
   it("returns true for CANDIDATE", () => {
-    expect(isNCCandidate(makeCandidateResponse())).toBe(true);
+    assert.strictEqual(isNCCandidate(makeCandidateResponse()), true);
   });
 
   it("returns true for VALIDATED_OFFLINE", () => {
-    expect(isNCCandidate(makeCandidateResponse({ status: "VALIDATED_OFFLINE" }))).toBe(true);
+    assert.strictEqual(isNCCandidate(makeCandidateResponse({ status: "VALIDATED_OFFLINE" })), true);
   });
 
   it("returns false for BLOCKED", () => {
-    expect(isNCCandidate(makeCandidateResponse({ status: "BLOCKED" }))).toBe(false);
+    assert.strictEqual(isNCCandidate(makeCandidateResponse({ status: "BLOCKED" })), false);
   });
 
   it("returns false for REJECTED", () => {
-    expect(isNCCandidate(makeCandidateResponse({ status: "REJECTED" }))).toBe(false);
+    assert.strictEqual(isNCCandidate(makeCandidateResponse({ status: "REJECTED" })), false);
   });
 });
 
 describe("isNCBlocked", () => {
   it("returns true for BLOCKED", () => {
-    expect(isNCBlocked(makeCandidateResponse({ status: "BLOCKED" }))).toBe(true);
+    assert.strictEqual(isNCBlocked(makeCandidateResponse({ status: "BLOCKED" })), true);
   });
 
   it("returns false for CANDIDATE", () => {
-    expect(isNCBlocked(makeCandidateResponse())).toBe(false);
+    assert.strictEqual(isNCBlocked(makeCandidateResponse()), false);
   });
 });
 
@@ -168,19 +172,18 @@ describe("isNCBlocked", () => {
 
 describe("isManifestStale", () => {
   it("returns false for fresh manifest", () => {
-    expect(isManifestStale(makeManifest())).toBe(false);
+    assert.strictEqual(isManifestStale(makeManifest()), false);
   });
 
   it("returns true when is_stale=true with reasons", () => {
-    expect(
-      isManifestStale(
-        makeManifest({ is_stale: true, stale_reasons: ["TOOLPATH_CHANGED"] })
-      )
-    ).toBe(true);
+    assert.strictEqual(
+      isManifestStale(makeManifest({ is_stale: true, stale_reasons: ["TOOLPATH_CHANGED"] })),
+      true,
+    );
   });
 
   it("returns false when is_stale=true but no reasons", () => {
-    expect(isManifestStale(makeManifest({ is_stale: true, stale_reasons: [] }))).toBe(false);
+    assert.strictEqual(isManifestStale(makeManifest({ is_stale: true, stale_reasons: [] })), false);
   });
 });
 
@@ -195,12 +198,12 @@ describe("formatBlockReasons", () => {
       block_reasons: ["UNVERIFIED_TOOLPATH", "MISSING_FEED"],
     });
     const formatted = formatBlockReasons(response);
-    expect(formatted).toContain("UNVERIFIED TOOLPATH");
-    expect(formatted).toContain("MISSING FEED");
+    assert.ok(formatted.includes("UNVERIFIED TOOLPATH"));
+    assert.ok(formatted.includes("MISSING FEED"));
   });
 
   it("returns empty array for no block reasons", () => {
-    expect(formatBlockReasons(makeCandidateResponse())).toEqual([]);
+    assert.deepStrictEqual(formatBlockReasons(makeCandidateResponse()), []);
   });
 });
 
@@ -211,32 +214,32 @@ describe("formatBlockReasons", () => {
 describe("NCBuildResponse safety invariants", () => {
   it("candidate always has safety_warnings", () => {
     const r = makeCandidateResponse();
-    expect(r.safety_warnings.length).toBeGreaterThan(0);
-    expect(r.safety_warnings.some((w) => w.includes("OFFLINE"))).toBe(true);
+    assert.ok(r.safety_warnings.length > 0);
+    assert.ok(r.safety_warnings.some((w) => w.includes("OFFLINE")));
   });
 
   it("candidate always has is_offline_candidate=true", () => {
-    expect(makeCandidateResponse().is_offline_candidate).toBe(true);
+    assert.strictEqual(makeCandidateResponse().is_offline_candidate, true);
   });
 
   it("candidate always has is_dispatchable=false", () => {
-    expect(makeCandidateResponse().is_dispatchable).toBe(false);
+    assert.strictEqual(makeCandidateResponse().is_dispatchable, false);
   });
 
   it("manifest always has is_offline_candidate=true", () => {
-    expect(makeManifest().is_offline_candidate).toBe(true);
+    assert.strictEqual(makeManifest().is_offline_candidate, true);
   });
 
   it("manifest always has is_dispatchable=false", () => {
-    expect(makeManifest().is_dispatchable).toBe(false);
+    assert.strictEqual(makeManifest().is_dispatchable, false);
   });
 
   it("manifest has program_hash", () => {
-    expect(makeManifest().program_hash).toBeTruthy();
+    assert.ok(makeManifest().program_hash);
   });
 
   it("manifest has safety_statement", () => {
-    expect(makeManifest().safety_statement).toContain("OFFLINE VALIDATION REQUIRED");
+    assert.ok(makeManifest().safety_statement.includes("OFFLINE VALIDATION REQUIRED"));
   });
 });
 
@@ -255,7 +258,7 @@ describe("NCProgramStatus forbidden values not in type literal", () => {
       "REJECTED",
       "STALE",
     ];
-    expect(validStatuses).not.toContain("READY_TO_RUN");
-    expect(validStatuses).not.toContain("MACHINE_APPROVED");
+    assert.ok(!validStatuses.includes("READY_TO_RUN"));
+    assert.ok(!validStatuses.includes("MACHINE_APPROVED"));
   });
 });
