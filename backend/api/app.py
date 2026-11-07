@@ -27,6 +27,7 @@ from .dispatch import router as dispatch_router
 from .drawing_analysis import router as drawing_analysis_router
 from .drawing_to_process import router as drawing_to_process_router
 from .engineering_import import router as engineering_import_router
+from .job_planning import router as job_planning_router
 from .machines import router as machines_router
 from .materials import router as materials_router
 from .monitoring import router as monitoring_router
@@ -82,6 +83,7 @@ app.include_router(scheduling_router)
 app.include_router(dispatch_router)
 app.include_router(monitoring_router)
 app.include_router(adaptive_router)
+app.include_router(job_planning_router)
 
 
 @app.get("/api/health")
