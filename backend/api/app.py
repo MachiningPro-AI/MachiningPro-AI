@@ -29,6 +29,7 @@ from .machines import router as machines_router
 from .materials import router as materials_router
 from .nc_generation import router as nc_generation_router
 from .nc_path import router as nc_path_router
+from .dispatch import router as dispatch_router
 from .scheduling import router as scheduling_router
 from .process_planning import router as process_planning_router
 from .selection import router as selection_router
@@ -76,6 +77,7 @@ app.include_router(toolpath_router)
 app.include_router(verification_router)
 app.include_router(nc_generation_router)
 app.include_router(scheduling_router)
+app.include_router(dispatch_router)
 
 
 @app.get("/api/health")
