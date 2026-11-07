@@ -17,6 +17,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from .adaptive import router as adaptive_router
 from .auth import LoginRequest, authenticate, get_configured_credentials
 from .cam_planning import router as cam_planning_router
 from .compatibility import router as compatibility_router
@@ -80,6 +81,7 @@ app.include_router(nc_generation_router)
 app.include_router(scheduling_router)
 app.include_router(dispatch_router)
 app.include_router(monitoring_router)
+app.include_router(adaptive_router)
 
 
 @app.get("/api/health")
