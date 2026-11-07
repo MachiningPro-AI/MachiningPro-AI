@@ -22,16 +22,17 @@ from .cam_planning import router as cam_planning_router
 from .compatibility import router as compatibility_router
 from .cutting_parameters import router as cutting_parameters_router
 from .cutting_tools import router as cutting_tools_router
+from .dispatch import router as dispatch_router
 from .drawing_analysis import router as drawing_analysis_router
 from .drawing_to_process import router as drawing_to_process_router
 from .engineering_import import router as engineering_import_router
 from .machines import router as machines_router
 from .materials import router as materials_router
+from .monitoring import router as monitoring_router
 from .nc_generation import router as nc_generation_router
 from .nc_path import router as nc_path_router
-from .dispatch import router as dispatch_router
-from .scheduling import router as scheduling_router
 from .process_planning import router as process_planning_router
+from .scheduling import router as scheduling_router
 from .selection import router as selection_router
 from .tool_holders import router as tool_holders_router
 from .tool_life import router as tool_life_router
@@ -78,6 +79,7 @@ app.include_router(verification_router)
 app.include_router(nc_generation_router)
 app.include_router(scheduling_router)
 app.include_router(dispatch_router)
+app.include_router(monitoring_router)
 
 
 @app.get("/api/health")
