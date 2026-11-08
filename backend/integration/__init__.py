@@ -12,6 +12,7 @@ Adapter modules:
   tool_adapter            — MC-3: opt-in Tool Library selection-engine bridge
   compatibility_wiring    — MC-4/MC-5: spindle normalization + IntegrationVerdict wiring
   material_resolution     — MC-6: material name → ISO group for operation planning
+  machine_class_mapper    — explicit, fail-closed MachineClass cross-mapper (library ↔ scheduling)
 
 Design constraints:
   CIRCULAR_DEPENDENCY=NO
@@ -48,6 +49,13 @@ from .spindle_adapter import (
     normalize_holder_spindle_interface,
 )
 from .tool_adapter import ToolPipelineAdapter, ToolPipelineRequest, ToolPipelineResult
+from .machine_class_mapper import (
+    MachineClassMapError,
+    library_to_runtime,
+    library_to_scheduling,
+    runtime_to_library,
+    scheduling_to_library,
+)
 
 __all__ = [
     "MachineConditionState",
@@ -71,4 +79,9 @@ __all__ = [
     "MaterialResolutionResult",
     "resolve_material_for_selection",
     "resolve_iso_group_for_selection",
+    "MachineClassMapError",
+    "library_to_scheduling",
+    "scheduling_to_library",
+    "library_to_runtime",
+    "runtime_to_library",
 ]
