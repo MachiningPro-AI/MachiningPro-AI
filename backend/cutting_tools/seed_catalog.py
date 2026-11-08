@@ -389,6 +389,7 @@ _RECORDS: list[CuttingToolCatalogRecord] = [
         number_of_flutes=4,
         helix_angle_deg=35.0,
         shank_interface="Straight (DIN 6535 HA)",
+        evidence_status="UNVERIFIED",
     ),
 
     # ── Iscar — Turning Inserts ───────────────────────────────────────────────
@@ -893,6 +894,7 @@ _RECORDS: list[CuttingToolCatalogRecord] = [
         number_of_flutes=4,
         helix_angle_deg=35.0,
         shank_interface="Straight (DIN 6535 HA)",
+        evidence_status="UNVERIFIED",
     ),
 
     _make(
@@ -917,6 +919,7 @@ _RECORDS: list[CuttingToolCatalogRecord] = [
         number_of_flutes=4,
         helix_angle_deg=35.0,
         shank_interface="Straight (DIN 6535 HA)",
+        evidence_status="UNVERIFIED",
     ),
 
     _make(
@@ -1077,6 +1080,187 @@ _RECORDS: list[CuttingToolCatalogRecord] = [
         clearance_angle_deg=0.0,
         insert_tolerance_class="M",
         compatible_holder_interface="SVJBR/L",
+    ),
+
+    # ── Grinding Wheels ───────────────────────────────────────────────────────
+    # Conventional and superabrasive wheels for cylindrical, surface, and
+    # tool-and-cutter grinding.
+
+    _make(
+        stable_id="norton-32a60-h8vbe-200x25",
+        manufacturer="Norton Abrasives",
+        product_family="32A Aluminum Oxide",
+        product_name="32A 60-H 8VBE 200×25×31.75",
+        catalog_code="32A60-H8VBE-200x25",
+        tool_category="Grinding Wheel",
+        tool_category_code="GRINDING_WHEEL",
+        tool_type_code="GRINDING_WHEEL",
+        tool_subcategory="Conventional Aluminum Oxide — Cylindrical / Surface",
+        supported_operations=["grinding"],
+        iso_material_groups=["P", "K"],
+        tool_material="conventional abrasive",
+        substrate_material_code="ABRASIVE_OXIDE",
+        cutting_diameter_mm=200.0,
+        overall_length_mm=25.0,         # wheel width
+        shank_interface="Flange mount (31.75 mm bore, ISO 525)",
+        source_note=(
+            "Norton / Saint-Gobain Abrasives standard catalog. "
+            "32A: white aluminum oxide grain; 60 grit; H hardness; "
+            "8V vitrified bond; wheel 200 × 25 × 31.75 mm. "
+            "Suitable for cylindrical and surface grinding of steel and cast iron."
+        ),
+    ),
+
+    _make(
+        stable_id="norton-bn200-cbn-wheel-150x10",
+        manufacturer="Norton Abrasives",
+        product_family="BN200 CBN Vitrified",
+        product_name="BN200 B151 R75 V CBN Wheel 150×10×31.75",
+        catalog_code="BN200-B151-R75V-150x10",
+        tool_category="Grinding Wheel",
+        tool_category_code="GRINDING_WHEEL",
+        tool_type_code="GRINDING_WHEEL",
+        tool_subcategory="CBN Superabrasive — Internal / OD Grinding",
+        supported_operations=["grinding"],
+        iso_material_groups=["P", "M", "S", "H"],
+        tool_material="CBN",
+        substrate_material_code="CBN",
+        cutting_diameter_mm=150.0,
+        overall_length_mm=10.0,          # wheel width
+        shank_interface="Flange mount (31.75 mm bore, ISO 525)",
+        source_note=(
+            "Norton / Saint-Gobain Abrasives CBN product range. "
+            "BN200 vitrified CBN; B151 grain size; R75 concentration; "
+            "wheel 150 × 10 × 31.75 mm. "
+            "Superabrasive for hardened steels (H), stainless (M), "
+            "titanium (S) and high-alloy materials."
+        ),
+    ),
+
+    _make(
+        stable_id="3m-cubitron2-984f-t27-115x22",
+        manufacturer="3M",
+        product_family="Cubitron II 984F",
+        product_name="3M Cubitron II 984F T27 Grinding Disc 115×22 mm",
+        catalog_code="984F-T27-115x22",
+        tool_category="Grinding Wheel",
+        tool_category_code="GRINDING_WHEEL",
+        tool_type_code="GRINDING_WHEEL",
+        tool_subcategory="Precision-Shaped Grain — Angle Grinder Disc",
+        supported_operations=["grinding"],
+        iso_material_groups=["P", "M"],
+        tool_material="conventional abrasive",
+        substrate_material_code="ABRASIVE_OXIDE",
+        cutting_diameter_mm=115.0,
+        overall_length_mm=22.0,          # disc width / hub height
+        shank_interface="M14 threaded arbor (angle grinder)",
+        source_note=(
+            "3M Abrasive Systems 984F datasheet. "
+            "Cubitron II precision-shaped ceramic grain; Type 27 depressed-centre disc; "
+            "115 × 22 mm; resin-bond. "
+            "High material-removal rate on steel and stainless welding prep."
+        ),
+    ),
+
+    # ── EDM Tools — Wire EDM and Sinker EDM ───────────────────────────────────
+    # Wire EDM wire (consumable electrode) and sinker EDM electrode stock.
+    # EDM tools do not use conventional ISO material-group definitions;
+    # iso_material_groups lists materials the process is typically applied to.
+
+    _make(
+        stable_id="bedra-cobra-cut-a-0.25mm",
+        manufacturer="Bedra (Berkenhoff)",
+        product_family="Cobra Cut A",
+        product_name="Cobra Cut A 0.25 mm brass EDM wire",
+        catalog_code="COBRA-CUT-A-0.25",
+        tool_category="EDM Wire",
+        tool_category_code="EDM_WIRE",
+        tool_type_code="EDM_WIRE",
+        tool_subcategory="Brass Wire EDM — General Purpose",
+        supported_operations=["edm wire cutting", "edm"],
+        iso_material_groups=["P", "M", "K", "N", "S", "H"],
+        tool_material="brass",
+        substrate_material_code="BRASS",
+        cutting_diameter_mm=0.25,        # wire diameter
+        shank_interface="Wire spool (8 kg standard)",
+        source_note=(
+            "Bedra (Berkenhoff GmbH) Cobra Cut A product page. "
+            "CuZn37 brass alloy wire; Ø0.25 mm; "
+            "tensile strength ≥ 500 N/mm²; "
+            "general-purpose wire EDM for steel, stainless, cemented carbide and titanium."
+        ),
+    ),
+
+    _make(
+        stable_id="bedra-broncocut-xh-0.25mm",
+        manufacturer="Bedra (Berkenhoff)",
+        product_family="Broncocut-XH",
+        product_name="Broncocut-XH 0.25 mm coated EDM wire",
+        catalog_code="BRONCOCUT-XH-0.25",
+        tool_category="EDM Wire",
+        tool_category_code="EDM_WIRE",
+        tool_type_code="EDM_WIRE",
+        tool_subcategory="Zinc-Coated Wire EDM — High Speed",
+        supported_operations=["edm wire cutting", "edm"],
+        iso_material_groups=["P", "M", "K", "N", "S", "H"],
+        tool_material="brass/zinc coated",
+        substrate_material_code="BRASS",
+        cutting_diameter_mm=0.25,
+        shank_interface="Wire spool (8 kg standard)",
+        source_note=(
+            "Bedra Broncocut-XH product page. "
+            "Brass core with diffusion-annealed zinc coating; Ø0.25 mm; "
+            "high flushing efficiency allows faster cutting speeds vs bare brass. "
+            "Recommended for precision dies and molds."
+        ),
+    ),
+
+    _make(
+        stable_id="poco-edm-200-graphite-electrode",
+        manufacturer="Poco (Entegris)",
+        product_family="EDM-200 Graphite",
+        product_name="Poco EDM-200 Fine-Grain Graphite Electrode Blank 50×50×150 mm",
+        catalog_code="EDM-200-50x50x150",
+        tool_category="EDM Electrode",
+        tool_category_code="EDM_ELECTRODE",
+        tool_type_code="EDM_ELECTRODE",
+        tool_subcategory="Fine-Grain Graphite Sinker EDM Electrode",
+        supported_operations=["edm sinker", "edm"],
+        iso_material_groups=["P", "M", "K", "S", "H"],
+        tool_material="graphite",
+        substrate_material_code="GRAPHITE",
+        overall_length_mm=150.0,         # blank length
+        shank_interface="Custom machined to EDM chuck adapter",
+        source_note=(
+            "Poco Graphite (Entegris) EDM-200 datasheet. "
+            "Ultra-fine grain graphite; particle size ≤ 5 µm; "
+            "density 1.78 g/cm³; flexural strength 69 MPa; "
+            "low wear ratio, excellent surface finish on hardened mold steels."
+        ),
+    ),
+
+    _make(
+        stable_id="poco-ck10-copper-electrode",
+        manufacturer="Poco (Entegris)",
+        product_family="CK10 Copper",
+        product_name="Poco CK10 Tellurium Copper Electrode Blank 25×25×100 mm",
+        catalog_code="CK10-25x25x100",
+        tool_category="EDM Electrode",
+        tool_category_code="EDM_ELECTRODE",
+        tool_type_code="EDM_ELECTRODE",
+        tool_subcategory="Tellurium Copper Sinker EDM Electrode",
+        supported_operations=["edm sinker", "edm"],
+        iso_material_groups=["P", "M", "K"],
+        tool_material="copper",
+        substrate_material_code="COPPER",
+        overall_length_mm=100.0,
+        shank_interface="Custom machined to EDM chuck adapter",
+        source_note=(
+            "Poco (Entegris) CK10 tellurium copper product page. "
+            "CuTe0.5% (C14500) alloy; improved machinability vs pure copper; "
+            "electrical conductivity ≥ 90 % IACS; "
+            "preferred for fine-detail cavities requiring lowest surface roughness (Ra < 0.4 µm)."
+        ),
     ),
 ]
 

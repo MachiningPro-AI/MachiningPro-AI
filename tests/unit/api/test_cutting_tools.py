@@ -6,9 +6,9 @@ from backend.api.app import app
 
 client = TestClient(app)
 
-EXPECTED_TOOL_COUNT = 40
-EXPECTED_MANUFACTURER_COUNT = 5  # Sandvik, Kennametal, Iscar, Walter, OSG
-EXPECTED_CATEGORY_COUNT = 9  # prev 5 + Grooving Insert, Face Mill Insert, Tap, Thread Mill
+EXPECTED_TOOL_COUNT = 47
+EXPECTED_MANUFACTURER_COUNT = 9  # Sandvik, Kennametal, Iscar, Walter, OSG, Norton, 3M, Bedra, Poco
+EXPECTED_CATEGORY_COUNT = 12  # prev 9 + Grinding Wheel, EDM Wire, EDM Electrode
 
 
 # ── Seed catalog data tests ──────────────────────────────────────────────────
@@ -695,7 +695,8 @@ class TestEpic03ImportPipeline:
         assert rows[0]["stable_id"] == "test-csv-001"
 
     def test_parse_json_tools_invalid_raises(self):
-        from backend.cutting_tools.import_pipeline import parse_json_tools
         import pytest
+
+        from backend.cutting_tools.import_pipeline import parse_json_tools
         with pytest.raises(ValueError):
             parse_json_tools('{"not": "an array"}')
