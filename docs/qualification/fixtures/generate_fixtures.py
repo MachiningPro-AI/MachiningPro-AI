@@ -282,7 +282,7 @@ def build_q07() -> Sheet:
 
 def gdt_frame(s: Sheet, x: int, y: int, cells: list[str], group: str, size=22, h=40):
     cx = x
-    for i, c in enumerate(cells):
+    for c in cells:
         w = int(ImageFont.load_default(size).getlength(c)) + 26
         s.rect(cx, y, cx + w, y + h, 2.2)
         s.text(cx + w / 2, y + h / 2, c, size, "mm", "GDT_CELL", group)

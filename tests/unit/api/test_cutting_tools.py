@@ -697,5 +697,5 @@ class TestEpic03ImportPipeline:
     def test_parse_json_tools_invalid_raises(self):
         from backend.cutting_tools.import_pipeline import parse_json_tools
         import pytest
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             parse_json_tools('{"not": "an array"}')

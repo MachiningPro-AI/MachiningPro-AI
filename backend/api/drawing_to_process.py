@@ -154,7 +154,7 @@ def _to_decimal(v: float | None, field: str) -> Decimal | None:
     try:
         return Decimal(str(v))
     except InvalidOperation:
-        raise HTTPException(400, f"Invalid decimal value for {field}: {v}")
+        raise HTTPException(400, f"Invalid decimal value for {field}: {v}") from None
 
 
 def _build_datum_ref(d: DatumRefIn) -> DatumReference:

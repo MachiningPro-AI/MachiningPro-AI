@@ -948,7 +948,6 @@ class TestQuoteCompleteness:
             CycleTimeIntelligenceResult,
             CycleTimePlanStatus,
             CycleTimeFidelity,
-            CycleTimeIntelligenceResult,
             OEEFoundation,
             PartCycleTime,
             BottleneckFoundation,
@@ -1320,7 +1319,6 @@ class TestNoFabricationAudit:
 class TestApiResponse:
     def test_level8_fields_present_in_response_structure(self):
         """Level-8 fields must be present in API response dict structure."""
-        from backend.interoperability.cost_intelligence import CostIntelligenceResult
         from backend.interoperability.cost_engine import derive_cost_intelligence
         mci = derive_cost_intelligence(cti=None)
         assert isinstance(mci, CostIntelligenceResult)

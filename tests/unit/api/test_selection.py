@@ -25,7 +25,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.api.app import app
-from backend.compatibility.engine import _MACHINES, _TOOLS
 from backend.selection.engine import select
 from backend.selection.models import SelectionRequest
 

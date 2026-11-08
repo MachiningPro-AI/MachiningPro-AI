@@ -683,7 +683,7 @@ class TestSnapshotImport:
 
     def test_malformed_review_raises(self):
         # Passing wrong type should raise pydantic validation error
-        with pytest.raises(Exception):
+        with pytest.raises(AttributeError):
             compare_engineering_reviews(None, None)  # type: ignore[arg-type]
 
 

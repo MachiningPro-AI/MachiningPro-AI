@@ -556,7 +556,7 @@ class TestDeterministicRepeatability:
         kwargs = _base_kwargs()
         r1 = compute_step_metrics(**kwargs)
         r2 = compute_step_metrics(**kwargs)
-        for m1, m2 in zip(r1.metrics, r2.metrics):
+        for m1, m2 in zip(r1.metrics, r2.metrics, strict=True):
             assert m1.status == m2.status
             assert m1.value == m2.value
 

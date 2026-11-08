@@ -856,7 +856,7 @@ class TestNoFakeData:
                 # Without path input, cutting time must be INSUFFICIENT_DATA — no fake seconds
                 if ct["cutting_time"] and ct["cutting_time"]["status"] == "AVAILABLE":
                     # This would only happen if a path was supplied — not in this test
-                    assert False, "Expected INSUFFICIENT_DATA without path input"
+                    raise AssertionError("Expected INSUFFICIENT_DATA without path input")
 
     def test_no_cost_calculation_fields_in_response(self):
         r = client.post(
