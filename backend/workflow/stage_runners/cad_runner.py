@@ -6,6 +6,7 @@ GEOMETRY is extracted in the same pass as CAD_IMPORT — both stages complete to
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from ..enums import StageStatus, WorkflowStage
 from ..models import EvidenceLabel, KnownUnknown, StageResult, WorkflowContext
@@ -85,37 +86,67 @@ class CadImportRunner(StageRunner):
         return None
 
     def _parse_dxf(self, path: str, ctx: WorkflowContext, result: StageResult) -> str | None:
-        from backend.interoperability.adapters.dxf import DXFAdapter
+        from backend.interoperability.adapters.dxf import DXF_DESCRIPTOR, DxfTokenAdapter
+        from backend.interoperability.enums import NormalizationStatus
+        from backend.interoperability.models import EngineeringSource
 
-        adapter = DXFAdapter()
-        parsed = adapter.parse(path)
-        if parsed is None:
+        source = EngineeringSource(
+            source_id=f"WF_{ctx.workflow_id}_DXF",
+            source_format_id=DXF_DESCRIPTOR.format_id,
+            file_name=os.path.basename(path),
+        )
+        adapter = DxfTokenAdapter()
+        doc = adapter.ingest_file(source, DXF_DESCRIPTOR, Path(path))
+        _failed = {NormalizationStatus.FAILED, NormalizationStatus.INSUFFICIENT_DATA}
+        if doc.normalization_status in _failed:
+            result.warnings.append(f"DXF parse did not succeed: {doc.normalization_status}")
             return None
         geo_ref = f"GEO_DXF_{ctx.workflow_id}"
         ctx.cad_provenance = {"format": "DXF", "path": path, "ref": geo_ref}
-        result.provenance["adapter"] = "DXFAdapter"
+        result.provenance["adapter"] = "DxfTokenAdapter"
+        result.provenance["normalization_status"] = str(doc.normalization_status)
         return geo_ref
 
     def _parse_iges(self, path: str, ctx: WorkflowContext, result: StageResult) -> str | None:
-        from backend.interoperability.adapters.iges import IGESAdapter
+        from backend.interoperability.adapters.iges import IGES_DESCRIPTOR, IgesTokenAdapter
+        from backend.interoperability.enums import NormalizationStatus
+        from backend.interoperability.models import EngineeringSource
 
-        adapter = IGESAdapter()
-        parsed = adapter.parse(path)
-        if parsed is None:
+        source = EngineeringSource(
+            source_id=f"WF_{ctx.workflow_id}_IGES",
+            source_format_id=IGES_DESCRIPTOR.format_id,
+            file_name=os.path.basename(path),
+        )
+        adapter = IgesTokenAdapter()
+        doc = adapter.ingest_file(source, IGES_DESCRIPTOR, Path(path))
+        _failed = {NormalizationStatus.FAILED, NormalizationStatus.INSUFFICIENT_DATA}
+        if doc.normalization_status in _failed:
+            result.warnings.append(f"IGES parse did not succeed: {doc.normalization_status}")
             return None
         geo_ref = f"GEO_IGES_{ctx.workflow_id}"
         ctx.cad_provenance = {"format": "IGES", "path": path, "ref": geo_ref}
-        result.provenance["adapter"] = "IGESAdapter"
+        result.provenance["adapter"] = "IgesTokenAdapter"
+        result.provenance["normalization_status"] = str(doc.normalization_status)
         return geo_ref
 
     def _parse_step(self, path: str, ctx: WorkflowContext, result: StageResult) -> str | None:
-        from backend.interoperability.adapters.step import STEPAdapter
+        from backend.interoperability.adapters.step import STEP_GENERIC, StepTokenAdapter
+        from backend.interoperability.enums import NormalizationStatus
+        from backend.interoperability.models import EngineeringSource
 
-        adapter = STEPAdapter()
-        parsed = adapter.parse(path)
-        if parsed is None:
+        source = EngineeringSource(
+            source_id=f"WF_{ctx.workflow_id}_STEP",
+            source_format_id=STEP_GENERIC.format_id,
+            file_name=os.path.basename(path),
+        )
+        adapter = StepTokenAdapter()
+        doc = adapter.ingest_file(source, STEP_GENERIC, Path(path))
+        _failed = {NormalizationStatus.FAILED, NormalizationStatus.INSUFFICIENT_DATA}
+        if doc.normalization_status in _failed:
+            result.warnings.append(f"STEP parse did not succeed: {doc.normalization_status}")
             return None
         geo_ref = f"GEO_STEP_{ctx.workflow_id}"
         ctx.cad_provenance = {"format": "STEP", "path": path, "ref": geo_ref}
-        result.provenance["adapter"] = "STEPAdapter"
+        result.provenance["adapter"] = "StepTokenAdapter"
+        result.provenance["normalization_status"] = str(doc.normalization_status)
         return geo_ref
