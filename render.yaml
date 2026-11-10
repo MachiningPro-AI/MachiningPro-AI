@@ -1,6 +1,6 @@
 # MachiningPro AI — Render Blueprint
 # Single web service: FastAPI serves both the API and the React SPA (same-origin).
-# No database, no persistent disk required.
+# Persistent disk at /data stores SQLite workflow database and artifact store.
 #
 # Setup steps:
 #   1. Connect this repo to Render.
@@ -18,6 +18,14 @@ services:
     startCommand: uvicorn backend.api.app:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
 
+    # Persistent disk: workflows.db + artifact store survive service restarts.
+    # Render Free/Starter: 1 GB attached at /data.
+    # Reference: https://render.com/docs/disks
+    disk:
+      name: machiningpro-data
+      mountPath: /data
+      sizeGB: 1
+
     envVars:
       # --- Required secrets (set in Render dashboard — never commit real values) ---
       - key: MACHININGPRO_DEV_JWT_SECRET
@@ -28,6 +36,13 @@ services:
 
       - key: MACHININGPRO_DEV_PASSWORD
         sync: false        # Demo login password
+
+      # --- Persistent storage directory (matches disk mountPath above) ---
+      # WorkflowStore writes to $MACHININGPRO_DATA_DIR/workflows.db
+      # ArtifactStore writes to $MACHININGPRO_DATA_DIR/artifacts/
+      # Falls back to "data/" (relative) when unset — suitable for local dev.
+      - key: MACHININGPRO_DATA_DIR
+        value: /data
 
       # --- CORS (leave empty for same-origin/single-service deployment) ---
       # Set to a comma-separated list of allowed origins only for split-service deployment.

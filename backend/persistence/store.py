@@ -166,13 +166,18 @@ class WorkflowStore:
         return from_json(row[0])
 
     def list_recent(self, limit: int = 50) -> list[dict[str, Any]]:
-        """Return lightweight listing rows ordered by created_at DESC."""
+        """Return lightweight listing rows ordered by created_at DESC.
+
+        Includes objective and current_stage extracted from JSON payload.
+        """
         self._assert_open()
         limit = max(1, min(limit, 500))
         with self._lock:
             try:
                 rows = self._conn.execute(  # type: ignore[union-attr]
-                    """SELECT workflow_id, part_reference, status, created_at, updated_at
+                    """SELECT workflow_id, part_reference, status, created_at, updated_at,
+                              json_extract(payload, '$.objective') as objective,
+                              json_extract(payload, '$.current_stage') as current_stage
                        FROM workflows ORDER BY created_at DESC LIMIT ?""",
                     (limit,),
                 ).fetchall()
@@ -185,6 +190,8 @@ class WorkflowStore:
                 "status": r[2],
                 "created_at": r[3],
                 "updated_at": r[4],
+                "objective": r[5],
+                "current_stage": r[6],
             }
             for r in rows
         ]

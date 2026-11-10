@@ -10,7 +10,7 @@ See `docs/DEMO_GUIDE.md` for the demo workflow and known capability limitations.
 **Single Render Web Service — same-origin topology.**
 
 FastAPI serves both the REST API (`/api/*`) and the React SPA (`frontend/dist/`).
-No database, no persistent disk, no CDN required for the demo deployment.
+Level 20 adds SQLite-backed workflow persistence and a Render persistent disk — no CDN required.
 
 ```
 Browser → https://machiningpro-ai-demo.onrender.com
@@ -33,9 +33,10 @@ Same-origin deployment requires no VITE_API_URL change and no CORS configuration
 | Service name | `machiningpro-ai-demo` |
 | Service type | Web Service |
 | Environment | Python |
-| Plan | **Starter** ($7/month — no cold starts) |
+| Plan | **Starter** ($7/month — no cold starts; also required for persistent disk) |
 | Deploy branch | `main` |
 | Health check path | `/api/health` |
+| Persistent disk | `machiningpro-data`, mounted at `/data`, 1 GB |
 
 > **Free tier warning:** Render's free tier sleeps after 15 minutes of inactivity.
 > Cold-start time is ~50 seconds — unacceptable during a live customer demo.
@@ -77,6 +78,7 @@ Never commit real values to the repository.
 
 | Variable | Default behaviour when absent | Notes |
 |---|---|---|
+| `MACHININGPRO_DATA_DIR` | `data/` (relative path) | **Set to `/data` on Render** — matches the persistent disk mount point; `WorkflowStore` and `ArtifactStore` write here |
 | `CORS_ORIGINS` | CORS middleware not activated | Set only for split-service deployment (not needed for same-origin) |
 | `MACHININGPRO_TOOLLIFE968_SOURCE_PATH` | Tool Life Explorer runs from in-catalog data | Windows local paths must NOT be used on Render — leave unset |
 | `MACHININGPRO_CUTTING_PARAM_REF_PATH` | Cutting param queries return `NO_MATCH` | Leave unset unless a reference file is deployed |
@@ -157,7 +159,8 @@ Run these checks immediately after a successful deploy:
 
 ```
 1. GET  /api/health
-   Expected: 200  {"status":"ok","database_ok":false}
+   Expected: 200  {"status":"ok","database_ok":true,"artifact_store_ok":true}
+   Note: database_ok=true confirms SQLite at /data/workflows.db is writable.
 
 2. POST /api/login  body: {"username":"<demo-user>","password":"<demo-password>"}
    Expected: 200  {"access_token":"<jwt>"}
@@ -174,8 +177,14 @@ Run these checks immediately after a successful deploy:
 6. Navigate: Log in, open all 5 workflow steps from the Dashboard
    Expected: All routes reachable, no broken navigation
 
+7. GET  /api/machines  (with JWT Authorization header)
+   Expected: 200  array of machine records
+
+8. Stub routes: /app/planning-quality/turning
+   Expected: "Engineering Preview" badge page, not a 404
+
 9. GET /app/workflow/manufacturing-analysis (browser — requires login)
-   Expected: Manufacturing Analysis page loads with file picker
+   Expected: Manufacturing Analysis page loads with file picker and "Recent" history button
 
 10. POST /api/cad-upload (with JWT header + multipart .dxf file)
     Expected: 200 {"upload_status":"ACCEPTED","file_ref":"<uuid>_<name>.dxf",...}
@@ -185,11 +194,20 @@ Run these checks immediately after a successful deploy:
     Expected: 201 / 200; status in PARTIAL/COMPLETED/FAILED
     Expected: plan.production_approved=false, dispatched=false, machine_started=false
 
-7. GET  /api/machines  (with JWT Authorization header)
-   Expected: 200  array of machine records
+12. GET /api/workflow/history  (with JWT Authorization header)
+    Expected: 200  array; includes workflow_id, part_reference, status, objective, current_stage
 
-8. Stub routes: /app/planning-quality/turning
-   Expected: "Engineering Preview" badge page, not a 404
+13. GET /api/workflow/{id}/export/plan.json  (with JWT Authorization header)
+    Expected: 200 application/json; Content-Disposition: attachment; no server path in body
+
+14. GET /api/workflow/{id}/export/nc-manifest.json  (with JWT Authorization header)
+    Expected: 200; body.safety.OFFLINE_CANDIDATE=true; body.safety.NOT_DISPATCHED=true
+
+15. Restart smoke test (Level 20):
+    a. Create and run a workflow; note its workflow_id.
+    b. Trigger a manual redeploy from the Render dashboard.
+    c. After restart: GET /api/workflow/{id}  → 200 (workflow survived restart)
+    d. GET /api/workflow/history → workflow still appears in list
 ```
 
 ---
@@ -214,8 +232,9 @@ Do not use `git reset --hard` or force-push to `main`.
 |---|---|---|
 | Drawing OCR unavailable | All drawing uploads return `OCR_ENGINE_UNAVAILABLE` | `tesseract-ocr` system package not on Render |
 | STEP tessellation slow | First STEP upload may take 10–30 seconds | gmsh initialisation; subsequent uploads faster |
-| In-memory state | Uploaded drawings/jobs/workflows lost on restart | `MAX_DRAWINGS=20`, `MAX_JOBS=100`; expected for demo |
-| CAD uploads in-memory | Uploaded CAD files in temp dir; lost on restart | Expected for demo; submit workflow immediately after upload |
+| In-memory drawing/job state | Uploaded drawings/jobs lost on restart | `MAX_DRAWINGS=20`, `MAX_JOBS=100`; expected for demo |
+| CAD uploads content-addressed | Artifact store persists to `/data/artifacts/` on Render | Survives restarts when persistent disk is configured |
+| Workflow state persisted | SQLite at `/data/workflows.db`; survives restarts | Level 20 addition; persistent disk required |
 | Single user | One credential set from env vars | No multi-user or session isolation |
 | No rate limiting | API accepts unlimited authenticated requests | Acceptable for controlled demo |
 | Render Starter cold start | None (always-on) | Free tier: ~50 s cold start — do not use for demo |
@@ -228,7 +247,8 @@ Do not use `git reset --hard` or force-push to `main`.
 | Decision | Rationale |
 |---|---|
 | Single service (not split) | `API_BASE='/api'` is relative; no VITE_API_URL or CORS changes needed |
-| Starter plan | Eliminates cold starts — required for live customer demo |
-| No database | All catalogs are seeded from Python code; no external data dependency |
-| No persistent disk | Files processed in-memory; in-memory OrderedDict state is acceptable for demo |
+| Starter plan | Eliminates cold starts — required for live customer demo; also required for persistent disk |
+| SQLite (not Postgres) | Zero external service dependency; WAL mode; thread-safe; fail-closed on missing dir |
+| Persistent disk at `/data` (1 GB) | Workflow history and artifact store survive service restarts; `MACHININGPRO_DATA_DIR=/data` |
+| Catalogs code-seeded | Machine/tool/material catalogs seeded from Python at import time; no migration needed |
 | `npm ci` over `npm install` | Deterministic install from lockfile; reproducible builds |

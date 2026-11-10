@@ -1,23 +1,36 @@
 /**
- * Level-19 Manufacturing Workflow — One-Click Manufacturing Analysis.
+ * Level-19/20 Manufacturing Workflow — One-Click Manufacturing Analysis.
  *
- * Provides a unified end-to-end manufacturing analysis workflow:
- * CAD → Geometry → Features → DFM → Process → Machine → Tool → Cutting Data
- * → Cycle Time → Cost/RFQ → CAM → Toolpath → Verification → NC → Scheduling
- * → Assignment → Adaptive AI → Digital Twin → Final Manufacturing Plan
+ * Level-20 additions:
+ *   - Workflow history panel (Recent Workflows) backed by /api/workflow/history
+ *   - Browser reload recovery via sessionStorage + /api/workflow/{id}
+ *   - Authenticated export downloads via /api/workflow/{id}/export/{format}
  *
  * Safety constraints (enforced by backend — UI reflects, never bypasses):
  *   PRODUCTION_APPROVED=NO  — plan is proposal only, requires engineering review
  *   NO_AUTO_DISPATCH=YES    — no machine dispatch from this UI
  *   NO_CNC_WRITE=YES        — no machine writes
+ *   NC_EXPORT_UI_SAFE=YES   — NC manifest always labelled OFFLINE CANDIDATE
  */
 
-import { useState, useCallback, type ChangeEvent } from 'react'
+import { useState, useCallback, useEffect, type ChangeEvent } from 'react'
 import {
   CheckCircle, XCircle, AlertCircle, Clock, Loader,
   SkipForward, ChevronRight, FileText, AlertTriangle,
-  Eye, Download
+  Eye, Download, History, RefreshCw
 } from 'lucide-react'
+
+import {
+  EXPORT_FORMATS,
+  buildExportUrl,
+  formatHistoryDate,
+  isNcSafetyFormat,
+  saveCurrentWorkflowId,
+  restoreCurrentWorkflowId,
+  statusBadgeClass,
+  type WorkflowHistoryItem,
+  type WorkflowExportFormat,
+} from '../services/workflowHistory'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -163,6 +176,27 @@ async function apiGet<T>(path: string): Promise<T> {
 }
 
 // ---------------------------------------------------------------------------
+// Export download helper
+// ---------------------------------------------------------------------------
+
+async function downloadExport(workflowId: string, format: WorkflowExportFormat): Promise<void> {
+  const url = buildExportUrl(workflowId, format)
+  const resp = await fetch(url, { headers: getAuthHeaders() })
+  if (!resp.ok) throw new Error(`Export failed: ${resp.status}: ${await resp.text()}`)
+  const blob = await resp.blob()
+  const cd = resp.headers.get('content-disposition') ?? ''
+  const fnMatch = cd.match(/filename="([^"]+)"/)
+  const filename = fnMatch?.[1] ?? `machiningpro_${format}`
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(a.href)
+}
+
+// ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
 
@@ -186,6 +220,70 @@ export default function WorkflowPage() {
   const [stages, setStages] = useState<StageInfo[]>([])
   const [plan, setPlan] = useState<PlanSummary | null>(null)
   const [selectedStage, setSelectedStage] = useState<StageInfo | null>(null)
+
+  // Level-20: History state
+  const [history, setHistory] = useState<WorkflowHistoryItem[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
+  const [exportingFormat, setExportingFormat] = useState<WorkflowExportFormat | null>(null)
+  const [showHistory, setShowHistory] = useState(false)
+
+  // ---------------------------------------------------------------------------
+  // Level-20: Load workflow history
+  // ---------------------------------------------------------------------------
+
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true)
+    try {
+      const items = await apiGet<WorkflowHistoryItem[]>('/api/workflow/history?limit=20')
+      setHistory(items)
+    } catch {
+      // History is a convenience feature — fail silently
+    } finally {
+      setHistoryLoading(false)
+    }
+  }, [])
+
+  // ---------------------------------------------------------------------------
+  // Level-20: Load a persisted workflow by ID
+  // ---------------------------------------------------------------------------
+
+  const loadWorkflowById = useCallback(async (id: string) => {
+    try {
+      const wf = await apiGet<WorkflowSummary>(`/api/workflow/${id}`)
+      setWorkflowId(id)
+      setSummary(wf)
+      const stageData = await apiGet<StageInfo[]>(`/api/workflow/${id}/stages`)
+      setStages(stageData)
+      try {
+        const planData = await apiGet<PlanSummary>(`/api/workflow/${id}/plan`)
+        setPlan(planData)
+      } catch {
+        // No plan yet
+      }
+      saveCurrentWorkflowId(id)
+    } catch {
+      // Workflow may have been deleted or session expired
+    }
+  }, [])
+
+  // ---------------------------------------------------------------------------
+  // Level-20: On mount — reload recovery + history
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    // Reload recovery: restore last workflow from sessionStorage
+    const savedId = restoreCurrentWorkflowId()
+    if (savedId) {
+      loadWorkflowById(savedId)
+    }
+    // Always load history
+    loadHistory()
+  }, [loadHistory, loadWorkflowById])
+
+  // ---------------------------------------------------------------------------
+  // File upload
+  // ---------------------------------------------------------------------------
 
   const handleFileSelect = useCallback(async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null
@@ -212,15 +310,19 @@ export default function WorkflowPage() {
     }
   }, [])
 
+  // ---------------------------------------------------------------------------
+  // Run workflow
+  // ---------------------------------------------------------------------------
+
   const runWorkflow = useCallback(async () => {
     setRunning(true)
     setError(null)
     setStages([])
     setPlan(null)
     setSelectedStage(null)
+    setExportError(null)
 
     try {
-      // Create workflow
       const created = await apiPost<WorkflowSummary & { workflow_id: string }>('/api/workflow', {
         part_reference: selectedFile?.name.replace(/\.[^.]+$/, '') || 'UNNAMED_PART',
         revision: 'REV-A',
@@ -232,34 +334,56 @@ export default function WorkflowPage() {
         stock_ref: stock || null,
       })
       setWorkflowId(created.workflow_id)
+      // Level-20: persist for reload recovery
+      saveCurrentWorkflowId(created.workflow_id)
 
-      // Run workflow
       const ran = await apiPost<WorkflowSummary>(`/api/workflow/${created.workflow_id}/run`)
       setSummary(ran as WorkflowSummary)
 
-      // Fetch stage details
       const stageData = await apiGet<StageInfo[]>(`/api/workflow/${created.workflow_id}/stages`)
       setStages(stageData)
 
-      // Try to fetch plan
       try {
         const planData = await apiGet<PlanSummary>(`/api/workflow/${created.workflow_id}/plan`)
         setPlan(planData)
       } catch {
         // Plan may not be available (PARTIAL workflow)
       }
+
+      // Refresh history after run
+      loadHistory()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
       setRunning(false)
     }
-  }, [fileRef, selectedFile, material, quantity, stock, objective, mode])
+  }, [fileRef, selectedFile, material, quantity, stock, objective, mode, loadHistory])
+
+  // ---------------------------------------------------------------------------
+  // Export handler
+  // ---------------------------------------------------------------------------
+
+  const handleExport = useCallback(async (format: WorkflowExportFormat) => {
+    if (!workflowId) return
+    setExportError(null)
+    setExportingFormat(format)
+    try {
+      await downloadExport(workflowId, format)
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setExportingFormat(null)
+    }
+  }, [workflowId])
+
+  // ---------------------------------------------------------------------------
+  // Derived values
+  // ---------------------------------------------------------------------------
 
   const stageMap = new Map(stages.map(s => [s.stage, s]))
   const totalStages = ALL_STAGES.length
   const passedStages = stages.filter(s => s.status === 'PASS').length
   const progressPct = totalStages > 0 ? Math.round((passedStages / totalStages) * 100) : 0
-
   const hasRun = stages.length > 0
 
   return (
@@ -267,10 +391,71 @@ export default function WorkflowPage() {
       {/* Page header */}
       <div className="border-b border-tp-border bg-tp-bg px-6 py-4">
         <div className="text-[10px] font-semibold uppercase tracking-widest text-tp-accent-light mb-1">
-          Level 19 — End-to-End Workflow
+          Level 19/20 — End-to-End Workflow
         </div>
-        <h1 className="text-lg font-semibold text-tp-text">Manufacturing Analysis</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-lg font-semibold text-tp-text">Manufacturing Analysis</h1>
+          <button
+            onClick={() => setShowHistory(h => !h)}
+            className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded border border-tp-border text-tp-text-2 hover:bg-tp-border/50 transition-colors"
+          >
+            <History className="w-3.5 h-3.5" />
+            Recent
+          </button>
+        </div>
       </div>
+
+      {/* Level-20: History panel (collapsible) */}
+      {showHistory && (
+        <div className="border-b border-tp-border bg-tp-surface px-6 py-3">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[10px] font-semibold uppercase tracking-widest text-tp-text-3">
+              Recent Workflows
+            </div>
+            <button
+              onClick={loadHistory}
+              disabled={historyLoading}
+              className="text-xs text-tp-text-3 hover:text-tp-text-2 disabled:opacity-40"
+              title="Refresh history"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          {historyLoading && (
+            <div className="text-xs text-tp-text-3 flex items-center gap-1">
+              <Loader className="w-3 h-3 animate-spin" /> Loading…
+            </div>
+          )}
+          {!historyLoading && history.length === 0 && (
+            <div className="text-xs text-tp-text-3">No workflows yet.</div>
+          )}
+          <ul className="space-y-1">
+            {history.map(item => (
+              <li key={item.workflow_id}>
+                <button
+                  onClick={() => { loadWorkflowById(item.workflow_id); setShowHistory(false) }}
+                  className={`w-full text-left px-3 py-2 rounded border transition-colors text-xs ${
+                    workflowId === item.workflow_id
+                      ? 'border-tp-accent-light bg-tp-accent-light/10 text-tp-text'
+                      : 'border-tp-border hover:bg-tp-border/40 text-tp-text-2'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium truncate">{item.part_reference}</span>
+                    <span className={`font-semibold ${statusBadgeClass(item.status)}`}>
+                      {item.status}
+                    </span>
+                  </div>
+                  <div className="mt-0.5 text-tp-text-3 flex items-center gap-3">
+                    <span>{formatHistoryDate(item.created_at)}</span>
+                    {item.objective && <span>{item.objective}</span>}
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="flex flex-col lg:flex-row h-full" style={{ minHeight: 0 }}>
         {/* ---------------------------------------------------------------- */}
@@ -548,15 +733,90 @@ export default function WorkflowPage() {
                 </div>
               )}
 
-              {/* Export foundation button */}
-              <button
-                disabled
-                className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded border border-tp-border text-tp-text-2 opacity-50 cursor-not-allowed"
-                title="Export requires engineering review and approval"
-              >
+              {/* Level-20: Export buttons */}
+              {workflowId && (
+                <div className="mt-4 border-t border-tp-border pt-4">
+                  <div className="text-xs font-medium text-tp-text-2 mb-2 flex items-center gap-1.5">
+                    <Download className="w-3.5 h-3.5" />
+                    Export Results
+                    <span className="text-tp-text-3 font-normal ml-1">— requires engineering review before production use</span>
+                  </div>
+                  {exportError && (
+                    <div className="mb-2 text-xs text-red-500 flex items-center gap-1">
+                      <XCircle className="w-3.5 h-3.5" />
+                      {exportError}
+                    </div>
+                  )}
+                  <div className="flex flex-wrap gap-2">
+                    {EXPORT_FORMATS.map(fmt => (
+                      <button
+                        key={fmt.id}
+                        onClick={() => handleExport(fmt.id)}
+                        disabled={exportingFormat !== null}
+                        title={
+                          isNcSafetyFormat(fmt.id)
+                            ? 'OFFLINE CANDIDATE — NOT MACHINE APPROVED — NOT DISPATCHED'
+                            : fmt.label
+                        }
+                        className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded border transition-colors disabled:opacity-50 ${
+                          isNcSafetyFormat(fmt.id)
+                            ? 'border-orange-300 dark:border-orange-800 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/20'
+                            : 'border-tp-border text-tp-text-2 hover:bg-tp-border/50'
+                        }`}
+                      >
+                        {exportingFormat === fmt.id
+                          ? <Loader className="w-3 h-3 animate-spin" />
+                          : <Download className="w-3 h-3" />
+                        }
+                        {fmt.label}
+                        {isNcSafetyFormat(fmt.id) && (
+                          <span className="text-orange-500 font-semibold">⚠</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  {/* NC export safety notice */}
+                  <p className="mt-2 text-[10px] text-orange-500">
+                    ⚠ NC Manifest: OFFLINE CANDIDATE only. NOT MACHINE APPROVED. NOT DISPATCHED.
+                    No CNC transfer.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Export buttons also available for any completed workflow (no plan yet) */}
+          {workflowId && !plan && hasRun && (
+            <div className="bg-tp-surface border border-tp-border rounded-lg p-5">
+              <div className="text-xs font-medium text-tp-text-2 mb-2 flex items-center gap-1.5">
                 <Download className="w-3.5 h-3.5" />
-                Export Plan (requires review)
-              </button>
+                Export Partial Results
+              </div>
+              {exportError && (
+                <div className="mb-2 text-xs text-red-500">{exportError}</div>
+              )}
+              <div className="flex flex-wrap gap-2">
+                {EXPORT_FORMATS.filter(f => f.id !== 'plan.json').map(fmt => (
+                  <button
+                    key={fmt.id}
+                    onClick={() => handleExport(fmt.id)}
+                    disabled={exportingFormat !== null}
+                    title={isNcSafetyFormat(fmt.id) ? 'OFFLINE CANDIDATE — NOT DISPATCHED' : fmt.label}
+                    className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded border transition-colors disabled:opacity-50 ${
+                      isNcSafetyFormat(fmt.id)
+                        ? 'border-orange-300 dark:border-orange-800 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/20'
+                        : 'border-tp-border text-tp-text-2 hover:bg-tp-border/50'
+                    }`}
+                  >
+                    {exportingFormat === fmt.id
+                      ? <Loader className="w-3 h-3 animate-spin" />
+                      : <Download className="w-3 h-3" />
+                    }
+                    {fmt.label}
+                    {isNcSafetyFormat(fmt.id) && <span className="text-orange-500">⚠</span>}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -667,6 +927,14 @@ export default function WorkflowPage() {
               <p className="text-xs text-tp-text-3">
                 Configure inputs and run the manufacturing analysis to see results.
               </p>
+              {history.length > 0 && (
+                <button
+                  onClick={() => setShowHistory(true)}
+                  className="mt-2 text-xs text-tp-accent-light hover:underline"
+                >
+                  Open a recent workflow
+                </button>
+              )}
             </div>
           )}
         </div>

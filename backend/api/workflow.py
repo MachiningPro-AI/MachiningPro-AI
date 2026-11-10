@@ -149,6 +149,8 @@ class WorkflowHistoryItem(BaseModel):
     status: str
     created_at: str
     updated_at: str
+    objective: str | None = None
+    current_stage: str | None = None
 
 
 # ---------------------------------------------------------------------------
