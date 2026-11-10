@@ -2,7 +2,7 @@ import {
   LayoutDashboard, Zap, Wrench, Microscope,
   CheckSquare, TrendingUp, Settings2,
   Search, ClipboardList, Puzzle, SearchCode,
-  Archive, FileText, Ruler, ShieldCheck, GitBranch,
+  Archive, FileText, Ruler, ShieldCheck, GitBranch, Workflow,
 } from 'lucide-react'
 import type { NavGroup } from '../types/navigation'
 
@@ -57,6 +57,12 @@ export const NAV_GROUPS: NavGroup[] = [
         label: 'Technical Drawing Intelligence',
         icon: Search,
       },
+    ],
+  },
+  {
+    id: 'workflow', domainKey: 'manufacturing', label: 'Manufacturing',
+    items: [
+      { id: 'manufacturing-analysis', path: '/app/workflow/manufacturing-analysis', label: 'Manufacturing Analysis', icon: Workflow },
     ],
   },
   {

@@ -16,6 +16,7 @@ import ToolHolderCatalogPage from './pages/ToolHolderCatalogPage'
 import ProcessPlanningPage from './pages/ProcessPlanningPage'
 import DrawingToProcessPage from './pages/DrawingToProcessPage'
 import MaterialLibraryPage from './pages/MaterialLibraryPage'
+import WorkflowPage from './pages/WorkflowPage'
 
 function CapabilityPendingPage({ title }: { title: string }) {
   const { t } = useLocale()
@@ -80,6 +81,9 @@ function ProtectedRoutes() {
           path="app/cad-drawing/technical-drawing-intelligence"
           element={<TechnicalDrawingIntelligencePage reviewer={user} />}
         />
+
+        {/* Manufacturing Workflow */}
+        <Route path="app/workflow/manufacturing-analysis" element={<WorkflowPage />} />
 
         {/* Planning & Quality */}
         <Route path="app/planning-quality/process-planning" element={<ProcessPlanningPage />} />

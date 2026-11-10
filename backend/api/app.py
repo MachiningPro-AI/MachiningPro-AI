@@ -41,6 +41,7 @@ from .tool_holders import router as tool_holders_router
 from .tool_life import router as tool_life_router
 from .toolpath import router as toolpath_router
 from .verification import router as verification_router
+from .workflow import router as workflow_router
 
 
 class ChangePasswordRequest(BaseModel):
@@ -86,6 +87,7 @@ app.include_router(monitoring_router)
 app.include_router(adaptive_router)
 app.include_router(job_planning_router)
 app.include_router(digital_twin_router)
+app.include_router(workflow_router)
 
 
 @app.get("/api/health")
