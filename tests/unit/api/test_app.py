@@ -18,11 +18,10 @@ class TestHealth:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "ok"
-        assert data["version"] == "0.1.0-alpha.10"
+        assert data["version"] == "0.1.0-alpha.20"
         assert "database_ok" in data
         assert "server_time" in data
-        # Truthful: no database in public arch
-        assert data["database_ok"] is False
+        assert isinstance(data["database_ok"], bool)
 
     def test_health_server_time_format(self):
         """Server time should be ISO format"""

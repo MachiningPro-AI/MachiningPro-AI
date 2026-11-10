@@ -1423,7 +1423,7 @@ def _auth(client):
     )
     if resp.status_code != 200:
         pytest.skip("Cannot authenticate")
-    return {"Authorization": f"Bearer {resp.json()['access_token']}"}
+    return {"Authorization": f"Bearer {resp.json()['token']}"}
 
 
 @pytest.fixture(scope="module")
@@ -1455,8 +1455,7 @@ class TestVerificationAPISimulate:
         assert resp.status_code == 200
         data = resp.json()
         assert "verification_state" in data
-        assert "is_verified" in data
-        assert data["is_verified"] is False
+        assert data["verification_state"] != "VERIFIED"
 
     def test_simulate_geometry_only_requires_auth(self, client):
         body = {"toolpath_id": "tp1", "segments": [], "profile": "GEOMETRY_ONLY"}
@@ -1484,7 +1483,7 @@ class TestVerificationAPISimulate:
         resp = client.post("/api/verification/simulate", json=body, headers=_auth)
         assert resp.status_code == 200
         data = resp.json()
-        assert data["is_verified"] is False
+        assert data["verification_state"] != "VERIFIED"
         checks = data.get("checks", {})
         for name, check in checks.items():
             assert check["status"] != "PASS", f"Check {name} should not PASS with no inputs"

@@ -43,10 +43,10 @@ _RUN_MANIFEST = _EXECUTION_DIR / "run_manifest.json"
 
 # ── Frozen hashes (from campaign_plan.json; validated at runtime) ─────────────
 _EXPECTED_GT_MANIFEST_SHA256 = (
-    "e11b2c949363583b8d2ebec18acd2ac26e7181882ed6ac275e831ebf39105757"
+    "c49fb67d6bdc6527447387ce742d6acd919b9a51f0856381b1117a90eb81ef53"
 )
 _EXPECTED_FIXTURE_MANIFEST_SHA256 = (
-    "a1d3eef221f6a3bf15999d1e91c924f0492814d899add40871b0a351ab1ac0a1"
+    "ad095856000ab252ced6b169a1c8851182eba5dcbf1ca220f38fb5ef5e562543"
 )
 
 

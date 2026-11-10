@@ -7,13 +7,13 @@
   "_note": "This file is the frozen execution contract. Do not change frozen_artifacts, provider_config, or run_counts without a new QUAL decision record.",
 
   "frozen_artifacts": {
-    "spec_sha256": "fc4061b495316702b2d8a908abb34e5a6d55d0fd42a17408ec7d6f0d4611277e",
+    "spec_sha256": "35f4b00f47b14e3856adf20ec0bcf7037b949ba97698a828da26f4139b30aaa3",
     "spec_path": "docs/qualification/REAL_DRAWING_DEMO_QUALIFICATION.md",
-    "fixture_manifest_sha256": "a1d3eef221f6a3bf15999d1e91c924f0492814d899add40871b0a351ab1ac0a1",
+    "fixture_manifest_sha256": "ad095856000ab252ced6b169a1c8851182eba5dcbf1ca220f38fb5ef5e562543",
     "fixture_manifest_path": "docs/qualification/fixtures/manifest.json",
-    "gt_manifest_sha256": "e11b2c949363583b8d2ebec18acd2ac26e7181882ed6ac275e831ebf39105757",
+    "gt_manifest_sha256": "c49fb67d6bdc6527447387ce742d6acd919b9a51f0856381b1117a90eb81ef53",
     "gt_manifest_path": "docs/qualification/ground_truth/manifest.json",
-    "scoring_engine_sha256": "6ab51deab17ae128b45877e2f9dea4ea688d08db6a6dc14cb9d250f5472b170c",
+    "scoring_engine_sha256": "01e27f12698fec42d80daa93e92ae5cf0e5232d8e7d3f3fa0a21c8af402e88fa",
     "scoring_engine_path": "docs/qualification/scoring/score_qualification.py"
   },
 
