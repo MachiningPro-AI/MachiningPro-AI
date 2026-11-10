@@ -23,6 +23,7 @@ class WorkflowStatus(StrEnum):
     PARTIAL = "PARTIAL"
     CANCELLED = "CANCELLED"
     FAILED = "FAILED"
+    INTERRUPTED = "INTERRUPTED"  # Set on restart for workflows that were RUNNING
 
 
 class StageStatus(StrEnum):

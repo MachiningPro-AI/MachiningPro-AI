@@ -183,8 +183,8 @@ class TestCadUploadResponse:
             assert field in data
         assert data["upload_status"] == "ACCEPTED"
 
-    def test_collision_safe_names_differ(self, client, auth_headers):
-        """Two uploads of the same filename get different file_refs."""
+    def test_content_addressed_same_content_same_ref(self, client, auth_headers):
+        """Level-20: content-addressed storage — same content produces same artifact_id (dedup)."""
         def upload():
             return client.post(
                 "/api/cad-upload",
@@ -193,5 +193,23 @@ class TestCadUploadResponse:
             )
         r1 = upload()
         r2 = upload()
+        assert r1.status_code == r2.status_code == 200
+        # Same content → same artifact ID (content-addressed deduplication)
+        assert r1.json()["file_ref"] == r2.json()["file_ref"]
+
+    def test_different_content_different_ref(self, client, auth_headers):
+        """Different file contents produce different artifact IDs."""
+        content_a = b"0\nSECTION\n2\nHEADER\n0\nENDSEC\n0\nEOF\n"
+        content_b = b"0\nSECTION\n2\nHEADER\n9\n$EXTRA\n0\nENDSEC\n0\nEOF\n"
+        r1 = client.post(
+            "/api/cad-upload",
+            files={"file": ("a.dxf", io.BytesIO(content_a), "application/octet-stream")},
+            headers=auth_headers,
+        )
+        r2 = client.post(
+            "/api/cad-upload",
+            files={"file": ("b.dxf", io.BytesIO(content_b), "application/octet-stream")},
+            headers=auth_headers,
+        )
         assert r1.status_code == r2.status_code == 200
         assert r1.json()["file_ref"] != r2.json()["file_ref"]

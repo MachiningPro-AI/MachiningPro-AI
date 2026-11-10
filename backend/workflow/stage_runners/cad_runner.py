@@ -38,13 +38,20 @@ class CadImportRunner(StageRunner):
         )
 
         file_path = str(file_ref)
+        # Resolve artifact ref → absolute path (Level-20 durable storage)
+        if not os.path.exists(file_path):
+            try:
+                from backend.api.cad_upload import resolve_file_ref
+                file_path = resolve_file_ref(file_path)
+            except (ValueError, Exception):
+                pass
         if not os.path.exists(file_path):
             result.status = StageStatus.BLOCKED
-            result.blocking_reasons.append(f"File not found: {file_path}")
+            result.blocking_reasons.append(f"File not found: {file_ref}")
             result.known_unknowns.append(
                 KnownUnknown(
                     category="file_not_found",
-                    description=f"CAD file does not exist at path: {file_path}",
+                    description=f"CAD file does not exist at path: {file_ref}",
                     stage=WorkflowStage.CAD_IMPORT,
                 )
             )

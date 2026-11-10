@@ -9,21 +9,27 @@ Safety invariants:
   UPLOAD_SIZE_LIMIT=YES            (CAD_UPLOAD_MAX_BYTES env var, default 50 MB)
   CONTENT_HEADER_VALIDATION=YES
   NO_SERVER_PATH_IN_RESPONSE=YES
-  TEMP_CLEANUP_ON_FAILURE=YES
+  DURABLE_STORAGE=YES              (ArtifactStore, Level 20)
+
+Level-20: files are persisted in ArtifactStore (not OS temp dir).
 """
 from __future__ import annotations
 
+import logging
 import os
 import re
 import tempfile
-import uuid
 from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, UploadFile
 from pydantic import BaseModel
 
+from ..observability import metrics
+from ..persistence import ArtifactStoreError, get_artifact_store
 from .auth import verify_token
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/cad-upload", tags=["cad-upload"])
 
@@ -35,7 +41,10 @@ ALLOWED_EXTENSIONS: frozenset[str] = frozenset({".dxf", ".igs", ".iges", ".stp",
 
 MAX_UPLOAD_BYTES: int = int(os.getenv("CAD_UPLOAD_MAX_BYTES", str(50 * 1024 * 1024)))  # 50 MB
 
-_UPLOAD_DIR = Path(tempfile.gettempdir()) / "machiningpro_uploads"
+# Demo mode: tighter upload limit
+_DEMO_MODE = os.getenv("MACHININGPRO_DEMO_MODE", "0").strip() in ("1", "true", "yes")
+if _DEMO_MODE:
+    MAX_UPLOAD_BYTES = min(MAX_UPLOAD_BYTES, 5 * 1024 * 1024)  # 5 MB cap in demo
 
 
 # ---------------------------------------------------------------------------
@@ -51,6 +60,7 @@ def _require_user(authorization: str | None = Header(default=None)) -> dict[str,
         else None
     )
     if payload is None:
+        metrics.increment(metrics.AUTH_FAILED)
         raise HTTPException(401, detail={"error_code": "UNAUTHENTICATED"})
     return payload
 
@@ -77,11 +87,7 @@ _SAFE_STEM_RE = re.compile(r"[^A-Za-z0-9_\-]")
 
 
 def _sanitize_filename(raw: str) -> tuple[str, str]:
-    """Return (safe_name, ext) from a raw filename.
-
-    Strips directory components, sanitizes stem, preserves extension.
-    """
-    # Strip all directory components — never trust client path separators
+    """Return (safe_name, ext) from a raw filename."""
     name = Path(raw).name
     stem = Path(name).stem
     ext = Path(name).suffix.lower()
@@ -96,29 +102,25 @@ def _reject_traversal(raw: str) -> None:
 
 
 def _validate_dxf_header(data: bytes) -> bool:
-    """DXF files start with group code 0 on the first line."""
     head = data[:20].decode("utf-8", errors="ignore").strip()
     return head.startswith("0") or head.startswith("  0")
 
 
 def _validate_iges_header(data: bytes) -> bool:
-    """IGES files have an 'S' (Start section) in fixed column 73 of the first record."""
     if len(data) < 80:
         return False
     try:
         first_line = data[:80].decode("ascii", errors="ignore")
         return first_line[72:73] == "S"
-    except Exception:
+    except Exception:  # noqa: BLE001
         return False
 
 
 def _validate_step_header(data: bytes) -> bool:
-    """STEP/STP files begin with 'ISO-10303-21'."""
     return data[:20].lstrip().upper().startswith(b"ISO-10303-21")
 
 
 def _validate_format(ext: str, data: bytes) -> bool:
-    """Return True if the file header matches the declared extension."""
     if ext == ".dxf":
         return _validate_dxf_header(data)
     if ext in (".igs", ".iges"):
@@ -126,11 +128,6 @@ def _validate_format(ext: str, data: bytes) -> bool:
     if ext in (".stp", ".step"):
         return _validate_step_header(data)
     return False
-
-
-def _ensure_upload_dir() -> Path:
-    _UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    return _UPLOAD_DIR
 
 
 # ---------------------------------------------------------------------------
@@ -150,6 +147,7 @@ async def upload_cad_file(
     safe_name, ext = _sanitize_filename(raw_name)
 
     if ext not in ALLOWED_EXTENSIONS:
+        metrics.increment(metrics.UPLOAD_REJECTED)
         raise HTTPException(
             422,
             detail=(
@@ -159,16 +157,18 @@ async def upload_cad_file(
         )
 
     # --- Read content (with size limit) ---
-    dest_path: Path | None = None
     try:
         data = await file.read(MAX_UPLOAD_BYTES + 1)
     except Exception as exc:
+        metrics.increment(metrics.UPLOAD_REJECTED)
         raise HTTPException(422, detail=f"Failed to read upload: {exc}") from exc
 
     if len(data) == 0:
+        metrics.increment(metrics.UPLOAD_REJECTED)
         raise HTTPException(422, detail="Empty file — nothing to upload")
 
     if len(data) > MAX_UPLOAD_BYTES:
+        metrics.increment(metrics.UPLOAD_OVERSIZED)
         raise HTTPException(
             413,
             detail=(
@@ -179,50 +179,60 @@ async def upload_cad_file(
 
     # --- Format header validation ---
     if not _validate_format(ext, data):
+        metrics.increment(metrics.UPLOAD_REJECTED)
         raise HTTPException(
             422,
             detail=f"File content does not match declared format {ext!r}",
         )
 
-    # --- Persist to collision-safe path ---
-    file_id = str(uuid.uuid4())
-    collision_safe_name = f"{file_id}_{safe_name}"
-    dest_path = _ensure_upload_dir() / collision_safe_name
-
+    # --- Store via ArtifactStore (durable, not OS temp) ---
+    tmp_path: Path | None = None
     try:
-        dest_path.write_bytes(data)
-    except Exception as exc:
-        if dest_path and dest_path.exists():
-            dest_path.unlink(missing_ok=True)
-        raise HTTPException(500, detail=f"Failed to store file: {exc}") from exc
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+            tmp.write(data)
+            tmp_path = Path(tmp.name)
 
-    # file_ref is the opaque reference passed to Workflow; it resolves to the stored path
-    # on the same server instance.  We deliberately do NOT return the absolute path.
-    file_ref = collision_safe_name
+        artifact_store = get_artifact_store()
+        artifact_ref = artifact_store.store(tmp_path, raw_name, ext)
+
+    except ArtifactStoreError as exc:
+        logger.error("ArtifactStore unavailable during upload: %s", exc)
+        metrics.increment(metrics.UPLOAD_REJECTED)
+        raise HTTPException(503, detail="Storage unavailable — try again shortly") from exc
+    except Exception as exc:
+        metrics.increment(metrics.UPLOAD_REJECTED)
+        raise HTTPException(500, detail=f"Failed to store file: {exc}") from exc
+    finally:
+        if tmp_path and tmp_path.exists():
+            tmp_path.unlink(missing_ok=True)
+
+    metrics.increment(metrics.UPLOAD_ACCEPTED)
+    logger.info(
+        "CAD upload accepted artifact_id=%s format=%s size=%d",
+        artifact_ref.artifact_id,
+        ext,
+        artifact_ref.size_bytes,
+    )
 
     return UploadResponse(
-        file_id=file_id,
+        file_id=artifact_ref.artifact_id,
         original_filename=raw_name,
-        safe_name=safe_name,
-        size_bytes=len(data),
+        safe_name=artifact_ref.safe_name,
+        size_bytes=artifact_ref.size_bytes,
         format=ext,
         upload_status="ACCEPTED",
-        file_ref=file_ref,
+        file_ref=artifact_ref.artifact_id,  # opaque 32-char hex ID
     )
 
 
 def resolve_file_ref(file_ref: str) -> str:
-    """Convert a file_ref from the upload response to an absolute path for the workflow engine.
+    """Convert a file_ref from the upload response to an absolute path.
 
-    Called by the workflow layer when source_file_ref looks like a collision-safe upload name.
-    Returns the absolute path; raises ValueError if not found.
+    Returns the absolute path; raises ValueError if not found or invalid.
+    PATH_TRAVERSAL_PROTECTION=YES — only hex artifact IDs accepted.
     """
-    candidate = _ensure_upload_dir() / file_ref
-    if not candidate.exists():
+    artifact_store = get_artifact_store()
+    path = artifact_store.resolve(file_ref)
+    if path is None:
         raise ValueError(f"Uploaded file not found for ref {file_ref!r}")
-    # Additional path-traversal guard: resolve must stay within upload dir
-    try:
-        candidate.resolve().relative_to(_UPLOAD_DIR.resolve())
-    except ValueError as exc:
-        raise ValueError(f"Path traversal detected for ref {file_ref!r}") from exc
-    return str(candidate)
+    return str(path)
