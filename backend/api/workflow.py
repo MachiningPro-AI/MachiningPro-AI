@@ -21,14 +21,29 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from backend.workflow.engine import WorkflowEngine
 from backend.workflow.enums import WorkflowMode, WorkflowObjective, WorkflowStage
 from backend.workflow.models import ManufacturingWorkflow
 
+from .auth import verify_token
+
 router = APIRouter(prefix="/api/workflow", tags=["workflow"])
+
+
+def _require_user(authorization: str | None = Header(default=None)) -> dict[str, Any]:  # noqa: B008
+    """Bearer token auth; fails closed with 401."""
+    scheme, _, token = (authorization or "").partition(" ")
+    payload = (
+        verify_token(token.strip())
+        if scheme.lower() == "bearer" and token.strip()
+        else None
+    )
+    if payload is None:
+        raise HTTPException(401, detail={"error_code": "UNAUTHENTICATED"})
+    return payload
 
 # In-memory workflow store (no DB required for Level 19)
 _WORKFLOWS: dict[str, ManufacturingWorkflow] = {}
@@ -149,7 +164,10 @@ def _serialize_ev(ev) -> dict[str, Any] | None:
 # ---------------------------------------------------------------------------
 
 @router.post("", status_code=201)
-def create_workflow(req: CreateWorkflowRequest) -> WorkflowResponse:
+def create_workflow(
+    req: CreateWorkflowRequest,
+    _auth: dict = Depends(_require_user),  # noqa: B008
+) -> WorkflowResponse:
     """Create a new manufacturing workflow (does not run it)."""
     wf = _engine.create_workflow(
         part_reference=req.part_reference,
@@ -166,7 +184,7 @@ def create_workflow(req: CreateWorkflowRequest) -> WorkflowResponse:
 
 
 @router.post("/{workflow_id}/run")
-def run_workflow(workflow_id: str) -> WorkflowResponse:
+def run_workflow(workflow_id: str, _auth: dict = Depends(_require_user)) -> WorkflowResponse:  # noqa: B008
     """Run the manufacturing analysis workflow."""
     wf = _get_or_404(workflow_id)
     _engine.run_workflow(wf)
@@ -174,7 +192,7 @@ def run_workflow(workflow_id: str) -> WorkflowResponse:
 
 
 @router.post("/{workflow_id}/resume")
-def resume_workflow(workflow_id: str) -> WorkflowResponse:
+def resume_workflow(workflow_id: str, _auth: dict = Depends(_require_user)) -> WorkflowResponse:  # noqa: B008
     """Resume a paused/partial workflow, skipping already-passed stages."""
     wf = _get_or_404(workflow_id)
     _engine.resume_workflow(wf)
@@ -182,7 +200,11 @@ def resume_workflow(workflow_id: str) -> WorkflowResponse:
 
 
 @router.post("/{workflow_id}/retry")
-def retry_workflow(workflow_id: str, req: RetryRequest) -> WorkflowResponse:
+def retry_workflow(
+    workflow_id: str,
+    req: RetryRequest,
+    _auth: dict = Depends(_require_user),  # noqa: B008
+) -> WorkflowResponse:
     """Retry a specific FAILED or BLOCKED stage."""
     wf = _get_or_404(workflow_id)
     _engine.retry_stage(wf, req.stage)
@@ -190,7 +212,7 @@ def retry_workflow(workflow_id: str, req: RetryRequest) -> WorkflowResponse:
 
 
 @router.post("/{workflow_id}/cancel")
-def cancel_workflow(workflow_id: str) -> WorkflowResponse:
+def cancel_workflow(workflow_id: str, _auth: dict = Depends(_require_user)) -> WorkflowResponse:  # noqa: B008
     """Cancel the workflow cleanly."""
     wf = _get_or_404(workflow_id)
     _engine.cancel_workflow(wf)
@@ -198,14 +220,14 @@ def cancel_workflow(workflow_id: str) -> WorkflowResponse:
 
 
 @router.get("/{workflow_id}")
-def get_workflow(workflow_id: str) -> WorkflowResponse:
+def get_workflow(workflow_id: str, _auth: dict = Depends(_require_user)) -> WorkflowResponse:  # noqa: B008
     """Get the current workflow status."""
     wf = _get_or_404(workflow_id)
     return _serialize_workflow(wf)
 
 
 @router.get("/{workflow_id}/stages")
-def get_stages(workflow_id: str) -> list[StageStatusResponse]:
+def get_stages(workflow_id: str, _auth: dict = Depends(_require_user)) -> list[StageStatusResponse]:  # noqa: B008
     """Get status of all stages."""
     wf = _get_or_404(workflow_id)
     stages = []
@@ -239,7 +261,7 @@ def get_stages(workflow_id: str) -> list[StageStatusResponse]:
 
 
 @router.get("/{workflow_id}/plan")
-def get_plan(workflow_id: str) -> PlanResponse:
+def get_plan(workflow_id: str, _auth: dict = Depends(_require_user)) -> PlanResponse:  # noqa: B008
     """Get the manufacturing plan summary."""
     wf = _get_or_404(workflow_id)
     if wf.final_plan is None:

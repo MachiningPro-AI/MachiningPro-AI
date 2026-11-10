@@ -12,7 +12,7 @@
  *   NO_CNC_WRITE=YES        — no machine writes
  */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, type ChangeEvent } from 'react'
 import {
   CheckCircle, XCircle, AlertCircle, Clock, Loader,
   SkipForward, ChevronRight, FileText, AlertTriangle,
@@ -34,6 +34,8 @@ type WorkflowMode =
 type StageStatus =
   | 'NOT_STARTED' | 'RUNNING' | 'PASS' | 'PARTIAL'
   | 'BLOCKED' | 'FAILED' | 'REVIEW_REQUIRED' | 'SKIPPED_NOT_REQUESTED'
+
+type UploadState = 'NOT_SELECTED' | 'UPLOADING' | 'UPLOADED' | 'UPLOAD_FAILED'
 
 interface StageInfo {
   stage: string
@@ -132,10 +134,22 @@ function statusColor(status: StageStatus): string {
 // API helpers
 // ---------------------------------------------------------------------------
 
+function getAuthHeaders(): Record<string, string> {
+  try {
+    const raw = sessionStorage.getItem('machiningpro_token')
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    const token: string = parsed?.token ?? parsed
+    return token ? { Authorization: `Bearer ${token}` } : {}
+  } catch {
+    return {}
+  }
+}
+
 async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   const resp = await fetch(path, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
   if (!resp.ok) throw new Error(`${resp.status}: ${await resp.text()}`)
@@ -143,7 +157,7 @@ async function apiPost<T>(path: string, body?: unknown): Promise<T> {
 }
 
 async function apiGet<T>(path: string): Promise<T> {
-  const resp = await fetch(path)
+  const resp = await fetch(path, { headers: getAuthHeaders() })
   if (!resp.ok) throw new Error(`${resp.status}: ${await resp.text()}`)
   return resp.json()
 }
@@ -154,7 +168,10 @@ async function apiGet<T>(path: string): Promise<T> {
 
 export default function WorkflowPage() {
   // Input state
-  const [cadFile, setCadFile] = useState('')
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [uploadState, setUploadState] = useState<UploadState>('NOT_SELECTED')
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [fileRef, setFileRef] = useState<string | null>(null)
   const [material, setMaterial] = useState('')
   const [quantity, setQuantity] = useState(1)
   const [stock, setStock] = useState('')
@@ -170,6 +187,31 @@ export default function WorkflowPage() {
   const [plan, setPlan] = useState<PlanSummary | null>(null)
   const [selectedStage, setSelectedStage] = useState<StageInfo | null>(null)
 
+  const handleFileSelect = useCallback(async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null
+    setSelectedFile(file)
+    setFileRef(null)
+    setUploadError(null)
+    if (!file) { setUploadState('NOT_SELECTED'); return }
+    setUploadState('UPLOADING')
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const resp = await fetch('/api/cad-upload', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: formData,
+      })
+      if (!resp.ok) throw new Error(`${resp.status}: ${await resp.text()}`)
+      const data = await resp.json()
+      setFileRef(data.file_ref)
+      setUploadState('UPLOADED')
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : String(err))
+      setUploadState('UPLOAD_FAILED')
+    }
+  }, [])
+
   const runWorkflow = useCallback(async () => {
     setRunning(true)
     setError(null)
@@ -180,9 +222,9 @@ export default function WorkflowPage() {
     try {
       // Create workflow
       const created = await apiPost<WorkflowSummary & { workflow_id: string }>('/api/workflow', {
-        part_reference: cadFile || 'UNNAMED_PART',
+        part_reference: selectedFile?.name.replace(/\.[^.]+$/, '') || 'UNNAMED_PART',
         revision: 'REV-A',
-        source_file_ref: cadFile || null,
+        source_file_ref: fileRef || null,
         requested_mode: mode,
         objective,
         material_ref: material || null,
@@ -211,7 +253,7 @@ export default function WorkflowPage() {
     } finally {
       setRunning(false)
     }
-  }, [cadFile, material, quantity, stock, objective, mode])
+  }, [fileRef, selectedFile, material, quantity, stock, objective, mode])
 
   const stageMap = new Map(stages.map(s => [s.stage, s]))
   const totalStages = ALL_STAGES.length
@@ -288,14 +330,29 @@ export default function WorkflowPage() {
             <h2 className="text-sm font-semibold text-tp-text mb-4">Analysis Input</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-tp-text-2 mb-1">CAD File Path</label>
+                <label className="block text-xs font-medium text-tp-text-2 mb-1">CAD File</label>
                 <input
-                  type="text"
-                  value={cadFile}
-                  onChange={e => setCadFile(e.target.value)}
-                  placeholder="/path/to/part.dxf"
-                  className="w-full text-sm bg-tp-bg border border-tp-border rounded px-3 py-2 text-tp-text placeholder:text-tp-text-3 focus:outline-none focus:ring-1 focus:ring-tp-accent-light"
+                  type="file"
+                  accept=".dxf,.igs,.iges,.stp,.step"
+                  onChange={handleFileSelect}
+                  disabled={running}
+                  className="w-full text-xs bg-tp-bg border border-tp-border rounded px-3 py-2 text-tp-text focus:outline-none focus:ring-1 focus:ring-tp-accent-light file:mr-2 file:text-xs file:border-0 file:bg-tp-accent-light file:text-white file:px-2 file:py-0.5 file:rounded"
                 />
+                {uploadState === 'UPLOADING' && (
+                  <div className="mt-1 flex items-center gap-1 text-xs text-blue-500">
+                    <Loader className="w-3 h-3 animate-spin" />
+                    Uploading…
+                  </div>
+                )}
+                {uploadState === 'UPLOADED' && (
+                  <div className="mt-1 flex items-center gap-1 text-xs text-green-500">
+                    <CheckCircle className="w-3 h-3" />
+                    {selectedFile?.name}
+                  </div>
+                )}
+                {uploadState === 'UPLOAD_FAILED' && (
+                  <div className="mt-1 text-xs text-red-500">{uploadError}</div>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-medium text-tp-text-2 mb-1">Material</label>

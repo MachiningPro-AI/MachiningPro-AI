@@ -19,15 +19,16 @@ from pydantic import BaseModel
 
 from .adaptive import router as adaptive_router
 from .auth import LoginRequest, authenticate, get_configured_credentials
+from .cad_upload import router as cad_upload_router
 from .cam_planning import router as cam_planning_router
 from .compatibility import router as compatibility_router
 from .cutting_parameters import router as cutting_parameters_router
 from .cutting_tools import router as cutting_tools_router
+from .digital_twin import router as digital_twin_router
 from .dispatch import router as dispatch_router
 from .drawing_analysis import router as drawing_analysis_router
 from .drawing_to_process import router as drawing_to_process_router
 from .engineering_import import router as engineering_import_router
-from .digital_twin import router as digital_twin_router
 from .job_planning import router as job_planning_router
 from .machines import router as machines_router
 from .materials import router as materials_router
@@ -88,6 +89,7 @@ app.include_router(adaptive_router)
 app.include_router(job_planning_router)
 app.include_router(digital_twin_router)
 app.include_router(workflow_router)
+app.include_router(cad_upload_router)
 
 
 @app.get("/api/health")

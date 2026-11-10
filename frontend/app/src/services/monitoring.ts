@@ -10,7 +10,6 @@ import type {
   ClosedLoopProposal,
   EngineeringRecommendation,
   OEEResult,
-  PlannedActualComparison,
   ProductionObservation,
   RootCauseCandidate,
   ToolLifeFeedback,

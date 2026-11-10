@@ -42,6 +42,7 @@
 | CAD Import | `/app/cad-drawing/cad-import` | DXF, STEP, IGES, STL, NC |
 | Drawing Intelligence | `/app/cad-drawing/technical-drawing-intelligence` | Advisory AI (local Ollama only) |
 | Tool Life Explorer | `/app/engineering/tool-life` | Empirical dataset (requires `MACHININGPRO_TOOLLIFE968_SOURCE_PATH`) |
+| Manufacturing Workflow | `/app/workflow/manufacturing-analysis` | Level 19: 19-stage end-to-end analysis (see Step 06) |
 
 ### Engineering Preview (stub routes — backend capability only)
 
@@ -112,6 +113,22 @@ These routes show a clear "Engineering Preview" label. Do not present them as co
 3. Open **Print** → show "NOT AN APPROVAL DOCUMENT" disclaimer
 4. Show **NC Change Review**: load the prior JSON export as baseline, modify one S-word, re-analyze, compare
 
+### Step 06 — Manufacturing Workflow (Level 19)
+
+1. Open **Manufacturing Analysis** (`/app/workflow/manufacturing-analysis`)
+2. Click **Choose File** → select a `.dxf`, `.igs`, `.iges`, `.stp`, or `.step` file
+   - File is uploaded to the server immediately; green checkmark confirms
+   - Supported formats: DXF (group-code 0 header), IGES (S-section col 73), STEP (ISO-10303-21)
+   - Maximum upload size: 50 MB (configurable via `CAD_UPLOAD_MAX_BYTES`)
+3. Enter Material (e.g. `AL6061`), Quantity, Stock Reference
+4. Choose Objective and Analysis Mode
+5. Click **RUN MANUFACTURING ANALYSIS**
+6. Watch 19 stages progress (left panel): CAD → Geometry → Features → DFM → Process → Machine → Tool → Cutting Data → Cycle Time → Cost/RFQ → CAM → Toolpath → Verification → NC → Scheduling → Assignment → Adaptive AI → Digital Twin → Final Plan
+7. Click any stage to see its status, warnings, errors, and blocking reasons
+8. Final Plan dashboard shows safety flags: **PRODUCTION_APPROVED=NO**, **DISPATCHED=NO**, **MACHINE_STARTED=NO**
+
+**Key safety boundary:** The plan is a proposal only. No CNC machine is written to, no job is auto-dispatched, and no parameter change is applied automatically. All outputs require engineering review.
+
 ---
 
 ## 4. Tool Life Explorer (if dataset configured)
@@ -157,6 +174,9 @@ These routes show a clear "Engineering Preview" label. Do not present them as co
 | "AI made the decision" | All decisions are deterministic; AI is advisory |
 | "The hashes are digital signatures" | SHA-256 detects change; not a PKI signature |
 | "The change review is an approval" | Explicitly labeled NOT AN APPROVAL DOCUMENT |
+| "The workflow plan is approved" | PRODUCTION_APPROVED=NO; engineering review required |
+| "The workflow dispatched a job" | DISPATCHED=NO; no machine dispatch from this UI |
+| "The machine was started" | MACHINE_STARTED=NO; no CNC write of any kind |
 | "Feed rates are verified against the machine" | Machine feed_rate_max not in catalog (deferred) |
 
 ---

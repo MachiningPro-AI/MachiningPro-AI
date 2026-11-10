@@ -9,7 +9,6 @@
  * CONTRACT_ENFORCED   — service throws on any violation of these invariants.
  */
 
-import { apiClient } from './apiClient'
 import type {
   DrillToolpathRequest,
   ProfileToolpathRequest,
@@ -47,7 +46,7 @@ export async function requestDrillToolpath(
   req: DrillToolpathRequest,
   token: string
 ): Promise<ToolpathResponse> {
-  const resp = await apiClient(`${BASE}/drill`, {
+  const resp = await fetch(`${BASE}/drill`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -66,7 +65,7 @@ export async function requestProfileToolpath(
   req: ProfileToolpathRequest,
   token: string
 ): Promise<ToolpathResponse> {
-  const resp = await apiClient(`${BASE}/profile`, {
+  const resp = await fetch(`${BASE}/profile`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -85,7 +84,7 @@ export async function requestPocketToolpath(
   req: Record<string, unknown>,
   token: string
 ): Promise<ToolpathResponse> {
-  const resp = await apiClient(`${BASE}/pocket`, {
+  const resp = await fetch(`${BASE}/pocket`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -104,7 +103,7 @@ export async function requestFaceMillToolpath(
   req: Record<string, unknown>,
   token: string
 ): Promise<ToolpathResponse> {
-  const resp = await apiClient(`${BASE}/face-mill`, {
+  const resp = await fetch(`${BASE}/face-mill`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -123,7 +122,7 @@ export async function requestSlotToolpath(
   req: Record<string, unknown>,
   token: string
 ): Promise<ToolpathResponse> {
-  const resp = await apiClient(`${BASE}/slot`, {
+  const resp = await fetch(`${BASE}/slot`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -142,7 +141,7 @@ export async function requestChamferToolpath(
   req: Record<string, unknown>,
   token: string
 ): Promise<ToolpathResponse> {
-  const resp = await apiClient(`${BASE}/chamfer`, {
+  const resp = await fetch(`${BASE}/chamfer`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -161,7 +160,7 @@ export async function requestTurningToolpath(
   req: Record<string, unknown>,
   token: string
 ): Promise<ToolpathResponse> {
-  const resp = await apiClient(`${BASE}/turning`, {
+  const resp = await fetch(`${BASE}/turning`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

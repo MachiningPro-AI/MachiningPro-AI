@@ -80,6 +80,7 @@ Never commit real values to the repository.
 | `CORS_ORIGINS` | CORS middleware not activated | Set only for split-service deployment (not needed for same-origin) |
 | `MACHININGPRO_TOOLLIFE968_SOURCE_PATH` | Tool Life Explorer runs from in-catalog data | Windows local paths must NOT be used on Render — leave unset |
 | `MACHININGPRO_CUTTING_PARAM_REF_PATH` | Cutting param queries return `NO_MATCH` | Leave unset unless a reference file is deployed |
+| `CAD_UPLOAD_MAX_BYTES` | 52,428,800 (50 MB) | Maximum CAD file upload size in bytes |
 
 ### Frontend environment variables
 
@@ -173,6 +174,17 @@ Run these checks immediately after a successful deploy:
 6. Navigate: Log in, open all 5 workflow steps from the Dashboard
    Expected: All routes reachable, no broken navigation
 
+9. GET /app/workflow/manufacturing-analysis (browser — requires login)
+   Expected: Manufacturing Analysis page loads with file picker
+
+10. POST /api/cad-upload (with JWT header + multipart .dxf file)
+    Expected: 200 {"upload_status":"ACCEPTED","file_ref":"<uuid>_<name>.dxf",...}
+    Expected: NO absolute path in response
+
+11. POST /api/workflow  (create) + POST /api/workflow/{id}/run
+    Expected: 201 / 200; status in PARTIAL/COMPLETED/FAILED
+    Expected: plan.production_approved=false, dispatched=false, machine_started=false
+
 7. GET  /api/machines  (with JWT Authorization header)
    Expected: 200  array of machine records
 
@@ -202,7 +214,8 @@ Do not use `git reset --hard` or force-push to `main`.
 |---|---|---|
 | Drawing OCR unavailable | All drawing uploads return `OCR_ENGINE_UNAVAILABLE` | `tesseract-ocr` system package not on Render |
 | STEP tessellation slow | First STEP upload may take 10–30 seconds | gmsh initialisation; subsequent uploads faster |
-| In-memory state | Uploaded drawings/jobs lost on restart | `MAX_DRAWINGS=20`, `MAX_JOBS=100`; expected for demo |
+| In-memory state | Uploaded drawings/jobs/workflows lost on restart | `MAX_DRAWINGS=20`, `MAX_JOBS=100`; expected for demo |
+| CAD uploads in-memory | Uploaded CAD files in temp dir; lost on restart | Expected for demo; submit workflow immediately after upload |
 | Single user | One credential set from env vars | No multi-user or session isolation |
 | No rate limiting | API accepts unlimited authenticated requests | Acceptable for controlled demo |
 | Render Starter cold start | None (always-on) | Free tier: ~50 s cold start — do not use for demo |
