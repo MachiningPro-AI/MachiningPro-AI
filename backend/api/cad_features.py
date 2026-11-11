@@ -193,25 +193,45 @@ def _run_feature_recognition_for_format(
     content_bytes: bytes,
     format_id: str,
     file_name: str,
-) -> ManufacturingFeatureRecognitionResult:
-    """Run format-specific feature recognition. Always returns a result."""
+) -> tuple[ManufacturingFeatureRecognitionResult, dict]:
+    """Run format-specific feature recognition. Always returns (result, metadata).
+
+    metadata keys (DXF only): entity_counts, geometry_entity_count,
+    annotation_entity_count, block_insert_support.
+    """
     from backend.interoperability.cad_feature_recognition import (
         ManufacturingFeatureRecognitionResult,
     )
 
     result = _try_parse_iges_or_step(content_bytes, format_id, file_name)
     if result is not None:
-        return result
+        return result, {}
 
     if format_id == "DXF":
-        # DXF 2D circle recognition
         try:
             from backend.interoperability.cad_feature_recognition import (
                 recognize_dxf_features,
             )
-            entities = _parse_dxf_2d(content_bytes)
+            entities, entity_counts = _parse_dxf_2d(content_bytes)
             feats = recognize_dxf_features(entities)
             doc_id = hashlib.sha256(content_bytes[:256]).hexdigest()[:16]
+            geom_count = sum(
+                v for k, v in entity_counts.items()
+                if k in _GEOMETRY_ENTITY_TYPES_CF
+            )
+            ann_count = sum(
+                v for k, v in entity_counts.items()
+                if k in _ANNOTATION_ENTITY_TYPES_CF
+            )
+            warnings = ["DXF 2D: depth unknown; all holes are candidates only"]
+            if not feats and geom_count == 0:
+                warnings.append("NO_GEOMETRY_ENTITIES_FOUND")
+            dxf_meta = {
+                "entity_counts": entity_counts,
+                "geometry_entity_count": geom_count,
+                "annotation_entity_count": ann_count,
+                "block_insert_support": "DEFERRED",
+            }
             return ManufacturingFeatureRecognitionResult(
                 source_document_id=doc_id,
                 recognition_version=_RECOGNITION_VERSION,
@@ -219,10 +239,10 @@ def _run_feature_recognition_for_format(
                 patterns=[],
                 accessibility={},
                 tool_reach={},
-                warnings=["DXF 2D: depth unknown; all holes are candidates only"],
+                warnings=warnings,
                 face_count=0,
                 body_count=0,
-            )
+            ), dxf_meta
         except Exception:
             pass
 
@@ -241,61 +261,191 @@ def _run_feature_recognition_for_format(
         ],
         face_count=0,
         body_count=0,
-    )
+    ), {}
 
 
-def _parse_dxf_2d(content_bytes: bytes) -> list:
-    """Extract circle entities from DXF bytes (pure Python fallback)."""
+_HISTOGRAM_ENTITY_TYPES = frozenset({
+    "CIRCLE", "ARC", "LINE", "LWPOLYLINE", "POLYLINE",
+    "ELLIPSE", "SPLINE", "INSERT", "BLOCK",
+    "DIMENSION", "TEXT", "MTEXT",
+})
+_ANNOTATION_ENTITY_TYPES_CF = frozenset({"DIMENSION", "TEXT", "MTEXT", "LEADER", "MLEADER", "ATTDEF", "ATTRIB"})
+_GEOMETRY_ENTITY_TYPES_CF = frozenset({"CIRCLE", "ARC", "LINE", "LWPOLYLINE", "POLYLINE", "ELLIPSE", "SPLINE", "INSERT", "BLOCK"})
+
+
+def _parse_dxf_2d(content_bytes: bytes) -> tuple[list, dict]:
+    """Extract 2D geometry entities from DXF bytes (pure Python).
+
+    Returns (entities, entity_counts).
+    entities: list[Dxf2dEntity] — CIRCLE, ARC, LWPOLYLINE, POLYLINE, ELLIPSE
+    entity_counts: {entity_type: count} for histogram diagnostics
+
+    BLOCK_INSERT_GEOMETRY_SUPPORT=DEFERRED — blocks are counted but not resolved.
+    FABRICATED_GEOMETRY=NO
+    """
     from backend.interoperability.cad_feature_recognition import Dxf2dEntity
-    entities = []
+    entities: list = []
+    entity_counts: dict[str, int] = {}
+
     try:
         text = content_bytes.decode("latin-1", errors="replace")
         lines = text.splitlines()
+        n = len(lines)
         i = 0
-        while i < len(lines) - 1:
+        in_entities = False
+
+        while i < n - 1:
             code = lines[i].strip()
-            val = lines[i + 1].strip() if i + 1 < len(lines) else ""
-            if code == "0" and val == "CIRCLE":
+            val = lines[i + 1].strip() if i + 1 < n else ""
+            i += 2
+
+            if code == "0" and val == "SECTION":
+                if i < n - 1 and lines[i].strip() == "2":
+                    sname = lines[i + 1].strip().upper()
+                    in_entities = sname in ("ENTITIES", "BLOCKS")
+                    i += 2
+                continue
+            if code == "0" and val in ("ENDSEC", "EOF"):
+                in_entities = False
+                continue
+
+            if code != "0" or not in_entities:
+                continue
+
+            etype = val.upper()
+            if etype in _HISTOGRAM_ENTITY_TYPES:
+                entity_counts[etype] = entity_counts.get(etype, 0) + 1
+
+            if etype == "CIRCLE":
                 cx = cy = r = 0.0
                 layer = "0"
-                j = i + 2
-                while j < len(lines) - 1:
-                    c2 = lines[j].strip()
-                    v2 = lines[j + 1].strip() if j + 1 < len(lines) else ""
+                while i < n - 1:
+                    c2 = lines[i].strip()
+                    v2 = lines[i + 1].strip() if i + 1 < n else ""
                     if c2 == "0":
                         break
+                    i += 2
                     if c2 == "8":
                         layer = v2
                     elif c2 == "10":
-                        try:
-                            cx = float(v2)
-                        except ValueError:
-                            pass
+                        try: cx = float(v2)
+                        except ValueError: pass
                     elif c2 == "20":
-                        try:
-                            cy = float(v2)
-                        except ValueError:
-                            pass
+                        try: cy = float(v2)
+                        except ValueError: pass
                     elif c2 == "40":
-                        try:
-                            r = float(v2)
-                        except ValueError:
-                            pass
-                    j += 2
+                        try: r = float(v2)
+                        except ValueError: pass
                 if r > 0.0:
                     entities.append(Dxf2dEntity(
-                        entity_type="CIRCLE",
-                        layer=layer,
-                        center_x=cx,
-                        center_y=cy,
-                        radius=r,
+                        entity_type="CIRCLE", layer=layer,
+                        center_x=cx, center_y=cy, radius=r,
                     ))
-                i = j
-            else:
-                i += 2
+
+            elif etype == "ARC":
+                cx = cy = r = sa = se = 0.0
+                layer = "0"
+                while i < n - 1:
+                    c2 = lines[i].strip()
+                    v2 = lines[i + 1].strip() if i + 1 < n else ""
+                    if c2 == "0":
+                        break
+                    i += 2
+                    if c2 == "8":
+                        layer = v2
+                    elif c2 == "10":
+                        try: cx = float(v2)
+                        except ValueError: pass
+                    elif c2 == "20":
+                        try: cy = float(v2)
+                        except ValueError: pass
+                    elif c2 == "40":
+                        try: r = float(v2)
+                        except ValueError: pass
+                    elif c2 == "50":
+                        try: sa = float(v2)
+                        except ValueError: pass
+                    elif c2 == "51":
+                        try: se = float(v2)
+                        except ValueError: pass
+                if r > 0.0:
+                    entities.append(Dxf2dEntity(
+                        entity_type="ARC", layer=layer,
+                        center_x=cx, center_y=cy, radius=r,
+                        start_angle=sa, end_angle=se,
+                    ))
+
+            elif etype in ("LWPOLYLINE", "POLYLINE"):
+                layer = "0"
+                closed = False
+                verts: list[tuple[float, float]] = []
+                cur_x: float | None = None
+                cur_y: float | None = None
+                while i < n - 1:
+                    c2 = lines[i].strip()
+                    v2 = lines[i + 1].strip() if i + 1 < n else ""
+                    if c2 == "0":
+                        break
+                    i += 2
+                    if c2 == "8":
+                        layer = v2
+                    elif c2 == "70":
+                        try: closed = bool(int(v2) & 1)
+                        except ValueError: pass
+                    elif c2 == "10":
+                        if cur_x is not None and cur_y is not None:
+                            verts.append((cur_x, cur_y))
+                        try: cur_x = float(v2)
+                        except ValueError: cur_x = None
+                        cur_y = None
+                    elif c2 == "20":
+                        try: cur_y = float(v2)
+                        except ValueError: pass
+                if cur_x is not None and cur_y is not None:
+                    verts.append((cur_x, cur_y))
+                if verts:
+                    entities.append(Dxf2dEntity(
+                        entity_type=etype, layer=layer,
+                        closed=closed, vertices=tuple(verts),
+                    ))
+
+            elif etype == "ELLIPSE":
+                cx = cy = mx = my = 0.0
+                ratio = 1.0
+                layer = "0"
+                while i < n - 1:
+                    c2 = lines[i].strip()
+                    v2 = lines[i + 1].strip() if i + 1 < n else ""
+                    if c2 == "0":
+                        break
+                    i += 2
+                    if c2 == "8":
+                        layer = v2
+                    elif c2 == "10":
+                        try: cx = float(v2)
+                        except ValueError: pass
+                    elif c2 == "20":
+                        try: cy = float(v2)
+                        except ValueError: pass
+                    elif c2 == "11":
+                        try: mx = float(v2)
+                        except ValueError: pass
+                    elif c2 == "21":
+                        try: my = float(v2)
+                        except ValueError: pass
+                    elif c2 == "40":
+                        try: ratio = float(v2)
+                        except ValueError: pass
+                entities.append(Dxf2dEntity(
+                    entity_type="ELLIPSE", layer=layer,
+                    center_x=cx, center_y=cy,
+                    major_x=mx, major_y=my, ratio=ratio,
+                ))
+
     except Exception:
         pass
-    return entities
+
+    return entities, entity_counts
 
 
 # ---------------------------------------------------------------------------
@@ -317,7 +467,7 @@ async def analyze_cad(req: AnalyzeRequest) -> dict:
 
     fingerprint = hashlib.sha256(content_bytes).hexdigest()[:32]
 
-    recognition_result = _run_feature_recognition_for_format(
+    recognition_result, format_meta = _run_feature_recognition_for_format(
         content_bytes, format_id, file_name
     )
 
@@ -350,7 +500,7 @@ async def analyze_cad(req: AnalyzeRequest) -> dict:
     )
     _SESSIONS[session_id] = sess
 
-    return {
+    response: dict = {
         "session_id": session_id,
         "source_id": req.source_id or "",
         "status": "ANALYZED",
@@ -364,6 +514,12 @@ async def analyze_cad(req: AnalyzeRequest) -> dict:
         "fusion_available": fusion_result is not None,
         "disclaimer": "REFERENCE_ONLY — engineer review required",
     }
+    if format_meta:
+        response["entity_counts"] = format_meta.get("entity_counts", {})
+        response["geometry_entity_count"] = format_meta.get("geometry_entity_count", 0)
+        response["annotation_entity_count"] = format_meta.get("annotation_entity_count", 0)
+        response["block_insert_support"] = format_meta.get("block_insert_support", "N/A")
+    return response
 
 
 @router.get("/{session_id}", summary="Get session metadata")

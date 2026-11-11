@@ -145,9 +145,9 @@ function FeatureTreePanel({ features, patterns, onConfirm, onReject, busy, t }: 
                 <div className="text-xs text-[var(--tp-text-2)]">
                   <span className="text-[var(--tp-text-3)]">{t('cfMethod')}:</span> {feat.method}
                 </div>
-                {feat.warnings?.length > 0 && (
+                {(feat.warnings?.length ?? 0) > 0 && (
                   <div className="text-xs text-yellow-700 dark:text-yellow-400">
-                    {feat.warnings.join(' · ')}
+                    {feat.warnings!.join(' · ')}
                   </div>
                 )}
                 <div className="flex gap-2 pt-1">
@@ -252,6 +252,8 @@ export default function CadFeaturesPage() {
   const [actionBusy, setActionBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'features' | 'patterns' | 'fusion'>('features')
+  const [entityCounts, setEntityCounts] = useState<Record<string, number>>({})
+  const [formatId, setFormatId] = useState<string | null>(null)
 
   const reset = () => {
     setSessionId(null)
@@ -263,6 +265,8 @@ export default function CadFeaturesPage() {
     setFusion(null)
     setWarnings([])
     setError(null)
+    setEntityCounts({})
+    setFormatId(null)
   }
 
   const loadSession = useCallback(async (sid: string) => {
@@ -295,6 +299,8 @@ export default function CadFeaturesPage() {
       setBodyCount(res.body_count)
       setFeatureCount(res.feature_count)
       setWarnings(res.warnings ?? [])
+      setEntityCounts(res.entity_counts ?? {})
+      setFormatId(res.format_id ?? null)
       await loadSession(res.session_id)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e))
@@ -418,6 +424,30 @@ export default function CadFeaturesPage() {
                     <div className="text-[10px] text-[var(--tp-text-3)] uppercase tracking-wide mt-0.5">{t('cfBodyCount')}</div>
                   </div>
                 </div>
+                {/* DXF entity histogram */}
+                {formatId === 'DXF' && Object.keys(entityCounts).length > 0 && (
+                  <div className="text-xs text-[var(--tp-text-2)] bg-[var(--tp-bg)] rounded p-2">
+                    <div className="text-[10px] text-[var(--tp-text-3)] uppercase tracking-wide mb-1">DXF entities</div>
+                    <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                      {Object.entries(entityCounts).map(([type, count]) => (
+                        <span key={type}>{type}: <span className="font-mono font-medium text-[var(--tp-text)]">{count}</span></span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Zero-feature guidance for DXF */}
+                {featureCount === 0 && formatId === 'DXF' && (
+                  <div className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded p-2">
+                    No manufacturing features were recognized from the supported DXF geometry entities.
+                    The drawing may represent circular geometry using unsupported blocks, splines, or contour constructions.
+                  </div>
+                )}
+                {/* 2D DXF body/face clarification */}
+                {formatId === 'DXF' && faceCount === 0 && bodyCount === 0 && (
+                  <div className="text-[10px] text-[var(--tp-text-3)]">
+                    2D DXF: no solid bodies or faces (expected for 2D drawings)
+                  </div>
+                )}
                 {warnings.length > 0 && (
                   <div className="text-xs text-yellow-700 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 rounded p-2 space-y-0.5">
                     {warnings.map((w, i) => <div key={i}>⚠ {w}</div>)}

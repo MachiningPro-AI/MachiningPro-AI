@@ -115,7 +115,11 @@ class ManufacturingFeatureType(StrEnum):
 class RecognitionMethod(StrEnum):
     BREP_TOPOLOGY = "BREP_TOPOLOGY"
     SURFACE_HEURISTIC = "SURFACE_HEURISTIC"
-    DXF_2D = "DXF_2D"
+    DXF_2D = "DXF_2D"           # kept for backward compat
+    DXF_CIRCLE = "DXF_CIRCLE"
+    DXF_ARC_LOOP = "DXF_ARC_LOOP"
+    DXF_CIRCULAR_POLYLINE = "DXF_CIRCULAR_POLYLINE"
+    DXF_CIRCULAR_ELLIPSE = "DXF_CIRCULAR_ELLIPSE"
     INFERRED = "INFERRED"
 
 
@@ -1584,7 +1588,7 @@ def recognize_manufacturing_features(
 class Dxf2dEntity:
     """Minimal 2D DXF entity for feature recognition."""
 
-    entity_type: str           # "CIRCLE", "ARC", "LINE", "POLYLINE"
+    entity_type: str           # "CIRCLE", "ARC", "LINE", "LWPOLYLINE", "POLYLINE", "ELLIPSE"
     layer: str
     center_x: float | None = None
     center_y: float | None = None
@@ -1594,6 +1598,134 @@ class Dxf2dEntity:
     x2: float | None = None
     y2: float | None = None
     closed: bool = False
+    # ARC: angular extent
+    start_angle: float | None = None
+    end_angle: float | None = None
+    # LWPOLYLINE / POLYLINE: vertex list (closed flag above)
+    vertices: tuple[tuple[float, float], ...] = ()
+    # ELLIPSE: major-axis vector components and ratio
+    major_x: float | None = None
+    major_y: float | None = None
+    ratio: float | None = None     # minor / major axis ratio
+
+
+_ARC_TOLERANCE_CENTER = 0.001   # mm — center must match within this
+_ARC_TOLERANCE_RADIUS = 0.001   # mm — radius must match within this
+_CIRCLE_COVERAGE_MIN = 358.0    # degrees — total arc coverage for a closed loop
+_CIRCLE_COVERAGE_MAX = 362.0
+_POLY_MIN_VERTICES = 8          # min vertices for circular polyline detection
+_POLY_ASPECT_TOL = 0.01         # max relative difference in bounding-box radii
+_POLY_VERTEX_TOL = 0.005        # max relative distance deviation from fitted circle
+_ELLIPSE_CIRCLE_TOL = 0.001     # max relative major/minor ratio deviation for circular ellipse
+
+
+def _group_arc_loops(arcs: list[Dxf2dEntity]) -> list[dict]:
+    """Group ARCs with same center+radius into potential closed loops.
+
+    Returns candidates where total angular coverage is ≈ 360°.
+    Single ARC → never returned (arc_count ≥ 2 required).
+
+    SINGLE_ARC_FALSE_POSITIVE=NO
+    FABRICATED_GEOMETRY=NO
+    """
+    groups: dict[tuple[float, float, float], list[Dxf2dEntity]] = {}
+    for arc in arcs:
+        if arc.center_x is None or arc.center_y is None or arc.radius is None:
+            continue
+        if arc.radius <= 0.0:
+            continue
+        matched: tuple[float, float, float] | None = None
+        for key in groups:
+            kx, ky, kr = key
+            if (abs(arc.center_x - kx) <= _ARC_TOLERANCE_CENTER
+                    and abs(arc.center_y - ky) <= _ARC_TOLERANCE_CENTER
+                    and abs(arc.radius - kr) <= _ARC_TOLERANCE_RADIUS):
+                matched = key
+                break
+        if matched is None:
+            matched = (arc.center_x, arc.center_y, arc.radius)
+            groups[matched] = []
+        groups[matched].append(arc)
+
+    result = []
+    for (cx, cy, r), grp in groups.items():
+        if len(grp) < 2:
+            continue   # single ARC → not a closed loop
+        total = 0.0
+        for arc in grp:
+            sa = (arc.start_angle or 0.0) % 360.0
+            ea = (arc.end_angle or 0.0) % 360.0
+            cov = (ea - sa) if ea > sa else (360.0 - sa + ea)
+            if 0.0 < cov <= 360.0:
+                total += cov
+        if _CIRCLE_COVERAGE_MIN <= total <= _CIRCLE_COVERAGE_MAX:
+            result.append({
+                "center_x": cx, "center_y": cy, "radius": r,
+                "total_coverage_deg": total, "arc_count": len(grp),
+            })
+    return result
+
+
+def _circular_polyline_radius(ent: Dxf2dEntity) -> float | None:
+    """Return circle radius if closed LWPOLYLINE vertices lie on a circle.
+
+    Requires closed=True, ≥ POLY_MIN_VERTICES vertices, all within
+    POLY_VERTEX_TOL relative tolerance of a bounding-box-fitted circle.
+
+    POLYGON_FALSE_POSITIVE=NO — square/rectangle bounding-box aspect fails aspect test.
+    FABRICATED_GEOMETRY=NO
+    """
+    if not ent.closed or len(ent.vertices) < _POLY_MIN_VERTICES:
+        return None
+    xs = [v[0] for v in ent.vertices]
+    ys = [v[1] for v in ent.vertices]
+    r_x = (max(xs) - min(xs)) / 2.0
+    r_y = (max(ys) - min(ys)) / 2.0
+    if r_x < 0.01 or r_y < 0.01:
+        return None
+    if abs(r_x - r_y) / max(r_x, r_y) > _POLY_ASPECT_TOL:
+        return None   # aspect ratio too different → ellipse or polygon
+    r_est = (r_x + r_y) / 2.0
+    cx = (max(xs) + min(xs)) / 2.0
+    cy = (max(ys) + min(ys)) / 2.0
+    for x, y in ent.vertices:
+        dist = math.sqrt((x - cx) ** 2 + (y - cy) ** 2)
+        if abs(dist - r_est) / r_est > _POLY_VERTEX_TOL:
+            return None   # vertex too far from circle
+    return r_est
+
+
+def _make_hole_feature(
+    cx: float, cy: float, r: float,
+    method: RecognitionMethod,
+    arc_count: int | None = None,
+) -> ManufacturingFeature:
+    diameter_mm = _dec(round(r * 2.0, 3))
+    meta: dict = {}
+    if arc_count is not None:
+        meta["arc_count"] = str(arc_count)
+    return ManufacturingFeature(
+        feature_id=_new_fid(ManufacturingFeatureType.HOLE),
+        feature_type=ManufacturingFeatureType.HOLE,
+        source_body_id="dxf-2d",
+        source_face_ids=(),
+        source_edge_ids=(),
+        surface_type=CanonicalSurfaceType.CYLINDER,
+        location=_pt_mm(cx, cy, 0.0),
+        axis=_vec_mm(0.0, 0.0, 1.0),
+        diameter_mm=diameter_mm,
+        depth_mm=None,          # depth unknown from 2D DXF — never fabricated
+        width_mm=None,
+        length_mm=None,
+        radius_mm=_dec(str(round(r, 6))),
+        angle_deg=None,
+        bounding_box=None,
+        recognition_method=method,
+        confidence=FeatureRecognitionConfidence.INFERRED,
+        pattern_id=None,
+        confirmed_by=None,
+        metadata=MappingProxyType(meta),
+    )
 
 
 def recognize_dxf_features(
@@ -1602,34 +1734,68 @@ def recognize_dxf_features(
 ) -> list[ManufacturingFeature]:
     """Recognize manufacturing features from 2D DXF entities.
 
-    FABRICATED_FEATURE=NO — only circles → hole candidates.
+    Hole candidates from: CIRCLE, ARC closed loops (≥2 arcs, ≈360°),
+    circular LWPOLYLINE (≥8 vertices on circle), circular ELLIPSE (ratio≈1).
+
+    FABRICATED_FEATURE=NO
+    FABRICATED_DEPTH=NO
+    SINGLE_ARC_FALSE_POSITIVE=NO
+    POLYGON_FALSE_POSITIVE=NO
+    GENERIC_ELLIPSE_FALSE_POSITIVE=NO
     """
     features: list[ManufacturingFeature] = []
+    _MIN_RADIUS = 0.05
 
+    # --- CIRCLE → HOLE (DXF_CIRCLE) ---
     for ent in entities:
-        if ent.entity_type == "CIRCLE" and ent.radius is not None and ent.radius > 0.05:
-            diameter_mm = _dec(round(ent.radius * 2.0, 3))
-            feat = ManufacturingFeature(
-                feature_id=_new_fid(ManufacturingFeatureType.HOLE),
-                feature_type=ManufacturingFeatureType.HOLE,
-                source_body_id="dxf-2d",
-                source_face_ids=(),
-                source_edge_ids=(),
-                surface_type=CanonicalSurfaceType.CYLINDER,
-                location=_pt_mm(ent.center_x or 0.0, ent.center_y or 0.0, 0.0),
-                axis=_vec_mm(0.0, 0.0, 1.0),
-                diameter_mm=diameter_mm,
-                depth_mm=None,  # depth unknown from 2D DXF
-                width_mm=None,
-                length_mm=None,
-                radius_mm=_dec(str(ent.radius)),
-                angle_deg=None,
-                bounding_box=None,
-                recognition_method=RecognitionMethod.DXF_2D,
-                confidence=FeatureRecognitionConfidence.INFERRED,
-                pattern_id=None,
-                confirmed_by=None,
-            )
-            features.append(feat)
+        if ent.entity_type == "CIRCLE" and ent.radius is not None and ent.radius > _MIN_RADIUS:
+            features.append(_make_hole_feature(
+                ent.center_x or 0.0, ent.center_y or 0.0, ent.radius,
+                RecognitionMethod.DXF_CIRCLE,
+            ))
+
+    # --- ARC closed loop → HOLE (DXF_ARC_LOOP) ---
+    arcs = [e for e in entities if e.entity_type == "ARC"]
+    for loop in _group_arc_loops(arcs):
+        r = loop["radius"]
+        if r > _MIN_RADIUS:
+            features.append(_make_hole_feature(
+                loop["center_x"], loop["center_y"], r,
+                RecognitionMethod.DXF_ARC_LOOP,
+                arc_count=loop["arc_count"],
+            ))
+
+    # --- Circular LWPOLYLINE → HOLE (DXF_CIRCULAR_POLYLINE) ---
+    for ent in entities:
+        if ent.entity_type not in ("LWPOLYLINE", "POLYLINE"):
+            continue
+        r = _circular_polyline_radius(ent)
+        if r is not None and r > _MIN_RADIUS:
+            xs = [v[0] for v in ent.vertices]
+            ys = [v[1] for v in ent.vertices]
+            cx = (max(xs) + min(xs)) / 2.0
+            cy = (max(ys) + min(ys)) / 2.0
+            features.append(_make_hole_feature(
+                cx, cy, r, RecognitionMethod.DXF_CIRCULAR_POLYLINE,
+            ))
+
+    # --- ELLIPSE → HOLE only if circular (DXF_CIRCULAR_ELLIPSE) ---
+    for ent in entities:
+        if ent.entity_type != "ELLIPSE":
+            continue
+        mx = ent.major_x or 0.0
+        my = ent.major_y or 0.0
+        major_r = math.sqrt(mx ** 2 + my ** 2)
+        if major_r < _MIN_RADIUS:
+            continue
+        ratio = ent.ratio if ent.ratio is not None else 1.0
+        minor_r = major_r * ratio
+        # Only treat as circular hole if radii differ by < ELLIPSE_CIRCLE_TOL
+        if abs(major_r - minor_r) / max(major_r, minor_r) > _ELLIPSE_CIRCLE_TOL:
+            continue   # generic ellipse → not a hole
+        features.append(_make_hole_feature(
+            ent.center_x or 0.0, ent.center_y or 0.0, major_r,
+            RecognitionMethod.DXF_CIRCULAR_ELLIPSE,
+        ))
 
     return features

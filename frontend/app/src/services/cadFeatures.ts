@@ -15,25 +15,32 @@ export interface AnalyzeCadResponse {
   session_id: string
   source_id: string
   status: string
+  format_id?: string
   face_count: number
   body_count: number
   feature_count: number
   pattern_count: number
   warnings: string[]
+  entity_counts?: Record<string, number>
+  geometry_entity_count?: number
+  annotation_entity_count?: number
+  block_insert_support?: string
 }
 
 export interface ManufacturingFeatureOut {
   feature_id: string
   feature_type: string
   confidence: string
-  method: string
+  recognition_method: string    // backend field name
+  method?: string               // alias kept for backward compat
   diameter_mm: number | null
   radius_mm: number | null
   depth_mm: number | null
   surface_type: string | null
   source_face_ids: string[]
   axis_count: string | null
-  warnings: string[]
+  warnings?: string[]
+  requires_review?: boolean
 }
 
 export interface FeaturesResponse {
