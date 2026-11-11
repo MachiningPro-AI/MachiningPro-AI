@@ -70,12 +70,14 @@ class AdaptiveIntelligenceRunner(StageRunner):
             result.status = StageStatus.PASS
 
         except ImportError as exc:
+            # Strip parenthetical file-path fragment from ImportError to avoid server path leak
+            clean = str(exc).split(" (")[0]
             result.status = StageStatus.PARTIAL
-            result.warnings.append(f"Adaptive module unavailable: {exc}")
+            result.warnings.append(f"Adaptive module unavailable: {clean}")
             result.known_unknowns.append(
                 KnownUnknown(
                     category="adaptive_module",
-                    description=str(exc),
+                    description=clean,
                     stage=self.stage,
                 )
             )

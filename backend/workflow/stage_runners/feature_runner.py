@@ -44,13 +44,12 @@ class FeatureRecognitionRunner(StageRunner):
             recog_result = recognize_features(
                 geometry=None,
                 topology=None,
-                source_entity_count=0,
             )
             features_ref = f"FEATURES_{ctx.workflow_id}"
             ctx.features_ref = features_ref
             result.output_refs["features_ref"] = features_ref
             result.output_refs["feature_count"] = len(recog_result.features)
-            result.provenance["recognition_path"] = recog_result.recognition_path
+            result.provenance["recognition_path"] = recog_result.recognition_basis
             result.provenance["feature_count"] = len(recog_result.features)
             result.provenance["evidence"] = "DERIVED"
             result.review_required = True

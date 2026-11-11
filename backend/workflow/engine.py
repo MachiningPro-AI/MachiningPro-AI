@@ -209,6 +209,7 @@ class WorkflowEngine:
 
         runner = runner_cls()
         result = runner.run(workflow.context)
+        result.stage = stage  # RC1-DEF-001: ensure result is stored under the correct stage key
         result.input_hash = input_hash
 
         # Pick up final plan from plan runner if present
