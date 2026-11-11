@@ -32,6 +32,69 @@ from backend.interoperability.models import (
 
 __all__ = ["IGES_DESCRIPTOR", "IgesTokenAdapter"]
 
+
+def _extract_header_meta(content: bytes) -> dict[str, str] | None:
+    """Return minimal Global-section metadata without full parsing.
+
+    Scans for 'G'-section lines and reassembles the raw parameter stream so
+    callers can show at least file-name / system-id / timestamp even when the
+    strict IGES parser rejects the file.  Returns None if no G-section found.
+    """
+    import re
+
+    # Strip BOM and normalise line endings before scanning.
+    if content.startswith(b"\xef\xbb\xbf"):
+        content = content[3:]
+    content = content.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+
+    g_payload_parts: list[str] = []
+    for raw_line in content.split(b"\n"):
+        if raw_line.endswith(b"\r"):
+            raw_line = raw_line[:-1]
+        # Section flag is at byte 72 in a proper 80-char record; also accept
+        # short lines that still carry a 'G' section flag in the last 8 bytes.
+        if len(raw_line) < 9:
+            continue
+        try:
+            section_char = chr(raw_line[-8])
+        except (IndexError, ValueError):
+            continue
+        if section_char != "G":
+            continue
+        payload_end = len(raw_line) - 8
+        try:
+            payload = raw_line[:payload_end].decode("ascii", errors="replace")
+            g_payload_parts.append(payload.rstrip())
+        except Exception:  # noqa: BLE001
+            continue
+
+    if not g_payload_parts:
+        return None
+
+    raw_params = "".join(g_payload_parts)
+
+    meta: dict[str, str] = {"raw_global_section": raw_params[:256]}
+
+    # Parameter 3: file name (Hollerith string at index 2, comma-separated)
+    try:
+        tokens = re.split(r"(?<![0-9H]),", raw_params)
+        if len(tokens) > 3:
+            fn_tok = tokens[3].strip()
+            h_match = re.match(r"^(\d+)H(.+)$", fn_tok)
+            if h_match:
+                length = int(h_match.group(1))
+                meta["source_file_name"] = h_match.group(2)[:length]
+        if len(tokens) > 7:
+            sys_tok = tokens[7].strip()
+            h_match = re.match(r"^(\d+)H(.+)$", sys_tok)
+            if h_match:
+                length = int(h_match.group(1))
+                meta["native_system_id"] = h_match.group(2)[:length]
+    except Exception:  # noqa: BLE001
+        pass
+
+    return meta if meta else None
+
 _ADAPTER_ID = "machinerypro-iges-token-v1"
 _ADAPTER_VERSION = "2.0.0"
 
@@ -190,9 +253,24 @@ class IgesTokenAdapter(FormatAdapter):
         try:
             model = parse_iges_bytes(content)
         except IgesParseError as exc:
-            session.mark_failed()
+            # Strict parse failed.  Attempt a lightweight header extraction so
+            # the response carries at least format metadata instead of nothing.
             session.record(FidelityClass.LOST, f"IGES parse error: {exc}")
-            session.set_fidelity_completeness(FidelityReportCompleteness.UNKNOWN)
+            header_meta = _extract_header_meta(content)
+            if header_meta:
+                session.add_entity_ref(
+                    CanonicalEntityRef(
+                        entity_id=make_uid("IGES-HEADER-"),
+                        entity_kind="IgesHeader",
+                        metadata=header_meta,
+                    )
+                )
+                session.mark_partial()
+                session.set_fidelity_completeness(FidelityReportCompleteness.PARTIAL)
+            else:
+                # No metadata recoverable — report as recognized-only (leave
+                # capability at LEVEL_0, status at INSUFFICIENT_DATA).
+                session.set_fidelity_completeness(FidelityReportCompleteness.UNKNOWN)
             return session.build()
 
         session.mark_parsed()

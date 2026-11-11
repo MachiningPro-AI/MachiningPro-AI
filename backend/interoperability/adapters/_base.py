@@ -109,6 +109,7 @@ class AdapterSession:
     def mark_cost_intelligence(self) -> None:
         self._capability_level = CapabilityLevel.LEVEL_8_COST_RFQ_INTELLIGENCE
 
+
     def mark_failed(self) -> None:
         self._normalization_status = NormalizationStatus.FAILED
 
@@ -250,6 +251,7 @@ class AdapterSession:
                 "manufacturing_cost_intelligence must be a CostIntelligenceResult"
             )
         self._manufacturing_cost_intelligence = manufacturing_cost_intelligence
+
 
     # ------------------------------------------------------------------
     # Build output

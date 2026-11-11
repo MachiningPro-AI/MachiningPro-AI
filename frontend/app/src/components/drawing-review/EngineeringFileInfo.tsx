@@ -27,14 +27,14 @@ const VALUE = 'font-medium text-tp-text break-all'
 
 function StatusChip({ status }: { status: ImportResult['import_status'] }) {
   const colors: Record<string, string> = {
-    SUCCESS:           'bg-tp-accent-muted text-tp-accent-light border-tp-accent-muted',
-    PARTIAL:           'bg-tp-warn-muted   text-tp-warn       border-tp-warn-muted',
-    FAILED:            'bg-tp-error-muted  text-tp-error      border-tp-error-muted',
-    UNSUPPORTED:       'bg-tp-surface-2    text-tp-text-2     border-tp-border',
-    INSUFFICIENT_DATA: 'bg-tp-surface-2    text-tp-text-2     border-tp-border',
-    UNRECOGNIZED:      'bg-tp-surface-2    text-tp-text-2     border-tp-border',
-    PARSE_ERROR:       'bg-tp-error-muted  text-tp-error      border-tp-error-muted',
-    UNKNOWN:           'bg-tp-surface-2    text-tp-text-2     border-tp-border',
+    SUCCESS:         'bg-tp-accent-muted text-tp-accent-light border-tp-accent-muted',
+    PARTIAL_SUCCESS: 'bg-tp-warn-muted   text-tp-warn        border-tp-warn-muted',
+    RECOGNIZED_ONLY: 'bg-tp-surface-2    text-tp-text-2      border-tp-border',
+    FAILED:          'bg-tp-error-muted  text-tp-error       border-tp-error-muted',
+    UNSUPPORTED:     'bg-tp-surface-2    text-tp-text-2      border-tp-border',
+    UNRECOGNIZED:    'bg-tp-surface-2    text-tp-text-2      border-tp-border',
+    PARSE_ERROR:     'bg-tp-error-muted  text-tp-error       border-tp-error-muted',
+    UNKNOWN:         'bg-tp-surface-2    text-tp-text-2      border-tp-border',
   }
   const cls = colors[status] ?? colors.UNKNOWN
   return (

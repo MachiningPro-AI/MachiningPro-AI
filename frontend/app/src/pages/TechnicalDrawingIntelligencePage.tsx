@@ -225,7 +225,7 @@ export default function TechnicalDrawingIntelligencePage({
                           importRes.status === 'fulfilled' &&
                           pdfRes.status === 'fulfilled' &&
                           (importRes.value.import_status === 'SUCCESS' ||
-                            importRes.value.import_status === 'PARTIAL')
+                            importRes.value.import_status === 'PARTIAL_SUCCESS')
                         ) {
                           const pdfFile = new File(
                             [pdfRes.value],

@@ -13,19 +13,20 @@ function AiStatusBadge() {
 
 function Breadcrumb({ pathname }: { pathname: string }) {
   const entry = useMemo(() => BREADCRUMB_MAP[pathname] ?? null, [pathname])
+  const { t } = useLocale()
 
   if (!entry) return <span className="text-xs text-tp-text-3">MachiningPro AI</span>
 
   return (
     <nav className="flex items-center gap-1.5 text-xs">
-      {entry.domain ? (
+      {entry.domainKey ? (
         <>
-          <span className="text-tp-text-3">{entry.domain}</span>
+          <span className="text-tp-text-3">{t(entry.domainKey)}</span>
           <ChevronRight size={11} className="text-tp-text-3 shrink-0" />
-          <span className="text-tp-text-2 font-medium">{entry.page}</span>
+          <span className="text-tp-text-2 font-medium">{t(entry.pageKey)}</span>
         </>
       ) : (
-        <span className="text-tp-text-2 font-medium">{entry.page}</span>
+        <span className="text-tp-text-2 font-medium">{t(entry.pageKey)}</span>
       )}
     </nav>
   )
@@ -43,11 +44,18 @@ export default function AppShell({ user, role, onLogout }: {
                          flex items-center px-4 gap-4">
         <Link
           to="/app"
-          className="text-base font-bold text-tp-accent-light tracking-tight shrink-0
-                     hover:text-tp-accent transition-colors"
+          className="flex items-center gap-2 shrink-0 hover:opacity-90 transition-opacity"
         >
-          MachiningPro AI
-          <span className="text-tp-text-3 font-normal text-[10px] ml-1.5">alpha</span>
+          <img
+            src="/branding/machiningpro-ai-symbol.png"
+            alt=""
+            aria-hidden="true"
+            className="h-[32px] w-auto shrink-0"
+          />
+          <span className="text-base font-bold text-tp-accent-light tracking-tight">
+            MachiningPro AI
+          </span>
+          <span className="text-tp-text-3 font-normal text-[10px]">alpha</span>
         </Link>
 
         <div className="flex-1 min-w-0 truncate">

@@ -314,6 +314,8 @@ export interface TranslationDictionary {
   drEntityCount: string
   drCapabilityLevel: string
   drImportSuccess: string
+  drImportPartialSuccess: string
+  drImportRecognizedOnly: string
   drImportPartial: string
   drImportFailed: string
   drImportUnsupported: string
@@ -1272,6 +1274,9 @@ export interface TranslationDictionary {
   dbStep3: string
   dbStep4: string
   dbStep5: string
+  dbStep6: string
+  dbStep7: string
+  dbStep8: string
 
   // Capability pending page
   capPreviewBadge: string
@@ -1419,6 +1424,105 @@ export interface TranslationDictionary {
   d2pHandoff: string
   d2pHandoffDesc: string
 
+  // CAD Feature Recognition (EPIC_04D_FEATURE_RECOGNITION_AND_CAD_FUSION)
+  cfPageTitle: string
+  cfPageSubtitle: string
+  cfPreviewBadge: string
+  cfDisclaimerTitle: string
+  cfDisclaimerText: string
+  cfUploadLabel: string
+  cfDropHint: string
+  cfSupportedFormats: string
+  cfAnalyzing: string
+  cfSessionLabel: string
+  cfNoSession: string
+  cfFeatureCount: string
+  cfFaceCount: string
+  cfBodyCount: string
+  cfClearSession: string
+  cfTabFeatures: string
+  cfTabPatterns: string
+  cfTabFusion: string
+  cfNoFeatures: string
+  cfNoPatterns: string
+  cfPattern: string
+  cfDepth: string
+  cfAxis: string
+  cfMethod: string
+  cfConfirm: string
+  cfReject: string
+  cfViewerLabel: string
+  cfViewerStubTitle: string
+  cfViewerStubDesc: string
+  cfCompleteness: string
+  cfUnresolved: string
+  cfAutoMatched: string
+  cfCadOnly: string
+
+  // Process Capability & Calibration (EPIC_04F)
+  calPageTitle: string
+  calPageSubtitle: string
+  calDisclaimer: string
+  calTabTolerance: string
+  calTabSurface: string
+  calTabCycleTime: string
+  calTabProfiles: string
+  calOperation: string
+  calRequiredTolerance: string
+  calNominalSize: string
+  calRequiredRa: string
+  calCapabilityStatus: string
+  calMarginRatio: string
+  calReferenceCapability: string
+  calAchievableRa: string
+  calStatus_ROBUST: string
+  calStatus_ACCEPTABLE: string
+  calStatus_MARGINAL: string
+  calStatus_NOT_CAPABLE: string
+  calStatus_INSUFFICIENT_DATA: string
+  calEvaluate: string
+  calCuttingTime: string
+  calRapidTime: string
+  calToolChanges: string
+  calAtcTime: string
+  calSetupTime: string
+  calBatchQty: string
+  calEstimate: string
+  calKnownTotal: string
+  calFullTotal: string
+  calCompleteness: string
+  calUnknownComponents: string
+  calProfileLabel: string
+  calSiteId: string
+  calMachineId: string
+  calCreateProfile: string
+  calNoProfiles: string
+  calSource: string
+  calConfidence: string
+  calRevision: string
+
+  // Pipeline handoff keys (EPIC_04H Phase 2)
+  pipeline_loadDemoPart: string
+  pipeline_continueToFeatureRecognition: string
+  pipeline_continueToRouteGeneration: string
+  pipeline_generateManufacturingPlan: string
+  pipeline_planGeneratedFrom: string
+  pipeline_demoModeBanner: string
+  pipeline_ncHandoffExport: string
+  pipeline_requirementsLoadedFrom: string
+  pipeline_stepLevel2Missing: string
+
+  // Demo & productization keys (EPIC_05_CUSTOMER_DEMO_AND_PRODUCTIZATION)
+  demo_startDemo: string
+  demo_credentialsBtn: string
+  demo_engineeringDisclaimerFooter: string
+  demo_pipelineStep_drawing: string
+  demo_pipelineStep_features: string
+  demo_pipelineStep_routes: string
+  demo_pipelineStep_plan: string
+  nav_processCapability: string
+  nav_manufacturingPlan: string
+
   // GD&T Intelligence (EPIC_04B)
   gdtPanelTitle: string
   gdtPanelSubtitle: string
@@ -1499,4 +1603,236 @@ export interface TranslationDictionary {
   gdtInspectionMethodRoundness: string
   gdtInspectionMethodDialIndicator: string
   gdtInspectionMethodSizeCheck: string
+  gdtIntelligencePanelTitle: string
+  gdtIntelligencePanelSubtitle: string
+  gdtOverviewSection: string
+  gdtFcfSection: string
+  gdtProcessImplications: string
+  gdtInspectionImplications: string
+  gdtRouteImpact: string
+  gdtEngineerReview: string
+  gdtApprovalStatus: string
+  gdtApprovalPending: string
+  gdtApprovalConfirmed: string
+  gdtApprovalRejected: string
+  gdtConfirmBtn: string
+  gdtEditBtn: string
+  gdtRejectBtn: string
+  gdtConfirmNote: string
+  gdtEditNote: string
+  gdtRejectNote: string
+  gdtDisclaimerLabel: string
+  gdtReferenceOnly: string
+  gdtInsufficientData: string
+  gdtNotApplicable: string
+  gdtNoAmbiguities: string
+  gdtRouteImpactDesc: string
+  gdtSchemaTitle: string
+  gdtCharacteristicsLabel: string
+  gdtModifiersLabel: string
+  gdtZoneGeometriesLabel: string
+  gdtValidateInput: string
+  gdtInterpretInput: string
+  gdtBonusCalcInput: string
+  gdtVcCalcInput: string
+  gdtReqIdLabel: string
+  gdtSubmitBtn: string
+  gdtClearBtn: string
+  gdtResultLabel: string
+  gdtSeverityError: string
+  gdtSeverityWarning: string
+  gdtSeverityInfo: string
+  gdtFosActualSizeHint: string
+  gdtNominalLabel: string
+  gdtUpperLimitLabel: string
+  gdtLowerLimitLabel: string
+
+  // Drawing Parser (EPIC_04C)
+  dpBadge: string
+  dpTitle: string
+  dpSubtitle: string
+  dpUploadSection: string
+  dpFileLabel: string
+  dpUnitLabel: string
+  dpMaterialLabel: string
+  dpNotesLabel: string
+  dpAnalyzeBtn: string
+  dpAnalyzing: string
+  dpUploadRequired: string
+  dpSessionSection: string
+  dpDetectionsLabel: string
+  dpReviewRequiredLabel: string
+  dpDetectedUnit: string
+  dpUnitUnknown: string
+  dpOcrStatus: string
+  dpOcrOn: string
+  dpOcrOff: string
+  dpDetectionsSection: string
+  dpFilterAll: string
+  dpNoDetections: string
+  dpConfirmedCount: string
+  dpReviewPending: string
+  dpEditTitle: string
+  dpCancelBtn: string
+  dpSaveBtn: string
+  dpConfirmBtn: string
+  dpEditBtn: string
+  dpRejectBtn: string
+  dpReassignBtn: string
+  dpConfidenceHigh: string
+  dpConfidenceMedium: string
+  dpConfidenceLow: string
+  dpAmbiguityWarning: string
+  dpReviewRequired: string
+  dpDisclaimer: string
+  dpSecurityNote: string
+  dpOcrUnavailableHint: string
+  dpFitExtracted: string
+  dpThreadExtracted: string
+  dpSurfaceFinishExtracted: string
+  dpDatumDetected: string
+  dpAssociationState: string
+  dpFeatureType: string
+
+  // Manufacturing Plan (EPIC_04G)
+  mfpTitle: string
+  mfpDraft: string
+  mfpEngineerReviewed: string
+  mfpApproved: string
+  mfpRejected: string
+  mfpSuperseded: string
+  mfpGenerate: string
+  mfpPlanId: string
+  mfpDrawingNumber: string
+  mfpRevision: string
+  mfpStatus: string
+  mfpReleaseGate: string
+  mfpCompleteness: string
+  mfpOperationsCount: string
+  mfpCharacteristicsCount: string
+  mfpOpenItems: string
+  mfpCreatedAt: string
+  mfpUpdatedAt: string
+  mfpTabOverview: string
+  mfpTabProcessFlow: string
+  mfpTabSetups: string
+  mfpTabOperations: string
+  mfpTabInspection: string
+  mfpTabControlPlan: string
+  mfpTabReview: string
+  mfpTabExport: string
+  mfpGateReady: string
+  mfpGateReviewRequired: string
+  mfpGateIncomplete: string
+  mfpGateBlocked: string
+  mfpCompletenessComplete: string
+  mfpCompletenessSubstantially: string
+  mfpCompletenessPartially: string
+  mfpCompletenessIncomplete: string
+  mfpOpNumber: string
+  mfpOpType: string
+  mfpMachine: string
+  mfpTool: string
+  mfpVc: string
+  mfpFeed: string
+  mfpRpm: string
+  mfpSetupNumber: string
+  mfpSetupLabel: string
+  mfpCharLabel: string
+  mfpCharType: string
+  mfpCriticality: string
+  mfpStage: string
+  mfpMethod: string
+  mfpGage: string
+  mfpFrequency: string
+  mfpAcceptanceCriterion: string
+  mfpReactionPlan: string
+  mfpResponsibility: string
+  mfpSeverity: string
+  mfpDescription: string
+  mfpResolutionHint: string
+  mfpValidate: string
+  mfpMarkReviewed: string
+  mfpApprove: string
+  mfpReject: string
+  mfpExportJson: string
+  mfpExportCsvOps: string
+  mfpExportCsvInspection: string
+  mfpExportHtml: string
+  mfpExportXlsxDeferred: string
+  mfpFingerprint: string
+  mfpDisclaimer: string
+  mfpNoPlan: string
+  mfpWarnings: string
+  mfpNcHandoff: string
+  mfpCoverageRate: string
+  mfpInspectionPlanDisclaimer: string
+  mfpControlPlanDisclaimer: string
+  mfpNoOpenItems: string
+  mfpEngineerNote: string
+  mfpConfirmApprove: string
+  mfpGenerateFromRoute: string
+  mfpSourceId: string
+  mfpCalibrationProfiles: string
+
+  // Sidebar navigation — group labels
+  nav_engineering: string
+  nav_processes: string
+  nav_resources: string
+  nav_cadDrawing: string
+  nav_planningQuality: string
+  // Sidebar navigation — item labels
+  nav_dashboard: string
+  nav_machiningAnalysis: string
+  nav_cuttingParameters: string
+  nav_toolLife: string
+  nav_compatibilityCheck: string
+  nav_configurationSelection: string
+  nav_surfaceRoughness: string
+  nav_turning: string
+  nav_milling: string
+  nav_drilling: string
+  nav_threading: string
+  nav_holeFinishing: string
+  nav_honing: string
+  nav_lapping: string
+  nav_machines: string
+  nav_materials: string
+  nav_cuttingTools: string
+  nav_toolHolders: string
+  nav_libraries: string
+  nav_cadImport: string
+  nav_technicalDrawingIntelligence: string
+  nav_cadFeatureRecognition: string
+  nav_processPlanning: string
+  nav_drawingParser: string
+  nav_gdtIntelligence: string
+  nav_routeOptimization: string
+  nav_dfm: string
+  nav_machineCapability: string
+  nav_validationPage: string
+  // Dashboard capability grid
+  dbCapMachines: string
+  dbCapCuttingTools: string
+  dbCapToolHolders: string
+  dbCapCuttingParameters: string
+  dbCapCompatibilityCheck: string
+  dbCapConfigurationSelection: string
+  dbCapDrawingSemanticExtraction: string
+  dbCapGdtIntelligence: string
+  dbCapCadFeatureRecognition: string
+  dbCapRouteOptimization: string
+  dbCapManufacturingPlan: string
+  dbCapInspectionControlPlan: string
+  dbCapProcessCapability: string
+  dbCapTraceability: string
+  dbCapToolLifeExplorer: string
+  // Demo card
+  dbDemoCardTitle: string
+  dbDemoCardSubtitle: string
+  // Pipeline breadcrumb steps
+  breadcrumbDrawing: string
+  breadcrumbFeatures: string
+  breadcrumbRoutes: string
+  breadcrumbPlan: string
 }

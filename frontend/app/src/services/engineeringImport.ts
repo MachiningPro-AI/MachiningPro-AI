@@ -67,10 +67,10 @@ export interface ImportResult {
   format_family_label: string
   import_status:
     | 'SUCCESS'
-    | 'PARTIAL'
+    | 'PARTIAL_SUCCESS'
+    | 'RECOGNIZED_ONLY'
     | 'FAILED'
     | 'UNSUPPORTED'
-    | 'INSUFFICIENT_DATA'
     | 'UNRECOGNIZED'
     | 'PARSE_ERROR'
     | 'UNKNOWN'

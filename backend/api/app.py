@@ -35,14 +35,20 @@ from .cutting_tools import router as cutting_tools_router
 from .digital_twin import router as digital_twin_router
 from .dispatch import router as dispatch_router
 from .drawing_analysis import router as drawing_analysis_router
+from .cad_features import router as cad_features_router
+from .calibration import router as calibration_router
+from .drawing_parser import router as drawing_parser_router
 from .drawing_to_process import router as drawing_to_process_router
 from .engineering_import import router as engineering_import_router
 from .export import router as export_router
+from .gdt import router as gdt_router
 from .job_planning import router as job_planning_router
 from .machines import router as machines_router
+from .manufacturing_plan import router as manufacturing_plan_router
 from .materials import router as materials_router
 from .monitoring import router as monitoring_router
 from .nc_generation import router as nc_generation_router
+from .process_routes import router as process_routes_router
 from .nc_path import router as nc_path_router
 from .process_planning import router as process_planning_router
 from .scheduling import router as scheduling_router
@@ -62,8 +68,7 @@ class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
 
-
-app = FastAPI(title="MachiningPro AI", version="0.1.0-alpha.20")
+app = FastAPI(title="MachiningPro AI", version="0.5.0-rc1")
 
 # Correlation middleware — adds X-Request-ID to every request/response
 app.add_middleware(CorrelationMiddleware)
@@ -92,6 +97,12 @@ app.include_router(process_planning_router)
 app.include_router(selection_router)
 app.include_router(tool_holders_router)
 app.include_router(tool_life_router)
+app.include_router(drawing_parser_router)
+app.include_router(gdt_router)
+app.include_router(cad_features_router)
+app.include_router(process_routes_router)
+app.include_router(calibration_router)
+app.include_router(manufacturing_plan_router)
 app.include_router(cam_planning_router)
 app.include_router(toolpath_router)
 app.include_router(verification_router)

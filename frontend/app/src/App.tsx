@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 import { useLocale } from './i18n'
+import { PipelineProvider } from './context/PipelineContext'
 import AppShell from './layouts/AppShell'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
@@ -16,6 +17,12 @@ import ToolHolderCatalogPage from './pages/ToolHolderCatalogPage'
 import ProcessPlanningPage from './pages/ProcessPlanningPage'
 import DrawingToProcessPage from './pages/DrawingToProcessPage'
 import MaterialLibraryPage from './pages/MaterialLibraryPage'
+import CadFeaturesPage from './pages/CadFeaturesPage'
+import DrawingParserPage from './pages/DrawingParserPage'
+import GdtIntelligencePage from './pages/GdtIntelligencePage'
+import ManufacturingPlanPage from './pages/ManufacturingPlanPage'
+import ProcessCapabilityPage from './pages/ProcessCapabilityPage'
+import ProcessRoutesPage from './pages/ProcessRoutesPage'
 import WorkflowPage from './pages/WorkflowPage'
 
 function CapabilityPendingPage({ title }: { title: string }) {
@@ -47,6 +54,7 @@ function ProtectedRoutes() {
   if (!isAuthenticated) return <LoginPage onLogin={login} />
 
   return (
+    <PipelineProvider>
     <Routes>
       <Route element={<AppShell user={user} role={role} onLogout={logout} />}>
         <Route path="app" element={<DashboardPage />} />
@@ -81,6 +89,7 @@ function ProtectedRoutes() {
           path="app/cad-drawing/technical-drawing-intelligence"
           element={<TechnicalDrawingIntelligencePage reviewer={user} />}
         />
+        <Route path="app/cad-drawing/cad-features" element={<CadFeaturesPage />} />
 
         {/* Manufacturing Workflow */}
         <Route path="app/workflow/manufacturing-analysis" element={<WorkflowPage />} />
@@ -88,14 +97,20 @@ function ProtectedRoutes() {
         {/* Planning & Quality */}
         <Route path="app/planning-quality/process-planning" element={<ProcessPlanningPage />} />
         <Route path="app/planning-quality/drawing-to-process" element={<DrawingToProcessPage />} />
+        <Route path="app/planning-quality/drawing-parser" element={<DrawingParserPage />} />
+        <Route path="app/planning-quality/gdt-intelligence" element={<GdtIntelligencePage />} />
+        <Route path="app/planning-quality/process-routes" element={<ProcessRoutesPage />} />
         <Route path="app/planning-quality/dfm" element={capability('DFM')} />
         <Route path="app/planning-quality/machine-capability" element={capability('Machine Capability')} />
+        <Route path="app/planning-quality/process-capability" element={<ProcessCapabilityPage />} />
+        <Route path="app/planning-quality/manufacturing-plan" element={<ManufacturingPlanPage />} />
         <Route path="app/planning-quality/validation" element={capability('Validation')} />
 
         <Route index element={<Navigate to="/app" replace />} />
         <Route path="*" element={<Navigate to="/app" replace />} />
       </Route>
     </Routes>
+    </PipelineProvider>
   )
 }
 

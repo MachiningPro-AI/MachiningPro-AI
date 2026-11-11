@@ -1,34 +1,75 @@
 # MachiningPro AI — Customer Demo Guide
+Version: 0.5.0-demo | Branch: work/next-stage
 
-**Release:** v0.1.0-alpha.10  
-**Status:** Alpha Engineering Preview  
-**Audience:** Customer-facing demonstration
+## Product Overview
+MachiningPro AI transforms engineering drawings and CAD models into traceable, deterministic manufacturing plans with inspection and control plan generation. Every result is REFERENCE_ONLY and requires engineer validation before manufacturing use.
 
----
+## Supported Inputs
+| Format | Support Level | Notes |
+|--------|--------------|-------|
+| DXF 2D | FULL | Geometric feature recognition |
+| Vector PDF | FULL | Text/annotation extraction |
+| STEP AP203/214 | LEVEL_1 | Entity inventory; Level 2 requires pythonocc-core |
+| Manual req_set JSON | FULL | All pages accept structured JSON input |
+| STL / OBJ / 3MF | VIEWER_ONLY | 3D mesh viewer; no feature extraction |
 
-## 1. Before the Demo
+## Demo Part — MP-DEMO-001 (Precision Hydraulic Valve Spool)
+- Material: 42CrMo4 alloy steel
+- Drawing number: MP-DEMO-001, Revision A
+- Features: Main OD ⌀40 f7, Land OD ⌀38 h6, Groove 6 ±0.015, OAL 120 ±0.1
+- GD&T: Circular runout ⌀0.005/A, Port position ⌀0.1/A/B
+- Surface finish: Ra 0.4 µm (main OD), Ra 0.8 µm (land)
+- Thread: G1/4 BSP (port)
+- CUSTOMER_DATA_USED=NO — fully synthetic
 
-### Prerequisites
+## 5-Minute Demo Script
+1. **Login** — enter credentials → Dashboard
+2. **Manufacturing Plan page** → click "Load Demo Part (Hydraulic Spool)"
+3. Show DRAFT status + characteristics count + REFERENCE_ONLY disclaimer
+4. **Inspection Plan tab** — show method coverage (CMM, surface roughness tester, ring gauge)
+5. **Control Plan tab** — show sampling frequency, reaction plan
+6. **Review tab** → Review → Approve (gate enforcement demonstration)
+7. **Export tab** → Download HTML → show traceability fingerprint
 
-- Backend running: `py -m uvicorn backend.main:app --reload`
-- Frontend running: `cd frontend/app && npm run dev`
-- Browser at `http://localhost:5173`
-- No external AI service required (Drawing Intelligence uses local Ollama if configured)
+## 10-Minute Demo Script
+1. Login → Dashboard (explain deterministic philosophy)
+2. Resources: Machines → show INTEGREX i-200S detail
+3. Engineering: Compatibility Check → select machine + holder + tool → COMPATIBLE
+4. Planning: Drawing Parser → describe spool drawing → confirm detections
+5. Process Routes → enter features → generate BALANCED strategy → compare routes
+6. Click "Generate Manufacturing Plan →"
+7. Manufacturing Plan (pipeline prefill) → all 8 tabs
+8. Approve → Export HTML
 
-### Key Safety Flags (always in effect)
+## 20-Minute Technical Demo
+1. Login + positioning statement
+2. Machine + Tool + Holder catalog exploration
+3. Compatibility and Configuration Selection
+4. Technical Drawing Intelligence (PDF upload, Ollama optional)
+5. Drawing Parser (DXF upload, confirm requirements)
+6. CAD Features (STEP Level 1 / DXF, feature tree, fusion)
+7. Route Optimization (BALANCED vs LOWEST_RISK strategy comparison)
+8. Generate Manufacturing Plan (pipeline handoff)
+9. All 8 Manufacturing Plan tabs
+10. Process Capability (tolerance evaluation, IT grade)
+11. GD&T Intelligence (FCF validation, bonus tolerance, VC)
+12. Export HTML + JSON + NC Handoff package
+13. Safety summary (FABRICATED_*=NO, AUTO_GENERATED_PLAN_MARKED_APPROVED=NO)
 
-| Flag | Value |
-|------|-------|
-| `PRODUCTION_MODEL_APPROVED` | NO |
-| `NC_FILE_EXECUTED` | NO |
-| `HASH_EQUALS_DIGITAL_SIGNATURE` | NO |
-| `FALSE_AI_CAPABILITY_CLAIM` | NO |
+## Pipeline Navigation
+Drawing Parser → CAD Features → Process Routes → Manufacturing Plan → Export
 
----
+Handoff buttons appear automatically when a session/requirements are confirmed.
+Pipeline context persists within the browser session (cleared on refresh).
 
-## 2. What to Show
+## Sidebar Navigation
+All pipeline pages are accessible from the sidebar under:
+- CAD & Drawing: CAD Import, Technical Drawing Intelligence, CAD Features
+- Planning & Quality: Drawing Parser, GD&T Intelligence, Route Optimization, Process Capability, Manufacturing Plan
 
-### Fully Implemented (demo-ready)
+## Demo Credentials
+Ask your MachiningPro demo operator for the current credentials.
+Never commit credentials to the repository.
 
 | Module | Route | Notes |
 |--------|-------|-------|
@@ -43,12 +84,37 @@
 | Drawing Intelligence | `/app/cad-drawing/technical-drawing-intelligence` | Advisory AI (local Ollama only) |
 | Tool Life Explorer | `/app/engineering/tool-life` | Empirical dataset (requires `MACHININGPRO_TOOLLIFE968_SOURCE_PATH`) |
 | Manufacturing Workflow | `/app/workflow/manufacturing-analysis` | Level 19: 19-stage end-to-end analysis (see Step 06) |
+| GD&T Intelligence | `/app/planning-quality/gdt-intelligence` | EPIC_04B — engineer review required |
+| Drawing Parser | `/app/planning-quality/drawing-parser` | EPIC_04C — detections require confirm/edit/reject |
+| Process Routes | `/app/planning-quality/process-routes` | EPIC_04E — engineer selects preferred route |
+| Manufacturing Plan | `/app/planning-quality/manufacturing-plan` | EPIC_04G — explicit review/approve, never auto-approved |
+| Process Capability | `/app/planning-quality/process-capability` | EPIC_04F — calibration profiles |
 
-### Engineering Preview (stub routes — backend capability only)
+## Review Gates (Required Human Actions)
+- Drawing extraction detections: confirm/edit/reject each
+- GD&T interpretation: PENDING_REVIEW (engineer must approve)
+- Feature associations: confirm/reject
+- Route selection: engineer selects preferred route
+- Manufacturing plan approval: explicit /review then /approve (never auto-approved)
 
-Machining Analysis, Surface Roughness, Turning, Milling, Drilling, Threading, Hole Finishing, Honing, Lapping, Materials, Libraries, DFM, Machine Capability, Validation
+## Safety Boundaries
+- AUTO_GENERATED_PLAN_MARKED_APPROVED=NO — always DRAFT on generation
+- KEY_CHARACTERISTIC — engineer-only designation, never auto-assigned
+- INSUFFICIENT_DATA returned for unknowns — never fabricated
+- No production release authorization in this system
+- All exports marked REFERENCE_ONLY
 
-These routes show a clear "Engineering Preview" label. Do not present them as complete workflows.
+## Known Limitations
+- In-memory storage only (restart clears all sessions)
+- STEP Level 2 feature recognition requires pythonocc-core (see STEP_LEVEL2_DEPENDENCY.md)
+- XLSX export deferred
+- Playwright browser tests require: cd frontend/app && npx playwright install --with-deps chromium
+- VLM/OCR analysis requires local Ollama with granite3.2-vision:2b
+- PipelineContext is in-memory: browser refresh loses pipeline state
+- No multi-user authentication on most endpoints
+
+## Deployment
+See DEPLOYMENT.md and render.yaml. Deploy to Render from `main` branch after merging work/next-stage.
 
 ---
 
@@ -193,3 +259,6 @@ These routes show a clear "Engineering Preview" label. Do not present them as co
 ---
 
 *See [`docs/nc/NC_MODULE_RELEASE.md`](nc/NC_MODULE_RELEASE.md) for the full NC feature matrix and demo scenarios A–J.*
+
+## Version
+RC1 (Levels 1–20) + EPIC_04A–EPIC_05 remote capabilities integrated.

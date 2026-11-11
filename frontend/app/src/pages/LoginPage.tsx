@@ -320,6 +320,14 @@ function MachiningSVG() {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   Public demo credentials — prefilled on initial render, always editable.
+   Env overrides allow Render to customize without a code change.
+   These are public demo credentials only — not secrets.
+────────────────────────────────────────────────────────────────────────────── */
+const DEMO_USER = (import.meta.env.VITE_DEMO_USERNAME as string | undefined) ?? 'demo'
+const DEMO_PASS = (import.meta.env.VITE_DEMO_PASSWORD as string | undefined) ?? 'A1234'
+
+/* ─────────────────────────────────────────────────────────────────────────────
    LoginPage
 ────────────────────────────────────────────────────────────────────────────── */
 export default function LoginPage({
@@ -329,8 +337,8 @@ export default function LoginPage({
 }) {
   const { locale, t } = useLocale()  // ← CANONICAL — no second locale system
 
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
+  const [username, setUsername] = useState(DEMO_USER)
+  const [password, setPassword] = useState(DEMO_PASS)
   const [error,    setError]    = useState('')
   const [loading,  setLoading]  = useState(false)
 
@@ -689,6 +697,19 @@ export default function LoginPage({
               />
             </div>
 
+            {/* Demo account notice — always shown, no button needed (credentials prefilled) */}
+            <p style={{
+              fontSize: '10px',
+              color: 'var(--color-mp-steel, #6F8FA3)',
+              fontFamily: 'monospace',
+              marginBottom: '8px',
+              opacity: 0.8,
+            }}>
+              {locale === 'tr'
+                ? 'Demo hesabı kullanıma hazırdır.'
+                : 'Demo account is ready to use.'}
+            </p>
+
             {/* Submit */}
             <button
               className="mp-login-btn"
@@ -714,6 +735,18 @@ export default function LoginPage({
               ? 'mühendislik araştırma önizlemesi'
               : 'engineering research preview'}
           </div>
+
+          {/* Engineering disclaimer */}
+          <p style={{
+            marginTop: '16px',
+            fontSize: '9px',
+            color: 'var(--color-mp-text-3, #4E5F6A)',
+            textAlign: 'center',
+            fontFamily: 'monospace',
+            lineHeight: '1.4',
+          }}>
+            {t('demo_engineeringDisclaimerFooter')}
+          </p>
         </div>
       </div>
     </>
