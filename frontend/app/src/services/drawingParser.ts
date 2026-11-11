@@ -71,18 +71,18 @@ export interface ActionResponse {
 }
 
 export async function analyzeDrawing(req: AnalyzeRequest): Promise<AnalyzeResponse> {
-  return api<AnalyzeResponse>('/api/drawing-parser/analyze', {
+  return api<AnalyzeResponse>('/drawing-parser/analyze', {
     method: 'POST',
     body: JSON.stringify(req),
   })
 }
 
 export async function getDetections(sessionId: string): Promise<DetectionsResponse> {
-  return api<DetectionsResponse>(`/api/drawing-parser/${encodeURIComponent(sessionId)}/detections`)
+  return api<DetectionsResponse>(`/drawing-parser/${encodeURIComponent(sessionId)}/detections`)
 }
 
 export async function getRequirements(sessionId: string): Promise<RequirementsResponse> {
-  return api<RequirementsResponse>(`/api/drawing-parser/${encodeURIComponent(sessionId)}/requirements`)
+  return api<RequirementsResponse>(`/drawing-parser/${encodeURIComponent(sessionId)}/requirements`)
 }
 
 export async function confirmDetection(
@@ -93,7 +93,7 @@ export async function confirmDetection(
   confirmedFeatureId?: string,
 ): Promise<ActionResponse> {
   return api<ActionResponse>(
-    `/api/drawing-parser/${encodeURIComponent(sessionId)}/detections/${encodeURIComponent(detectionId)}/confirm`,
+    `/drawing-parser/${encodeURIComponent(sessionId)}/detections/${encodeURIComponent(detectionId)}/confirm`,
     {
       method: 'POST',
       body: JSON.stringify({
@@ -112,7 +112,7 @@ export async function editDetection(
   newUnit?: string,
 ): Promise<ActionResponse> {
   return api<ActionResponse>(
-    `/api/drawing-parser/${encodeURIComponent(sessionId)}/detections/${encodeURIComponent(detectionId)}/edit`,
+    `/drawing-parser/${encodeURIComponent(sessionId)}/detections/${encodeURIComponent(detectionId)}/edit`,
     {
       method: 'POST',
       body: JSON.stringify({ new_value: newValue, new_unit: newUnit ?? null }),
@@ -125,7 +125,7 @@ export async function rejectDetection(
   detectionId: string,
 ): Promise<ActionResponse> {
   return api<ActionResponse>(
-    `/api/drawing-parser/${encodeURIComponent(sessionId)}/detections/${encodeURIComponent(detectionId)}/reject`,
+    `/drawing-parser/${encodeURIComponent(sessionId)}/detections/${encodeURIComponent(detectionId)}/reject`,
     { method: 'POST', body: JSON.stringify({}) },
   )
 }
@@ -137,7 +137,7 @@ export async function associateDetection(
   featureType?: string,
 ): Promise<ActionResponse> {
   return api<ActionResponse>(
-    `/api/drawing-parser/${encodeURIComponent(sessionId)}/detections/${encodeURIComponent(detectionId)}/associate`,
+    `/drawing-parser/${encodeURIComponent(sessionId)}/detections/${encodeURIComponent(detectionId)}/associate`,
     {
       method: 'POST',
       body: JSON.stringify({ feature_id: featureId, feature_type: featureType ?? null }),
