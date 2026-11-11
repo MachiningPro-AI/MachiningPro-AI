@@ -1775,10 +1775,12 @@ export const enTranslations: TranslationDictionary = {
   nav_processes: 'Processes',
   nav_resources: 'Resources',
   nav_cadDrawing: 'CAD & Drawing',
+  nav_manufacturing: 'Manufacturing',
   nav_planningQuality: 'Planning & Quality',
   // Sidebar navigation — item labels
   nav_dashboard: 'Dashboard',
   nav_machiningAnalysis: 'Machining Analysis',
+  nav_manufacturingAnalysis: 'Manufacturing Analysis',
   nav_cuttingParameters: 'Cutting Parameters',
   nav_toolLife: 'Tool Life',
   nav_compatibilityCheck: 'Compatibility Check',

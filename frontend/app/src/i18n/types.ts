@@ -1780,10 +1780,12 @@ export interface TranslationDictionary {
   nav_processes: string
   nav_resources: string
   nav_cadDrawing: string
+  nav_manufacturing: string
   nav_planningQuality: string
   // Sidebar navigation — item labels
   nav_dashboard: string
   nav_machiningAnalysis: string
+  nav_manufacturingAnalysis: string
   nav_cuttingParameters: string
   nav_toolLife: string
   nav_compatibilityCheck: string

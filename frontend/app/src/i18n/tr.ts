@@ -1775,10 +1775,12 @@ export const trTranslations: TranslationDictionary = {
   nav_processes: 'Prosesler',
   nav_resources: 'Kaynaklar',
   nav_cadDrawing: 'CAD ve Teknik Resim',
+  nav_manufacturing: 'Üretim',
   nav_planningQuality: 'Planlama ve Kalite',
   // Sidebar navigation — item labels
   nav_dashboard: 'Gösterge Paneli',
   nav_machiningAnalysis: 'Talaşlı İmalat Analizi',
+  nav_manufacturingAnalysis: 'Üretim Analizi',
   nav_cuttingParameters: 'Kesme Parametreleri',
   nav_toolLife: 'Takım Ömrü',
   nav_compatibilityCheck: 'Uyumluluk Kontrolü',
