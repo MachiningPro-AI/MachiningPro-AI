@@ -1,6 +1,6 @@
 # MachiningPro AI — Render Blueprint
 # Single web service: FastAPI serves both the API and the React SPA (same-origin).
-# Persistent disk at /data stores SQLite workflow database and artifact store.
+# Free tier: ephemeral storage only — workflow history is lost on restart/redeploy.
 #
 # Setup steps:
 #   1. Connect this repo to Render.
@@ -12,19 +12,11 @@ services:
   - type: web
     name: machiningpro-ai-demo
     env: python
-    plan: starter
+    plan: free
     branch: main
     buildCommand: cd frontend/app && npm ci && npm run build && cd ../.. && pip install .
     startCommand: uvicorn backend.api.app:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
-
-    # Persistent disk: workflows.db + artifact store survive service restarts.
-    # Render Free/Starter: 1 GB attached at /data.
-    # Reference: https://render.com/docs/disks
-    disk:
-      name: machiningpro-data
-      mountPath: /data
-      sizeGB: 1
 
     envVars:
       # --- Required secrets (set in Render dashboard — never commit real values) ---
@@ -36,13 +28,6 @@ services:
 
       - key: MACHININGPRO_DEV_PASSWORD
         sync: false        # Demo login password
-
-      # --- Persistent storage directory (matches disk mountPath above) ---
-      # WorkflowStore writes to $MACHININGPRO_DATA_DIR/workflows.db
-      # ArtifactStore writes to $MACHININGPRO_DATA_DIR/artifacts/
-      # Falls back to "data/" (relative) when unset — suitable for local dev.
-      - key: MACHININGPRO_DATA_DIR
-        value: /data
 
       # --- Public demo credentials (build-time VITE_ vars; embedded in JS bundle) ---
       - key: VITE_DEMO_USERNAME

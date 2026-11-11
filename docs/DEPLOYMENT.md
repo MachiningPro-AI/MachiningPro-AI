@@ -10,7 +10,9 @@ See `docs/DEMO_GUIDE.md` for the demo workflow and known capability limitations.
 **Single Render Web Service — same-origin topology.**
 
 FastAPI serves both the REST API (`/api/*`) and the React SPA (`frontend/dist/`).
-Level 20 adds SQLite-backed workflow persistence and a Render persistent disk — no CDN required.
+**Free-tier deployment: ephemeral storage only.** Workflow history and uploaded artifacts
+are stored in the container's local filesystem and are lost on restart, redeploy, or
+Render's automatic spin-down. This is acceptable for public demo purposes only.
 
 ```
 Browser → https://machiningpro-ai-demo.onrender.com
@@ -33,14 +35,19 @@ Same-origin deployment requires no VITE_API_URL change and no CORS configuration
 | Service name | `machiningpro-ai-demo` |
 | Service type | Web Service |
 | Environment | Python |
-| Plan | **Starter** ($7/month — no cold starts; also required for persistent disk) |
+| Plan | **Free** (spins down after 15 min inactivity; ~50 s cold-start) |
 | Deploy branch | `main` |
 | Health check path | `/api/health` |
-| Persistent disk | `machiningpro-data`, mounted at `/data`, 1 GB |
+| Persistent disk | **None** — ephemeral storage only |
 
-> **Free tier warning:** Render's free tier sleeps after 15 minutes of inactivity.
-> Cold-start time is ~50 seconds — unacceptable during a live customer demo.
-> Use **Starter** or above.
+> **Ephemeral storage notice:** The free tier has no attached persistent disk.
+> `WorkflowStore` and `ArtifactStore` fall back to `data/` inside the container.
+> All workflow history, uploaded CAD files, and artifacts **will be lost** when the
+> service restarts, redeploys, or spins down from inactivity.
+>
+> **This deployment is for public demo / release-candidate evaluation only.**
+> It is NOT suitable for production-pilot use or any workflow that must survive a restart.
+> For durable storage, use the Starter plan and re-add the persistent disk.
 
 ---
 
@@ -78,7 +85,7 @@ Never commit real values to the repository.
 
 | Variable | Default behaviour when absent | Notes |
 |---|---|---|
-| `MACHININGPRO_DATA_DIR` | `data/` (relative path) | **Set to `/data` on Render** — matches the persistent disk mount point; `WorkflowStore` and `ArtifactStore` write here |
+| `MACHININGPRO_DATA_DIR` | `data/` (relative path) | **Leave unset on free-tier Render** — falls back to `data/` inside the container (ephemeral); set to `/data` only if a persistent disk is attached |
 | `CORS_ORIGINS` | CORS middleware not activated | Set only for split-service deployment (not needed for same-origin) |
 | `MACHININGPRO_TOOLLIFE968_SOURCE_PATH` | Tool Life Explorer runs from in-catalog data | Windows local paths must NOT be used on Render — leave unset |
 | `MACHININGPRO_CUTTING_PARAM_REF_PATH` | Cutting param queries return `NO_MATCH` | Leave unset unless a reference file is deployed |
@@ -160,7 +167,7 @@ Run these checks immediately after a successful deploy:
 ```
 1. GET  /api/health
    Expected: 200  {"status":"ok","database_ok":true,"artifact_store_ok":true}
-   Note: database_ok=true confirms SQLite at /data/workflows.db is writable.
+   Note: database_ok=true confirms SQLite (ephemeral, in-container) is writable.
 
 2. POST /api/login  body: {"username":"<demo-user>","password":"<demo-password>"}
    Expected: 200  {"access_token":"<jwt>"}
