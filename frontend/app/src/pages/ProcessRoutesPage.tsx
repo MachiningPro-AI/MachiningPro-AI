@@ -6,7 +6,7 @@
  * BLACK_BOX_AI_SCORE_USED=NO
  */
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PipelineBreadcrumb } from '../components/PipelineBreadcrumb'
 import {
@@ -18,6 +18,7 @@ import {
 } from '../services/processRoutes'
 import { generatePlan } from '../services/manufacturingPlan'
 import { usePipeline } from '../context/PipelineContext'
+import { getCadFeatures, type ManufacturingFeatureOut } from '../services/cadFeatures'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -347,15 +348,28 @@ interface FeatureFormState {
   has_inspection: boolean
 }
 
+function mapCadToRouteType(cadType: string): string {
+  const holeTypes = new Set(['THROUGH_HOLE', 'BLIND_HOLE', 'STEPPED_HOLE', 'HOLE', 'HOLE_CANDIDATE'])
+  if (holeTypes.has(cadType)) return 'HOLE'
+  const direct: Record<string, string> = {
+    COUNTERBORE: 'COUNTERBORE', COUNTERSINK: 'COUNTERSINK',
+    THREADED_HOLE: 'THREADED_HOLE', OUTER_DIAMETER: 'TURNING_DIAMETER',
+    GROOVE: 'GROOVE', BOSS: 'BOSS', CLOSED_POCKET: 'POCKET',
+    OPEN_SLOT: 'SLOT', CHAMFER: 'CHAMFER', FILLET: 'FILLET',
+    PLANAR_FACE: 'PLANAR_FACE',
+  }
+  return direct[cadType] ?? ''
+}
+
 function newFeatureRow(idx: number): FeatureFormState {
   return {
     id: `row-${idx}-${Date.now()}`,
     feature_id: `F${String(idx + 1).padStart(3, '0')}`,
-    feature_type: 'HOLE',
-    required_ra_um: '1.6',
-    required_it_grade: 'IT9',
-    diameter_mm: '12',
-    iso_material_group: 'P',
+    feature_type: '',
+    required_ra_um: '',
+    required_it_grade: '',
+    diameter_mm: '',
+    iso_material_group: '',
     has_tight_position: false,
     has_runout: false,
     has_inspection: false,
@@ -383,6 +397,7 @@ function FeatureRow({
         value={row.feature_type}
         onChange={(e) => onChange({ ...row, feature_type: e.target.value })}
       >
+        <option value="">— select type —</option>
         {FEATURE_TYPES.map((ft) => (
           <option key={ft} value={ft}>{ft}</option>
         ))}
@@ -460,9 +475,32 @@ function FeatureRow({
 
 export default function ProcessRoutesPage() {
   const navigate = useNavigate()
-  const { confirmedRequirements, setManufacturingPlanId } = usePipeline()
+  const { confirmedRequirements, cadSessionId, setManufacturingPlanId } = usePipeline()
   const [strategy, setStrategy] = useState('BALANCED')
-  const [features, setFeatures] = useState<FeatureFormState[]>([newFeatureRow(0)])
+  const [features, setFeatures] = useState<FeatureFormState[]>([])
+
+  useEffect(() => {
+    if (!cadSessionId) return
+    getCadFeatures(cadSessionId)
+      .then((res) => {
+        if (res.features.length === 0) return
+        setFeatures(
+          res.features.map((f: ManufacturingFeatureOut) => ({
+            id: `cad-${f.feature_id}`,
+            feature_id: f.feature_id,
+            feature_type: mapCadToRouteType(f.feature_type),
+            required_ra_um: '',
+            required_it_grade: '',
+            diameter_mm: f.diameter_mm != null ? String(f.diameter_mm) : '',
+            iso_material_group: '',
+            has_tight_position: false,
+            has_runout: false,
+            has_inspection: false,
+          }))
+        )
+      })
+      .catch(() => {})
+  }, [cadSessionId])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<OptimizePartRoutesResponse | null>(null)
@@ -485,6 +523,12 @@ export default function ProcessRoutesPage() {
   const handleOptimize = async () => {
     setError(null)
     setLoading(true)
+    const incomplete = features.filter(f => !f.feature_type)
+    if (incomplete.length > 0) {
+      setError(`${incomplete.length} feature(s) have no type selected. Select a feature type for each row before optimizing.`)
+      setLoading(false)
+      return
+    }
     try {
       const body = {
         source_id: `PART-${Date.now()}`,
@@ -613,9 +657,21 @@ export default function ProcessRoutesPage() {
           </div>
 
           {features.length === 0 && (
-            <p className="text-xs text-[var(--tp-text-2)] text-center py-4">
-              No features. Click "+ Add Feature".
-            </p>
+            <div className="text-center py-6 space-y-2">
+              <p className="text-sm text-[var(--tp-text-2)]">
+                No manufacturing features recognized or added yet.
+              </p>
+              <p className="text-xs text-[var(--tp-text-3)]">
+                {cadSessionId
+                  ? 'CAD session loaded — click "+ Add Feature" to add manually, or features will populate from recognized geometry.'
+                  : 'Upload a CAD file in the previous step to populate features automatically, or click "+ Add Feature" to add manually.'
+                }
+              </p>
+              <p className="text-xs text-orange-600 dark:text-orange-400 font-medium">
+                Features must be confirmed by an engineer before use in process planning.
+                Ra, IT grade, material group, and depth are never inferred automatically.
+              </p>
+            </div>
           )}
         </div>
 

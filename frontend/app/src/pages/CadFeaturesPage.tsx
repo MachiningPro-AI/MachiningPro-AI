@@ -16,6 +16,7 @@ import {
   type FeaturesResponse,
 } from '../services/cadFeatures'
 import { usePipeline } from '../context/PipelineContext'
+import { bytesToBase64 } from '../lib/encoding'
 
 // ---------------------------------------------------------------------------
 // Small UI helpers
@@ -281,13 +282,15 @@ export default function CadFeaturesPage() {
     setError(null)
     try {
       const ab = await file.arrayBuffer()
-      const b64 = btoa(String.fromCharCode(...new Uint8Array(ab)))
+      const b64 = bytesToBase64(new Uint8Array(ab))
       const res = await analyzeCad({
         file_name: file.name,
         content_b64: b64,
         source_id: `upload-${Date.now()}`,
+        drawing_session_id: drawingParserSessionId ?? undefined,
       })
       setSessionId(res.session_id)
+      setCadSessionId(res.session_id)
       setFaceCount(res.face_count)
       setBodyCount(res.body_count)
       setFeatureCount(res.feature_count)

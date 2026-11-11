@@ -22,6 +22,7 @@ UNCERTAIN_EXTRACTION_AUTO_APPROVED=NO
 from __future__ import annotations
 
 import base64
+import re
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
@@ -173,6 +174,106 @@ class ActionResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# DXF annotation extraction
+# ---------------------------------------------------------------------------
+
+# DXF $INSUNITS code → drawing unit string (None = UNKNOWN, do not assume)
+_DXF_INSUNITS_UNIT_MAP: dict[int, str] = {
+    1: "inch",   # Inches
+    2: "inch",   # Feet (imperial context)
+    4: "mm",     # Millimeters
+    5: "mm",     # Centimeters (mm drawing context)
+    6: "mm",     # Meters (mm drawing context)
+    # 0 = Unitless → not in map → returns None (UNKNOWN)
+}
+
+_MTEXT_FORMAT_RE = re.compile(
+    r'\\[A-Za-z][^;]{0,40};'   # \fFont|...;  \H2.0;  \W1.0;
+    r'|\\[PplLouOwW~\{\}n]'    # single-char codes
+    r'|\{\\[^}]*\}'            # {\\...} format groups
+)
+
+
+def _extract_dxf_annotations(content_bytes: bytes) -> tuple[list[str], str | None]:
+    """Extract text tokens and unit declaration from DXF bytes.
+
+    Returns (text_tokens, drawing_unit) where drawing_unit is "mm", "inch",
+    or None (UNKNOWN — $INSUNITS=0/absent; never silently assumed).
+
+    Extracts: TEXT (gc=1), MTEXT (gc=1,3), ATTRIB/ATTDEF (gc=1),
+    DIMENSION custom text (gc=1, excluding auto "<>").
+    Raw bytes NEVER stored. Only text tokens returned.
+
+    DXF_ANNOTATION_EXTRACTION=YES
+    SILENT_MM_ASSUMPTION=NO
+    """
+    _TEXT_ENTITIES = frozenset({"TEXT", "MTEXT", "ATTRIB", "ATTDEF", "DIMENSION"})
+
+    text_tokens: list[str] = []
+    drawing_unit: str | None = None
+
+    try:
+        text = content_bytes.decode("latin-1", errors="replace")
+    except Exception:
+        return [], None
+
+    lines = text.splitlines()
+    n = len(lines)
+    i = 0
+    in_header = False
+    in_entities = False
+    insunits_pending = False
+    current_entity: str | None = None
+
+    while i < n - 1:
+        try:
+            gc_raw = lines[i].strip()
+            value = lines[i + 1].strip()
+        except IndexError:
+            break
+        i += 2
+
+        try:
+            gc = int(gc_raw)
+        except ValueError:
+            continue
+
+        if gc == 0 and value == "SECTION":
+            current_entity = None
+            if i < n - 1 and lines[i].strip() == "2":
+                sname = lines[i + 1].strip().upper()
+                in_header = sname == "HEADER"
+                in_entities = sname in ("ENTITIES", "BLOCKS")
+                i += 2
+        elif gc == 0 and value in ("ENDSEC", "EOF"):
+            current_entity = None
+            in_header = False
+            in_entities = False
+        elif gc == 9 and value == "$INSUNITS" and in_header:
+            insunits_pending = True
+        elif gc == 70 and insunits_pending:
+            insunits_pending = False
+            try:
+                drawing_unit = _DXF_INSUNITS_UNIT_MAP.get(int(value))
+            except ValueError:
+                pass
+        elif gc == 0 and in_entities:
+            current_entity = value if value in _TEXT_ENTITIES else None
+        elif current_entity in _TEXT_ENTITIES and gc in (1, 3):
+            tok = value
+            if current_entity == "DIMENSION" and tok == "<>":
+                continue  # auto-measured value, no semantic text
+            # Strip MTEXT formatting codes
+            tok = _MTEXT_FORMAT_RE.sub(" ", tok)
+            tok = tok.replace("{", " ").replace("}", " ")
+            tok = " ".join(tok.split())
+            if tok:
+                text_tokens.append(tok)
+
+    return text_tokens, drawing_unit
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -274,15 +375,39 @@ async def analyze_drawing(req: AnalyzeRequest) -> AnalyzeResponse:
         general_tolerance_texts=req.notes,
     )
 
-    # For PDF/DXF, run token extraction on note texts as a demonstration
-    # Full parser integration plugs in at this extraction point
-    if req.notes:
-        token_detections = run_token_extraction(
-            req.notes,
-            source_type=DetectionSourceType.VECTOR_PDF,
-            page=1,
-        )
-        session.detections.extend(token_detections)
+    # For DXF files: extract text tokens and unit directly from the DXF bytes
+    if source_format == "DXF":
+        dxf_tokens, dxf_unit = _extract_dxf_annotations(content)
+        # Merge DXF-extracted tokens with any notes provided
+        all_tokens = dxf_tokens + (req.notes or [])
+        if all_tokens:
+            token_detections = run_token_extraction(
+                all_tokens,
+                source_type=DetectionSourceType.DXF,
+                page=1,
+            )
+            session.detections.extend(token_detections)
+        # Apply DXF unit if session has no declared unit yet
+        if dxf_unit is not None and session.detected_unit is None:
+            session.detected_unit = dxf_unit
+            # Remove UNIT_NOT_DECLARED warning since we now have a unit
+            session.extraction_warnings = [
+                w for w in session.extraction_warnings
+                if w != "UNIT_NOT_DECLARED"
+            ]
+        elif dxf_unit is None and not dxf_tokens and not req.notes:
+            # No annotations and no unit — be explicit
+            if "NO_ANNOTATIONS_FOUND" not in session.extraction_warnings:
+                session.extraction_warnings.append("NO_ANNOTATIONS_FOUND")
+    else:
+        # Non-DXF: run token extraction on note texts
+        if req.notes:
+            token_detections = run_token_extraction(
+                req.notes,
+                source_type=DetectionSourceType.VECTOR_PDF,
+                page=1,
+            )
+            session.detections.extend(token_detections)
 
     _SESSIONS[session.session_id] = session
 

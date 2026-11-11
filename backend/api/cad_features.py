@@ -83,6 +83,7 @@ _SESSIONS: dict[str, CadFeatureSession] = {}
 class AnalyzeRequest(BaseModel):
     file_name: str = Field(..., min_length=1, max_length=256)
     content_b64: str = Field(..., description="Base64-encoded CAD file bytes")
+    source_id: str | None = Field(default=None, max_length=256)
     drawing_session_id: str | None = None
 
     @field_validator("file_name")
@@ -351,11 +352,14 @@ async def analyze_cad(req: AnalyzeRequest) -> dict:
 
     return {
         "session_id": session_id,
+        "source_id": req.source_id or "",
+        "status": "ANALYZED",
         "format_id": format_id,
         "file_name": file_name,
         "feature_count": recognition_result.feature_count,
         "pattern_count": recognition_result.pattern_count,
         "face_count": recognition_result.face_count,
+        "body_count": recognition_result.body_count,
         "warnings": recognition_result.warnings,
         "fusion_available": fusion_result is not None,
         "disclaimer": "REFERENCE_ONLY — engineer review required",
@@ -487,8 +491,10 @@ async def confirm_feature(
     return {
         "session_id": session_id,
         "feature_id": feature_id,
+        "status": "CONFIRMED",
+        "message": f"Feature confirmed by {body.user_id}",
         "confirmed": True,
-        "confidence": confirmed.confidence,
+        "confidence": str(confirmed.confidence),
         "user_id": body.user_id,
     }
 
@@ -514,6 +520,8 @@ async def reject_feature(
     return {
         "session_id": session_id,
         "feature_id": feature_id,
+        "status": "REJECTED",
+        "message": "Feature rejected",
         "rejected": True,
         "reason": body.reason,
     }

@@ -8,6 +8,7 @@ export interface AnalyzeCadRequest {
   file_name: string
   content_b64: string
   source_id?: string
+  drawing_session_id?: string
 }
 
 export interface AnalyzeCadResponse {
