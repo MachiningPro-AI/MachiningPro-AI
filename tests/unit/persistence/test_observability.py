@@ -92,7 +92,7 @@ class TestHealthAndReadiness:
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "ok"
-        assert "version" in data
+        assert "version" not in data  # version removed from public health (ADV-002)
         assert "database_ok" in data
         assert "artifact_store_ok" in data
         assert "server_time" in data

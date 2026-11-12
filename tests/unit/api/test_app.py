@@ -18,10 +18,15 @@ class TestHealth:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "ok"
-        assert data["version"] == "0.1.0-alpha.20"
         assert "database_ok" in data
         assert "server_time" in data
         assert isinstance(data["database_ok"], bool)
+
+    def test_health_no_version_public(self):
+        """Version string must NOT appear in the unauthenticated health response (ADV-002)."""
+        response = client.get("/api/health")
+        assert response.status_code == 200
+        assert "version" not in response.json()
 
     def test_health_server_time_format(self):
         """Server time should be ISO format"""

@@ -25,9 +25,12 @@ from pydantic import BaseModel
 from ..observability import metrics
 from ..observability.correlation import CorrelationMiddleware
 from ..observability.logging_config import configure_logging
+from ..observability.security import SecurityHeadersMiddleware
 from .adaptive import router as adaptive_router
 from .auth import LoginRequest, authenticate, get_configured_credentials
+from .cad_features import router as cad_features_router
 from .cad_upload import router as cad_upload_router
+from .calibration import router as calibration_router
 from .cam_planning import router as cam_planning_router
 from .compatibility import router as compatibility_router
 from .cutting_parameters import router as cutting_parameters_router
@@ -35,8 +38,6 @@ from .cutting_tools import router as cutting_tools_router
 from .digital_twin import router as digital_twin_router
 from .dispatch import router as dispatch_router
 from .drawing_analysis import router as drawing_analysis_router
-from .cad_features import router as cad_features_router
-from .calibration import router as calibration_router
 from .drawing_parser import router as drawing_parser_router
 from .drawing_to_process import router as drawing_to_process_router
 from .engineering_import import router as engineering_import_router
@@ -48,9 +49,9 @@ from .manufacturing_plan import router as manufacturing_plan_router
 from .materials import router as materials_router
 from .monitoring import router as monitoring_router
 from .nc_generation import router as nc_generation_router
-from .process_routes import router as process_routes_router
 from .nc_path import router as nc_path_router
 from .process_planning import router as process_planning_router
+from .process_routes import router as process_routes_router
 from .scheduling import router as scheduling_router
 from .selection import router as selection_router
 from .tool_holders import router as tool_holders_router
@@ -69,6 +70,9 @@ class ChangePasswordRequest(BaseModel):
     new_password: str
 
 app = FastAPI(title="MachiningPro AI", version="0.5.0-rc1")
+
+# Security headers — X-Content-Type-Options, X-Frame-Options, CSP, HSTS(HTTPS only)
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Correlation middleware — adds X-Request-ID to every request/response
 app.add_middleware(CorrelationMiddleware)
@@ -169,7 +173,6 @@ async def health():
 
     return {
         "status": "ok",
-        "version": "0.1.0-alpha.20",
         "database_ok": db_ok,
         "artifact_store_ok": artifacts_ok,
         "server_time": utc_now.isoformat(timespec="milliseconds").replace("+00:00", "Z"),

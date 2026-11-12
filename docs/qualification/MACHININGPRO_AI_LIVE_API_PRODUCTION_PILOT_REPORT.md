@@ -16,11 +16,14 @@ This report documents the Live API Production Pilot Readiness assessment for Mac
 
 **Overall Verdict:** `SAFE_FOR_PRODUCTION_PILOT = CONDITIONAL`
 
+**Update (fix(security) commit):** HTTP security headers (ADV-001) and version exposure (ADV-002) have both been resolved. The CONDITIONAL flag now reflects infrastructure/ops requirements only — not application defects.
+
 The system passes all security, authentication, core API, module deployment, and safety invariant checks. The Q01 Ollama qualification pilot has been run on the production branch (`main`) for the first time, generating 3 artifact files with consistent scoring (TP=3 FP=1 FN=0 recall=1.00 across all runs). All 12 previously-skipped readiness gate tests now PASS.
 
-The CONDITIONAL flag is maintained because:
-1. Missing HTTP security headers (advisory — x-frame-options, CSP, HSTS, x-content-type-options)
-2. Render Free Tier cold-start latency (~23s) is unsuitable for SLA-bound production traffic
+The CONDITIONAL flag is maintained because of infrastructure/ops actions outside code scope:
+1. ~~Missing HTTP security headers~~ — **FIXED** (SecurityHeadersMiddleware added)
+2. Render Free Tier cold-start latency (~23s) is unsuitable for SLA-bound production traffic — **infra action required**
+3. Non-demo individual credentials required for pilot users — **ops action required**
 
 `SAFE_FOR_AUTONOMOUS_MANUFACTURING = NO` (unchanged, non-negotiable)
 
@@ -315,13 +318,16 @@ These changes are PRODUCTION_CODE_CHANGED=NO (the pilot script is a qualificatio
 |-------------------------------------|-------------|--------|
 | SAFE_FOR_PUBLIC_DEMO               | YES         | All security, auth, and core API tests pass; i18n complete |
 | SAFE_FOR_ENGINEERING_REFERENCE     | YES         | Formulas verified, no fabrication, disclaimer present |
-| SAFE_FOR_PRODUCTION_PILOT          | CONDITIONAL | Missing security headers; Free Tier cold-start unsuitable for SLA |
+| SAFE_FOR_PRODUCTION_PILOT          | CONDITIONAL | Infra/ops: Render Free Tier SLA + non-demo credentials required |
 | SAFE_FOR_AUTONOMOUS_MANUFACTURING  | NO          | Non-negotiable; all safety invariants confirmed NO |
 
-### CONDITIONAL blockers for SAFE_FOR_PRODUCTION_PILOT = YES:
-1. Add HTTP security headers middleware (ADV-001)
-2. Upgrade from Render Free Tier to a service with guaranteed cold-start SLA
-3. Obtain domain-specific live API credentials (not demo credentials) for pilot users
+### Remaining CONDITIONAL requirements for SAFE_FOR_PRODUCTION_PILOT = YES:
+1. ~~Add HTTP security headers middleware (ADV-001)~~ — **FIXED**
+2. ~~Health endpoint exposes version string (ADV-002)~~ — **FIXED**
+3. **[INFRA]** Upgrade from Render Free Tier to a service with guaranteed cold-start SLA
+4. **[OPS]** Issue non-demo individual credentials to pilot users (do not use demo account)
+
+No further application code changes are required for production pilot eligibility.
 
 ---
 
@@ -331,18 +337,37 @@ See `docs/qualification/LIVE_API_DEFECT_REGISTER.md` for full details.
 
 | ID      | Severity | Title |
 |---------|----------|-------|
-| ADV-001 | ADVISORY | Missing HTTP security headers |
-| ADV-002 | ADVISORY | Health endpoint exposes version string |
+| ADV-001 | ADVISORY | ~~Missing HTTP security headers~~ — **FIXED** |
+| ADV-002 | ADVISORY | ~~Health endpoint exposes version string~~ — **FIXED** |
 
 **CONFIRMED_APPLICATION_DEFECTS = 0  
-CONFIRMED_SECURITY_VULNERABILITIES = 0**
+CONFIRMED_SECURITY_VULNERABILITIES = 0  
+OPEN_ADVISORIES = 0 (both resolved)**
 
 ---
 
-## 20. Combined Evidence Preservation
+## 20. Production Pilot Infrastructure Requirements
+
+**PRODUCTION_PILOT_INFRA_REQUIREMENTS**
+
+The following are operational requirements for a production pilot. They are outside the application code scope and must be satisfied by infrastructure/operations decisions. They are documented here as requirements, not marked as completed.
+
+| Requirement | Category | Status | Notes |
+|---|---|---|---|
+| Upgrade from Render Free Tier | INFRA | **REQUIRED** | Render Free has ~23s cold-start, no SLA guarantee. Use a paid instance (Render Starter+) or equivalent. |
+| Issue non-demo individual credentials | OPS | **REQUIRED** | Pilot users must receive unique credentials. Demo account (`demo` / env-configured) must NOT be used for production pilot access. |
+| Application security headers | CODE | **DONE** | SecurityHeadersMiddleware added (fix(security) commit). |
+| Version string removed from public health | CODE | **DONE** | /api/health no longer exposes version (fix(security) commit). |
+
+**These two infrastructure/ops requirements do NOT require additional code changes.** The application is technically ready for pilot deployment once they are satisfied.
+
+---
+
+## 21. Combined Evidence Preservation
 
 | Previous Qualification         | Status  | Commit |
 |--------------------------------|---------|--------|
 | Full Synthetic Qualification   | PASS    | 2539ab2 |
 | i18n Defect Closure            | PASS    | 007df1f |
-| Live API Production Pilot      | PASS    | (this commit) |
+| Live API Production Pilot      | PASS    | 7b2e3e7 |
+| Security Hardening             | PASS    | (this commit) |

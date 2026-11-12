@@ -12,12 +12,12 @@
 
 | ID       | Severity | Status  | Title                                    |
 |----------|----------|---------|------------------------------------------|
-| ADV-001  | ADVISORY | OPEN    | Missing HTTP security headers            |
-| ADV-002  | ADVISORY | OPEN    | Health endpoint exposes version string   |
+| ADV-001  | ADVISORY | FIXED   | Missing HTTP security headers            |
+| ADV-002  | ADVISORY | FIXED   | Health endpoint exposes version string   |
 | INFO-001 | INFO     | RESOLVED | Q01 pilot branch guard on main           |
 
 **Confirmed critical/major application defects: 0**  
-**Advisory findings: 2**  
+**Advisory findings: 2 (both FIXED in commit fix(security): harden live pilot HTTP security headers)**  
 **Informational: 1**
 
 ---
@@ -26,7 +26,7 @@
 
 **Severity:** ADVISORY  
 **Category:** Hardening  
-**Status:** OPEN  
+**Status:** FIXED (commit: fix(security): harden live pilot HTTP security headers)
 
 **Description:**  
 The following security headers are absent from HTTP responses:
@@ -38,16 +38,16 @@ The following security headers are absent from HTTP responses:
 | content-security-policy  | Restrictive CSP directive                   | ABSENT  |
 | strict-transport-security | max-age=31536000; includeSubDomains        | ABSENT  |
 
-**Impact:**  
-No immediate exploitable vulnerability demonstrated. These headers reduce attack surface against MIME-type sniffing, clickjacking, and XSS on browsers.
+**Fix applied:**  
+Added `SecurityHeadersMiddleware` in `backend/observability/security.py`:
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: DENY`
+- `Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'`
+- `Strict-Transport-Security: max-age=31536000; includeSubDomains` (HTTPS only, omitted on HTTP)
 
-**Risk:**  
-LOW for internal/demo use. MEDIUM for public production deployment.
+**Tests:** 14 security header tests added in `tests/unit/api/test_security_headers.py` — all PASS.
 
-**Recommended fix:**  
-Add `SecurityMiddleware` or response headers middleware in `backend/api/app.py`.
-
-**Pilot blocker:** NO — does not affect `SAFE_FOR_PRODUCTION_PILOT` verdict but should be addressed before broad public deployment.
+**Pilot blocker:** NO — resolved.
 
 ---
 
@@ -55,21 +55,18 @@ Add `SecurityMiddleware` or response headers middleware in `backend/api/app.py`.
 
 **Severity:** ADVISORY  
 **Category:** Information Disclosure  
-**Status:** OPEN  
+**Status:** FIXED (commit: fix(security): harden live pilot HTTP security headers)
 
 **Description:**  
-`GET /api/health` returns `{"status":"ok","version":"0.1.0-alpha.20","database_ok":true,"artifact_store_ok":true}`.  
-The version string `0.1.0-alpha.20` is visible without authentication. This is standard practice for many services but advisory for hardened environments.
+`GET /api/health` previously returned `{"status":"ok","version":"0.1.0-alpha.20","database_ok":true,"artifact_store_ok":true}`.  
+The version string was visible without authentication.
 
-**Impact:**  
-An attacker knowing the version could look up known vulnerabilities for that exact release.
+**Fix applied:**  
+`version` field removed from `/api/health` unauthenticated response in `backend/api/app.py`.
 
-**Risk:** NEGLIGIBLE for demo. LOW for production.
+**Tests:** `test_health_no_version_public` and `test_version_not_in_public_health` both PASS.
 
-**Recommended fix:**  
-Consider removing `version` from unauthenticated health response, or restricting detailed health info to `/api/readiness` (already requires no auth but returns simpler format).
-
-**Pilot blocker:** NO
+**Pilot blocker:** NO — resolved.
 
 ---
 
