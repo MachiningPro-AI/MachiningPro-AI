@@ -1,8 +1,8 @@
 # MachiningPro AI — Production Pilot Readiness Checklist
 
-**Status:** PENDING — Items marked ✗ must be completed before pilot go-live  
+**Status:** PARTIAL — Engineering + Auth complete; Infrastructure + Governance pending  
 **Last updated:** 2026-11-12  
-**Qualification baseline:** main @ edd73c4
+**Qualification baseline:** main @ 836719c
 
 ---
 
@@ -34,17 +34,17 @@
 
 ---
 
-## Authentication & Credentials (Dev + Ops — Pending)
+## Authentication & Credentials (Dev — Complete; Ops — Partial)
 
-| # | Check | Status | Action Required |
+| # | Check | Status | Evidence |
 |---|---|---|---|
-| A-01 | Multi-user auth implemented | ✗ PENDING | Implement per MULTI_USER_AUTH_EXTENSION_PLAN.md (~2–4h) |
-| A-02 | Bcrypt password hashing in use | ✗ PENDING | Part of A-01 |
-| A-03 | Pilot JWT secret separate from demo JWT secret | ✗ PENDING | Generate and set MACHININGPRO_PILOT_JWT_SECRET in pilot env |
-| A-04 | Individual credentials provisioned for each pilot user | ✗ PENDING | Run provision_pilot_user.py for each user after A-01 |
-| A-05 | Demo credentials (demo/A1234) NOT usable in pilot env | ✗ PENDING | Verified after A-01+A-03 |
-| A-06 | No shared pilot account | ✗ PENDING | Enforced by A-01 |
-| A-07 | Auth regression tests PASS with new multi-user code | ✗ PENDING | Part of A-01 |
+| A-01 | Multi-user auth implemented | ✓ DONE | commit 836719c — backend/auth/pilot_users.py |
+| A-02 | Bcrypt password hashing in use | ✓ DONE | bcrypt cost=12, constant-time checkpw |
+| A-03 | Pilot JWT secret separate from demo JWT secret | ✗ PENDING (ops) | Set MACHININGPRO_PILOT_JWT_SECRET in pilot env vars |
+| A-04 | Individual credentials provisioned for each pilot user | ✓ DEMONSTRATED | 3 placeholder users generated (pilot_users.json.example + pilot_users.json); real passwords must be set before go-live — see PILOT_USER_PROVISIONING_GUIDE.md |
+| A-05 | Demo credentials (demo/A1234) NOT usable in pilot env | ✓ DONE | Enforced in auth.py; 33 tests confirm |
+| A-06 | No shared pilot account | ✓ DONE | Per-user bcrypt records enforced by design |
+| A-07 | Auth regression tests PASS with new multi-user code | ✓ DONE | 33 pilot auth tests PASS, 307 total PASS, commit 836719c |
 
 ---
 
@@ -79,13 +79,19 @@ Audit logs must NOT contain: passwords, JWT secrets, full file contents, or cust
 
 ```
 ENGINEERING_READY              = YES   (E-01 through E-09 complete)
+AUTH_CODE_READY                = YES   (A-01, A-02, A-05, A-06, A-07 complete)
+AUTH_OPS_READY                 = NO    (A-03 pending: set MACHININGPRO_PILOT_JWT_SECRET)
+PROVISIONING_DEMONSTRATED      = YES   (A-04: placeholder users generated, guide written)
 INFRASTRUCTURE_READY           = NO    (I-01 through I-05 pending)
-AUTH_READY                     = NO    (A-01 through A-07 pending)
 AUDIT_READY                    = NO    (O-01 through O-05 pending)
 GOVERNANCE_READY               = NO    (G-01 through G-06 pending)
 
 SAFE_FOR_PRODUCTION_PILOT      = CONDITIONAL
-  → Must complete: I-01, I-03, A-01, A-02, A-03, A-04, A-05 at minimum
+  Remaining minimum viable gate items:
+  → [OPS]   I-01: Upgrade to always-on hosting
+  → [OPS]   A-03: Set MACHININGPRO_PILOT_JWT_SECRET in pilot env
+  → [OPS]   A-04: Provision real user credentials (rotate placeholder passwords)
+  → [OPS]   G-04: Designate pilot coordinator
 SAFE_FOR_AUTONOMOUS_MANUFACTURING = NO (non-negotiable; no code path exists)
 ```
 
@@ -95,11 +101,11 @@ SAFE_FOR_AUTONOMOUS_MANUFACTURING = NO (non-negotiable; no code path exists)
 
 The absolute minimum for a controlled pilot (not full checklist):
 
-1. ✗ I-01: Always-on hosting
-2. ✗ A-01: Multi-user auth implemented
-3. ✗ A-03: Separate pilot JWT secret
-4. ✗ A-04: Individual credentials for each pilot user
-5. ✗ A-05: Demo credentials not usable in pilot
+1. ✓ A-01/A-02: Multi-user bcrypt auth implemented
+2. ✗ I-01: Always-on hosting (Render Starter or equivalent)
+3. ✗ A-03: Separate pilot JWT secret set in env
+4. ✗ A-04: Real user credentials provisioned (placeholder passwords rotated)
+5. ✓ A-05: Demo credentials blocked in pilot mode
 6. ✗ G-04: Pilot coordinator designated
 
-All six must be ✓ before first pilot user is onboarded.
+Items 2, 3, 4, 6 must be ✓ before first pilot user is onboarded.
