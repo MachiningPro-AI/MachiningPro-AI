@@ -1,0 +1,23 @@
+{
+  "_schema": "synthetic_part_ground_truth_v1",
+  "part_id": "PART_E",
+  "part_name": "PART_E_MULTI_SETUP_COMPONENT",
+  "description": "L-bracket requiring 2 setups, multiple tools. Tests route optimization, digital twin.",
+  "source_file": "part_e_synthetic.dxf",
+  "ground_truth_method": "programmatically_generated_known_geometry",
+  "units": {"value": "mm", "status": "KNOWN", "dxf_insunits": 4},
+  "material": {"value": "AlMg1SiCu", "iso_group": "N", "status": "KNOWN"},
+  "features": {
+    "setup_1_holes": {"count": 4, "diameter_mm": 12.0, "face": "top"},
+    "setup_2_holes": {"count": 2, "diameter_mm": 6.0, "face": "side"}
+  },
+  "setup_requirements": {
+    "min_setups": 2,
+    "status": "KNOWN",
+    "note": "Cannot machine all holes in a single VMC setup — side holes require refixture."
+  },
+  "candidate_processes": {
+    "status": "KNOWN",
+    "operations": ["face_milling", "drilling", "re-fixturing"]
+  }
+}

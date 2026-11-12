@@ -1,0 +1,91 @@
+{
+  "_schema": "synthetic_part_ground_truth_v1",
+  "part_id": "PART_B",
+  "part_name": "PART_B_STEPPED_SHAFT",
+  "description": "Stepped shaft for turning, threading, and surface finish tests.",
+  "source_file": "part_b_synthetic.dxf",
+  "ground_truth_method": "programmatically_generated_known_geometry",
+
+  "units": {
+    "value": "mm",
+    "status": "KNOWN",
+    "dxf_insunits": 4
+  },
+  "material": {
+    "value": "C45",
+    "iso_group": "P",
+    "standard": "DIN EN 10083-2",
+    "status": "KNOWN",
+    "annotation_layer": "ANNOTATION"
+  },
+  "geometry": {
+    "type": "stepped_shaft_2d_profile",
+    "sections": [
+      {"name": "section_1", "diameter_mm": 60.0, "length_mm": 80.0, "radius_mm": 30.0},
+      {"name": "section_2", "diameter_mm": 40.0, "length_mm": 50.0, "radius_mm": 20.0},
+      {"name": "section_3", "diameter_mm": 30.0, "length_mm": 30.0, "radius_mm": 15.0}
+    ],
+    "total_length_mm": 160.0,
+    "status": "KNOWN"
+  },
+  "features": {
+    "chamfers": {
+      "count": 2,
+      "location": "shoulder_transitions",
+      "status": "KNOWN"
+    },
+    "thread": {
+      "designation": "M30x1.5",
+      "thread_class": "6g",
+      "section_diameter_mm": 30.0,
+      "status": "KNOWN",
+      "annotation_layer": "ANNOTATION"
+    }
+  },
+  "surface_finish": {
+    "journal_ra_um": 1.6,
+    "journal_section_diameter_mm": 40.0,
+    "general_ra_um": 3.2,
+    "status": "KNOWN",
+    "annotation_layer": "ANNOTATION"
+  },
+  "tolerances": {
+    "value": null,
+    "status": "UNKNOWN",
+    "note": "No explicit dimensional tolerances annotated (beyond thread class 6g)."
+  },
+  "datums": {
+    "value": null,
+    "status": "UNKNOWN"
+  },
+  "gdt": {
+    "value": null,
+    "status": "UNKNOWN"
+  },
+  "candidate_processes": {
+    "status": "KNOWN",
+    "operations": ["turning_external", "turning_facing", "thread_cutting_external"]
+  },
+  "machine_requirements": {
+    "status": "KNOWN",
+    "process_family": "turning",
+    "min_turning_diameter_mm": 60.0,
+    "min_turning_length_mm": 160.0
+  },
+  "spindle_speed_verification": {
+    "material": "C45_ISO_P",
+    "reference_vc_m_min": 100,
+    "section_1_diameter_mm": 60.0,
+    "expected_rpm": 530.52,
+    "formula": "n = 1000 * Vc / (pi * D)",
+    "computation": "1000 * 100 / (3.14159... * 60) = 530.516...",
+    "tolerance_pct": 0.01,
+    "status": "KNOWN"
+  },
+  "entity_counts": {
+    "LINE": 11,
+    "CIRCLE": 0,
+    "ARC": 0,
+    "TEXT": 5
+  }
+}

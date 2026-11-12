@@ -1,0 +1,108 @@
+{
+  "_schema": "synthetic_part_ground_truth_v1",
+  "part_id": "PART_A",
+  "part_name": "PART_A_SIMPLE_PLATE",
+  "description": "Simple rectangular plate for DXF import, feature recognition, and drilling/milling tests.",
+  "source_file": "part_a_synthetic.dxf",
+  "ground_truth_method": "programmatically_generated_known_geometry",
+
+  "units": {
+    "value": "mm",
+    "status": "KNOWN",
+    "dxf_insunits": 4
+  },
+  "material": {
+    "value": null,
+    "status": "UNKNOWN",
+    "note": "No material annotation in drawing — MUST remain UNKNOWN."
+  },
+  "stock": {
+    "value": "120x80x12 mm",
+    "status": "KNOWN"
+  },
+  "geometry": {
+    "bounding_box_x_mm": 120.0,
+    "bounding_box_y_mm": 80.0,
+    "nominal_thickness_mm": 12.0,
+    "status": "KNOWN"
+  },
+  "features": {
+    "outline_rectangle": {
+      "count": 1,
+      "width_mm": 120.0,
+      "height_mm": 80.0,
+      "status": "KNOWN"
+    },
+    "circle_candidates": {
+      "count": 5,
+      "details": [
+        {"cx_mm": 15, "cy_mm": 15, "radius_mm": 5.0, "diameter_mm": 10.0, "layer": "HOLE_CANDIDATES"},
+        {"cx_mm": 105, "cy_mm": 15, "radius_mm": 5.0, "diameter_mm": 10.0, "layer": "HOLE_CANDIDATES"},
+        {"cx_mm": 15, "cy_mm": 65, "radius_mm": 5.0, "diameter_mm": 10.0, "layer": "HOLE_CANDIDATES"},
+        {"cx_mm": 105, "cy_mm": 65, "radius_mm": 5.0, "diameter_mm": 10.0, "layer": "HOLE_CANDIDATES"},
+        {"cx_mm": 60, "cy_mm": 40, "radius_mm": 10.0, "diameter_mm": 20.0, "layer": "CENTER_FEATURE"}
+      ],
+      "status": "KNOWN"
+    }
+  },
+  "hole_candidates": {
+    "count": 4,
+    "diameter_mm": 10.0,
+    "pattern": "rectangular_4x",
+    "review_required": true,
+    "note": "Circles from HOLE_CANDIDATES layer require human review before classification as production holes. Depth unknown from 2D."
+  },
+  "center_feature": {
+    "diameter_mm": 20.0,
+    "review_required": true,
+    "note": "Circle may be a hole, bore, or reference feature — UNKNOWN from 2D only."
+  },
+  "tolerances": {
+    "value": null,
+    "status": "UNKNOWN",
+    "note": "No tolerance annotation in drawing."
+  },
+  "surface_finish": {
+    "value": null,
+    "status": "UNKNOWN"
+  },
+  "threads": {
+    "value": null,
+    "status": "UNKNOWN"
+  },
+  "datums": {
+    "value": null,
+    "status": "UNKNOWN"
+  },
+  "gdt": {
+    "value": null,
+    "status": "UNKNOWN"
+  },
+  "candidate_processes": {
+    "status": "KNOWN",
+    "operations": ["face_milling", "drilling"]
+  },
+  "machine_requirements": {
+    "status": "KNOWN",
+    "process_family": "milling",
+    "min_travel_x_mm": 120.0,
+    "min_travel_y_mm": 80.0
+  },
+  "tool_requirements": {
+    "status": "KNOWN",
+    "drill_diameter_mm": 10.0,
+    "drill_type": "twist_drill"
+  },
+  "false_positive_guards": {
+    "single_arc_is_not_hole": "NOT_APPLICABLE",
+    "open_polyline_not_hole": "NOT_APPLICABLE",
+    "square_polygon_not_hole": "NOT_APPLICABLE",
+    "hole_depth_from_2d_not_inferable": true
+  },
+  "entity_counts": {
+    "LINE": 4,
+    "CIRCLE": 5,
+    "ARC": 0,
+    "TEXT": 3
+  }
+}

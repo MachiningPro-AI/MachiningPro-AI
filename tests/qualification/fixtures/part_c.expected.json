@@ -1,0 +1,53 @@
+{
+  "_schema": "synthetic_part_ground_truth_v1",
+  "part_id": "PART_C",
+  "part_name": "PART_C_MILLING_BLOCK",
+  "description": "Milling block for multi-operation planning, pocket, slot, counterbore tests.",
+  "source_file": "part_c_synthetic.dxf",
+  "ground_truth_method": "programmatically_generated_known_geometry",
+
+  "units": {"value": "mm", "status": "KNOWN", "dxf_insunits": 4},
+  "material": {"value": "S355JR", "iso_group": "P", "standard": "EN 10025", "status": "KNOWN"},
+  "stock": {"value": "100x60x30 mm", "status": "KNOWN"},
+  "features": {
+    "outline": {"width_mm": 100.0, "height_mm": 60.0, "status": "KNOWN"},
+    "pocket": {
+      "count": 1,
+      "x_mm": 60.0, "y_mm": 30.0,
+      "depth_mm": 10.0,
+      "depth_status": "KNOWN_FROM_ANNOTATION",
+      "note": "Depth 10mm from annotation — 2D only cannot infer depth without annotation.",
+      "review_required": true
+    },
+    "slot": {
+      "count": 1,
+      "length_mm": 80.0, "width_mm": 10.0,
+      "depth_status": "UNKNOWN",
+      "note": "Slot depth not annotated — MUST remain UNKNOWN.",
+      "review_required": true
+    },
+    "through_holes": {
+      "count": 4,
+      "diameter_mm": 8.0,
+      "pattern": "rectangular_4x",
+      "review_required": true
+    },
+    "counterbore_holes": {
+      "count": 2,
+      "drill_diameter_mm": 12.0,
+      "cbore_diameter_mm": 20.0,
+      "depth_status": "UNKNOWN",
+      "review_required": true
+    }
+  },
+  "candidate_processes": {
+    "status": "KNOWN",
+    "operations": ["face_milling", "pocket_milling", "slot_milling", "drilling", "counterboring"]
+  },
+  "entity_counts": {
+    "LINE": 20,
+    "CIRCLE": 8,
+    "ARC": 0,
+    "TEXT": 4
+  }
+}

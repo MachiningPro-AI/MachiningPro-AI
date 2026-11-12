@@ -1,0 +1,74 @@
+{
+  "_schema": "synthetic_part_ground_truth_v1",
+  "part_id": "PART_D",
+  "part_name": "PART_D_PRECISION_COMPONENT",
+  "description": "Precision bore with explicit GD&T. Tests drawing parser, GD&T, surface finish, capability.",
+  "source_file": "part_d_synthetic.dxf",
+  "ground_truth_method": "programmatically_generated_known_geometry",
+
+  "units": {"value": "mm", "status": "KNOWN", "dxf_insunits": 4},
+  "material": {
+    "value": "42CrMo4",
+    "condition": "+QT",
+    "iso_group": "P",
+    "standard": "DIN EN 10083-1",
+    "status": "KNOWN"
+  },
+  "stock": {"value": "80x50 mm plate", "status": "KNOWN"},
+  "features": {
+    "precision_bore": {
+      "diameter_nominal_mm": 20.0,
+      "fit_designation": "H7",
+      "upper_deviation_mm": 0.021,
+      "lower_deviation_mm": 0.000,
+      "note": "ISO standard H7 for Ø20: +0.000/+0.021 mm",
+      "status": "KNOWN"
+    }
+  },
+  "gdt": {
+    "position_tolerance": {
+      "tolerance_zone_diameter_mm": 0.05,
+      "referenced_datums": ["A", "B"],
+      "symbol": "⊕",
+      "status": "KNOWN"
+    }
+  },
+  "datums": {
+    "datum_a": {"feature": "bottom_face", "status": "KNOWN"},
+    "datum_b": {"feature": "left_face", "status": "KNOWN"}
+  },
+  "surface_finish": {
+    "bore_ra_um": 1.6,
+    "bore_location": "precision_bore",
+    "status": "KNOWN"
+  },
+  "tolerances": {
+    "general_tolerance_standard": "ISO 2768-m",
+    "status": "KNOWN"
+  },
+  "inspection_requirements": {
+    "method": "CMM 100%",
+    "feature": "bore",
+    "status": "KNOWN"
+  },
+  "surface_roughness_verification": {
+    "formula": "Ra = fz^2 / (16 * R_nose)",
+    "target_ra_um": 1.6,
+    "target_ra_mm": 0.0016,
+    "nose_radius_mm": 0.4,
+    "required_feed_mm_rev": 0.0716,
+    "computation": "fz = sqrt(16 * 0.4 * 0.0016) = sqrt(0.01024) = 0.10119 mm/rev",
+    "note": "For Ra 1.6um with r_nose=0.4mm: fz = sqrt(16*R*Ra) = sqrt(16*0.4*0.0016) = 0.1012 mm/rev",
+    "status": "KNOWN"
+  },
+  "candidate_processes": {
+    "status": "KNOWN",
+    "operations": ["boring_precision", "reaming", "honing"]
+  },
+  "entity_counts": {
+    "LINE": 6,
+    "CIRCLE": 1,
+    "ARC": 0,
+    "TEXT": 7
+  }
+}

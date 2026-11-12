@@ -1,0 +1,24 @@
+{
+  "_schema": "synthetic_part_ground_truth_v1",
+  "part_id": "PART_F",
+  "part_name": "PART_F_TURNING_AND_MILLING",
+  "description": "Combined turning+milling part. Tests mixed-process routing.",
+  "source_file": "part_f_synthetic.dxf",
+  "ground_truth_method": "programmatically_generated_known_geometry",
+  "units": {"value": "mm", "status": "KNOWN", "dxf_insunits": 4},
+  "material": {"value": "S355JR", "iso_group": "P", "status": "KNOWN"},
+  "features": {
+    "turned_sections": [
+      {"diameter_mm": 50.0, "length_mm": 50.0},
+      {"diameter_mm": 35.0, "length_mm": 39.0},
+      {"diameter_mm": 24.0, "length_mm": 10.0}
+    ],
+    "cross_hole": {"diameter_mm": 8.0, "depth_status": "UNKNOWN"},
+    "flats": {"across_flats_mm": 30.0, "count": 2},
+    "thread": {"designation": "M24x2", "thread_class": "6g"}
+  },
+  "candidate_processes": {
+    "status": "KNOWN",
+    "operations": ["turning_external", "milling_flats", "drilling_cross_hole", "thread_cutting_external"]
+  }
+}

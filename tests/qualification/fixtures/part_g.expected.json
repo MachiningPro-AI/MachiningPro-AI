@@ -1,0 +1,57 @@
+{
+  "_schema": "synthetic_part_ground_truth_v1",
+  "part_id": "PART_G",
+  "part_name": "PART_G_NEGATIVE_INCOMPLETE",
+  "description": "Deliberately incomplete drawing for fail-closed behavior testing.",
+  "source_file": "part_g_synthetic.dxf",
+  "ground_truth_method": "programmatically_generated_known_geometry_intentionally_incomplete",
+
+  "units": {
+    "value": null,
+    "dxf_insunits": 0,
+    "status": "UNKNOWN",
+    "expected_system_response": "UNIT_UNKNOWN",
+    "must_not_assume": "mm"
+  },
+  "material": {
+    "value": null,
+    "status": "UNKNOWN",
+    "expected_system_response": "MATERIAL_NOT_SPECIFIED",
+    "must_not_assume": "ISO_P"
+  },
+  "features": {
+    "circle_at_center": {
+      "radius_mm_assuming_mm": 8.0,
+      "classification": "UNKNOWN",
+      "note": "Cannot classify as hole — no depth, no tolerance, no units confirmed.",
+      "must_not_classify_as": "production_hole",
+      "review_required": true
+    },
+    "partial_arc": {
+      "span_deg": 270.0,
+      "classification": "UNKNOWN",
+      "note": "Open arc — MUST NOT be classified as a hole.",
+      "must_not_classify_as": "hole"
+    },
+    "open_polyline": {
+      "classification": "UNKNOWN",
+      "note": "3-line open polyline — MUST NOT be classified as a closed feature.",
+      "must_not_classify_as": "pocket_or_hole"
+    }
+  },
+  "false_positive_guards": {
+    "single_arc_is_not_hole": {"expected": true, "must_pass": true},
+    "open_polyline_not_hole": {"expected": true, "must_pass": true},
+    "missing_units_not_assumed_mm": {"expected": true, "must_pass": true},
+    "missing_material_not_assumed_P": {"expected": true, "must_pass": true},
+    "missing_tolerance_not_assumed_IT9": {"expected": true, "must_pass": true},
+    "missing_ra_not_assumed_1p6": {"expected": true, "must_pass": true},
+    "missing_depth_not_inferred": {"expected": true, "must_pass": true}
+  },
+  "expected_system_responses": {
+    "unit_detection": "UNIT_UNKNOWN",
+    "material_detection": "NOT_SPECIFIED",
+    "feature_classification": "REVIEW_REQUIRED",
+    "manufacturing_plan": "BLOCKED_MISSING_INPUTS"
+  }
+}
