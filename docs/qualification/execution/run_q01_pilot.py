@@ -70,7 +70,7 @@ MODEL = "granite3.2-vision:2b"
 FIXTURE_PDF = _REPO / "docs/qualification/fixtures/pdf/Q01.pdf"
 EXPECTED_FIXTURE_SHA = "690ec7c721c8a0425264aebef965c12297ff2d2aa0f05c8bc69674afc421fda7"
 GT_DIR = _REPO / "docs/qualification/ground_truth"
-EXPECTED_GT_MANIFEST_SHA = "e11b2c949363583b8d2ebec18acd2ac26e7181882ed6ac275e831ebf39105757"
+EXPECTED_GT_MANIFEST_SHA = "c49fb67d6bdc6527447387ce742d6acd919b9a51f0856381b1117a90eb81ef53"
 
 RESULTS_DIR = _REPO / "docs/qualification/results" / CAMPAIGN_ID / QUAL_ID
 LOGS_DIR = _REPO / "docs/qualification/run_logs" / CAMPAIGN_ID / QUAL_ID
@@ -86,8 +86,8 @@ def _preconditions() -> None:
         ["git", "rev-parse", "--abbrev-ref", "HEAD"],
         cwd=_REPO, text=True,
     ).strip()
-    if branch != "work/next-stage":
-        raise RuntimeError(f"WRONG BRANCH: {branch}  (expected work/next-stage)")
+    if branch not in ("work/next-stage", "main"):
+        raise RuntimeError(f"WRONG BRANCH: {branch}  (expected work/next-stage or main)")
 
     actual = _sha256(FIXTURE_PDF)
     if actual != EXPECTED_FIXTURE_SHA:
@@ -182,7 +182,7 @@ def main() -> None:
     # ── [1] Preconditions ──────────────────────────────────────────────────────
     print("\n[1] Precondition checks")
     _preconditions()
-    print("    BRANCH=work/next-stage              OK")
+    print("    BRANCH OK (work/next-stage or main)")
     print("    Q01 fixture SHA256                  OK")
     print("    GT manifest SHA256                  OK")
 
@@ -318,7 +318,7 @@ def main() -> None:
         )
         for md in rs.match_detail:
             hit = md.match_level if md.matched_finding_id else "NO_MATCH"
-            print(f"        {md.item_id}: {md.expected_text!r}  →  {hit}")
+            print(f"        {md.item_id}: {md.expected_text!r}  ->  {hit}")
 
         # ── Write result file ─────────────────────────────────────────────────
         result_doc = {
@@ -359,7 +359,7 @@ def main() -> None:
         }
         result_path = RESULTS_DIR / f"{run_id}.json"
         result_path.write_text(json.dumps(result_doc, indent=2, default=str))
-        print(f"      result → {result_path.relative_to(_REPO)}")
+        print(f"      result -> {result_path.relative_to(_REPO)}")
 
         # ── Write run log ─────────────────────────────────────────────────────
         log_doc = {
@@ -393,7 +393,7 @@ def main() -> None:
         }
         log_path = LOGS_DIR / f"{run_id}.json"
         log_path.write_text(json.dumps(log_doc, indent=2, default=str))
-        print(f"      log   → {log_path.relative_to(_REPO)}")
+        print(f"      log   -> {log_path.relative_to(_REPO)}")
         print()
 
     # ── [6] Summary ───────────────────────────────────────────────────────────

@@ -1,0 +1,146 @@
+{
+  "schema_version": "1.0",
+  "run_id": "Q01-R03",
+  "qual_id": "Q01",
+  "run_number": 3,
+  "campaign_id": "DEMO-QUAL-01",
+  "timestamp_utc": "2026-11-12T18:00:23.279612+00:00",
+  "fixture_sha256": "690ec7c721c8a0425264aebef965c12297ff2d2aa0f05c8bc69674afc421fda7",
+  "gt_manifest_hash": "c49fb67d6bdc6527447387ce742d6acd919b9a51f0856381b1117a90eb81ef53",
+  "provider": "ollama.chat",
+  "model": "granite3.2-vision:2b",
+  "job_status": "COMPLETED",
+  "scoring_job_status": "COMPLETED",
+  "job_id": "2536c368300c077bec03ad020428e609",
+  "r3b_status": "PASSED",
+  "inference_elapsed_ms": 53404,
+  "wall_elapsed_ms": 53407,
+  "model_call_count": 1,
+  "automatic_retry_used": false,
+  "fallback_used": false,
+  "ai_findings_count": 4,
+  "ai_findings": [
+    {
+      "finding_id": "vlm-ev-2914753b472c5de8dc753426",
+      "raw_text": "100 MM",
+      "candidate_type": "DIMENSION",
+      "box_basis": "REGION_EXTENT",
+      "region_id": "region-p1-0-0-480-320",
+      "reconciliation": null,
+      "legibility": "CLEAR",
+      "confidence": 1.0
+    },
+    {
+      "finding_id": "vlm-ev-7b6d52656ec570410fd0735b",
+      "raw_text": "60 MM",
+      "candidate_type": "DIMENSION",
+      "box_basis": "REGION_EXTENT",
+      "region_id": "region-p1-0-0-480-320",
+      "reconciliation": null,
+      "legibility": "CLEAR",
+      "confidence": 1.0
+    },
+    {
+      "finding_id": "vlm-ev-39e76bfff1cb108dd06eee29",
+      "raw_text": "60 MM",
+      "candidate_type": "DIMENSION",
+      "box_basis": "REGION_EXTENT",
+      "region_id": "region-p1-0-0-480-320",
+      "reconciliation": null,
+      "legibility": "CLEAR",
+      "confidence": 1.0
+    },
+    {
+      "finding_id": "vlm-ev-89314869bd0f16db13869f81",
+      "raw_text": "HOLE 20 MM",
+      "candidate_type": "DIMENSION",
+      "box_basis": "REGION_EXTENT",
+      "region_id": "region-p1-0-0-480-320",
+      "reconciliation": null,
+      "legibility": "CLEAR",
+      "confidence": 1.0
+    }
+  ],
+  "run_score": {
+    "qual_id": "Q01",
+    "run_id": "Q01-R03",
+    "run_number": 3,
+    "job_status": "COMPLETED",
+    "job_success": true,
+    "gt_item_count": 3,
+    "true_positive_count": 3,
+    "false_positive_count": 1,
+    "false_negative_count": 0,
+    "dim_tp": 3,
+    "dim_fp": 1,
+    "dim_fn": 0,
+    "dim_looking_count": 4,
+    "critical_miss_count": 0,
+    "r3b_rejection_count": 0,
+    "no_findings": false,
+    "human_accept_count": 0,
+    "human_edit_count": 0,
+    "human_reject_count": 0,
+    "accepted_wrong_count": 0,
+    "inference_elapsed_ms": 53404,
+    "det_dim_tp": 0,
+    "det_dim_fn": 2,
+    "det_dim_fp": 0,
+    "det_dim_scoreable": true,
+    "det_title_tp": 0,
+    "det_title_fn": 0,
+    "det_gdt_tp": 0,
+    "det_gdt_fp": 0,
+    "det_status_distribution": {},
+    "match_detail": [
+      {
+        "item_id": "Q01-T001",
+        "expected_text": "100 MM",
+        "feature_type": "LINEAR_DIMENSION",
+        "required_for_demo": true,
+        "match_level": "EXACT",
+        "matched_finding_id": "vlm-ev-2914753b472c5de8dc753426"
+      },
+      {
+        "item_id": "Q01-T002",
+        "expected_text": "60 MM",
+        "feature_type": "LINEAR_DIMENSION",
+        "required_for_demo": true,
+        "match_level": "EXACT",
+        "matched_finding_id": "vlm-ev-7b6d52656ec570410fd0735b"
+      },
+      {
+        "item_id": "Q01-T003",
+        "expected_text": "HOLE 20 MM",
+        "feature_type": "HOLE_CALLOUT",
+        "required_for_demo": true,
+        "match_level": "EXACT",
+        "matched_finding_id": "vlm-ev-89314869bd0f16db13869f81"
+      }
+    ],
+    "unmatched_finding_ids": [
+      "vlm-ev-39e76bfff1cb108dd06eee29"
+    ],
+    "matched_finding_ids": [
+      "vlm-ev-2914753b472c5de8dc753426",
+      "vlm-ev-7b6d52656ec570410fd0735b",
+      "vlm-ev-89314869bd0f16db13869f81"
+    ],
+    "rq06_items": [
+      {
+        "rq06_fixture_id": "Q01",
+        "expected_token": "100 MM",
+        "observed": null,
+        "match": false,
+        "scoreable": true
+      },
+      {
+        "rq06_fixture_id": "Q01",
+        "expected_token": "60 MM",
+        "observed": null,
+        "match": false,
+        "scoreable": true
+      }
+    ]
+  }
+}
