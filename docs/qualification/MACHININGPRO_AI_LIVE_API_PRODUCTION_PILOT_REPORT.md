@@ -299,13 +299,13 @@ These changes are PRODUCTION_CODE_CHANGED=NO (the pilot script is a qualificatio
 
 ## 17. Test Count Summary
 
-| Test Suite                          | PASS | FAIL | SKIP |
-|-------------------------------------|------|------|------|
-| Readiness Gate (test_readiness_gate) | 37  | 0    | 0    |
-| Full Synthetic Qualification         | 223 | 0    | 0    |
-| Localization Qualification           | 35  | 0    | 0    |
-| (Other backend/frontend tests)       | TBD | 0    | 0    |
-| **Live API Tests (this report)**     | 83  | 0    | 0    |
+| Test Suite                                      | PASS | FAIL | SKIP | NOTE      |
+|-------------------------------------------------|------|------|------|-----------|
+| Readiness Gate (test_readiness_gate.py)         | 37   | 0    | 0    | Subset of qualification suite |
+| Full Qualification Suite (tests/qualification/) | 235  | 0    | 0    | 1 XPASS   |
+| Localization Qualification                      | 35   | 0    | 0    | Subset of qualification suite |
+| (Other backend/frontend tests)                  | TBD  | 0    | 0    |           |
+| **Live API Tests (this report)**                | 83   | 0    | 0    |           |
 
 ---
 
