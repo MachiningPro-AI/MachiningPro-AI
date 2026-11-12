@@ -24,8 +24,10 @@
 
 | Variable Name | Purpose | Storage | Notes |
 |---|---|---|---|
-| `MACHININGPRO_PILOT_JWT_SECRET` | JWT signing secret for pilot deployment | Render env var (sync: false) | Separate from demo secret; min 32 chars |
-| `MACHININGPRO_PILOT_USERS_FILE` | Path to pilot credential store JSON | Render env var or mounted secret | Points to bcrypt-hashed user credential file |
+| `MACHININGPRO_DEV_JWT_SECRET` | JWT signing secret for pilot deployment | Render env var (sync: false) | The pilot service must set this to a NEW value, different from the demo service's secret; min 32 chars. The name is shared with the dev mode variable but the value must be independent. |
+| `MACHININGPRO_PILOT_USERS_FILE` | Path to pilot credential store JSON | Render env var or mounted secret | Points to bcrypt-hashed user credential file; activates pilot mode when set |
+
+**Important:** `MACHININGPRO_DEV_JWT_SECRET` is the actual env var read by the auth code (`backend/api/auth.py`) for JWT signing in both dev and pilot modes. For the pilot service, this must be a fresh, independent secret value — never reuse the demo service's value. The name `MACHININGPRO_PILOT_JWT_SECRET` used in some earlier documentation described the intent; `MACHININGPRO_DEV_JWT_SECRET` is the implementation.
 
 Pilot credential store file (not committed to git):
 - Contains bcrypt-hashed passwords, usernames, roles, active flags
