@@ -21,9 +21,19 @@ This report documents the Live API Production Pilot Readiness assessment for Mac
 The system passes all security, authentication, core API, module deployment, and safety invariant checks. The Q01 Ollama qualification pilot has been run on the production branch (`main`) for the first time, generating 3 artifact files with consistent scoring (TP=3 FP=1 FN=0 recall=1.00 across all runs). All 12 previously-skipped readiness gate tests now PASS.
 
 The CONDITIONAL flag is maintained because of infrastructure/ops actions outside code scope:
-1. ~~Missing HTTP security headers~~ — **FIXED** (SecurityHeadersMiddleware added)
-2. Render Free Tier cold-start latency (~23s) is unsuitable for SLA-bound production traffic — **infra action required**
-3. Non-demo individual credentials required for pilot users — **ops action required**
+1. ~~Missing HTTP security headers~~ — **FIXED** (SecurityHeadersMiddleware added, commit edd73c4)
+2. ~~Version exposed in /api/health~~ — **FIXED** (removed, commit edd73c4)
+3. Render Free Tier cold-start latency (~23s) is unsuitable for SLA-bound production traffic — **infra action required** (see docs/operations/PILOT_HOSTING_OPTIONS.md)
+4. Multi-user auth not implemented — single env-var credential only — **dev action required** (see docs/operations/MULTI_USER_AUTH_EXTENSION_PLAN.md)
+5. Non-demo individual credentials required for each pilot user — **ops action required** (see docs/operations/PILOT_USER_MODEL.md)
+
+Operations setup documentation created (commit following this update):
+- `docs/operations/ENVIRONMENT_STRATEGY.md`
+- `docs/operations/PILOT_HOSTING_OPTIONS.md`
+- `docs/operations/PILOT_USER_MODEL.md`
+- `docs/operations/MULTI_USER_AUTH_EXTENSION_PLAN.md`
+- `docs/operations/SECRETS_INVENTORY.md`
+- `docs/operations/PILOT_READINESS_CHECKLIST.md`
 
 `SAFE_FOR_AUTONOMOUS_MANUFACTURING = NO` (unchanged, non-negotiable)
 
