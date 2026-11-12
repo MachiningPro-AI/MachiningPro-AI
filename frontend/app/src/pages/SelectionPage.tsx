@@ -201,10 +201,10 @@ function CandidateCard({ entry, t }: {
               <table className="w-full text-left">
                 <thead>
                   <tr className="text-[10px] uppercase tracking-wide text-tp-text-3 border-b border-tp-border">
-                    <th className="pb-1 pr-3 font-semibold">Rule</th>
-                    <th className="pb-1 pr-3 font-semibold">Status</th>
-                    <th className="pb-1 pr-3 font-semibold">Reason</th>
-                    <th className="pb-1 font-semibold">Detail</th>
+                    <th className="pb-1 pr-3 font-semibold">{t('csRuleHeader')}</th>
+                    <th className="pb-1 pr-3 font-semibold">{t('csStatusHeader')}</th>
+                    <th className="pb-1 pr-3 font-semibold">{t('csReasonHeader')}</th>
+                    <th className="pb-1 font-semibold">{t('csDetailHeader')}</th>
                   </tr>
                 </thead>
                 <tbody>

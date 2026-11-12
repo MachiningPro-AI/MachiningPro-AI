@@ -442,7 +442,7 @@ export default function MaterialLibraryPage() {
                 <div>{t('matColDesignation')}</div>
                 <div>{t('matColWorkstoff')} / AISI</div>
                 <div>{t('matColFamily')}</div>
-                <div>Confidence</div>
+                <div>{t('matConfidence')}</div>
               </div>
 
               {loading ? (

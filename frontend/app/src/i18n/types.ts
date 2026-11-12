@@ -1837,4 +1837,117 @@ export interface TranslationDictionary {
   breadcrumbFeatures: string
   breadcrumbRoutes: string
   breadcrumbPlan: string
+
+  // Process Routes Page (DEF-L001)
+  prPageTitle: string
+  prOperations: string
+  prScoreBreakdown: string
+  prRiskFlags: string
+  prMachineCandidates: string
+  prToolCandidates: string
+  prWhySelected: string
+  prUncertainItems: string
+  prOptimizationStrategy: string
+  prFeatures: string
+  prAddFeature: string
+  prNoFeaturesYet: string
+  prCadSessionLoaded: string
+  prNoSessionHint: string
+  prEngineerConfirmHint: string
+  prOptimizeRoutes: string
+  prOptimizing: string
+  prOptimizedPlan: string
+  prWarnings: string
+  prBenchmarkMetrics: string
+  prSafetyInvariants: string
+  prStrategyBalanced: string
+  prStrategyLowestRisk: string
+  prStrategyMinimumSetup: string
+  prStrategyShortestCycleTime: string
+  prStrategyHighestProcessCapability: string
+  prFeaturePrefix: string
+  prNoPareto: string
+
+  // Workflow Page (DEF-L002)
+  wfPageTitle: string
+  wfStages: string
+  wfProgress: string
+  wfRecentWorkflows: string
+  wfNoWorkflows: string
+  wfAnalysisInput: string
+  wfCadFile: string
+  wfMaterial: string
+  wfQuantity: string
+  wfStockReference: string
+  wfObjective: string
+  wfAnalysisMode: string
+  wfRunAnalysis: string
+  wfFinalPlan: string
+  wfProposal: string
+  wfProductionApproved: string
+  wfDispatched: string
+  wfMachineStarted: string
+  wfWarnings: string
+  wfErrors: string
+  wfBlockingReasons: string
+  wfEngineerReview: string
+  wfUploading: string
+  wfObjectiveBalanced: string
+  wfObjectiveMinCycleTime: string
+  wfObjectiveMinCost: string
+  wfObjectiveMaxToolLife: string
+  wfObjectiveMinRisk: string
+  wfModeFullPlan: string
+  wfModeAnalysisOnly: string
+  wfModeDfmOnly: string
+  wfModeQuoteOnly: string
+  wfModeMachineSelection: string
+  wfModeCamPlanOnly: string
+  wfModeCamAndToolpath: string
+  wfModeOfflineNc: string
+  wfStageCadImport: string
+  wfStageGeometry: string
+  wfStageFeatures: string
+  wfStageDfm: string
+  wfStageProcess: string
+  wfStageMachine: string
+  wfStageTool: string
+  wfStageCuttingData: string
+  wfStageCycleTime: string
+  wfStageCostRfq: string
+  wfStageCam: string
+  wfStageToolpath: string
+  wfStageVerification: string
+  wfStageNc: string
+  wfStageScheduling: string
+  wfStageAssignment: string
+  wfStageAdaptiveAi: string
+  wfStageDigitalTwin: string
+  wfStagePlan: string
+
+  // Process Capability Page (DEF-L003)
+  calResult: string
+  calCycleTimeEstimate: string
+  calNewShopProfile: string
+  calMachineValidated: string
+  calUseTypicalRa: string
+  calRefreshProfiles: string
+
+  // Process Planning Page (DEF-L004)
+  ppParamType: string
+  ppParamRange: string
+  ppParamUnit: string
+  ppParamStatus: string
+
+  // Minor pages (DEF-L005)
+  mcField: string
+  mcComparison: string
+  mfpActionsHeading: string
+  mfpPlansHeading: string
+  mfpRefresh: string
+  matConfidence: string
+  csRuleHeader: string
+  csStatusHeader: string
+  csReasonHeader: string
+  csDetailHeader: string
 }

@@ -397,11 +397,12 @@ function ComparePanel({
   records: MachineCatalogRecord[]
   onClose: () => void
 }) {
+  const { t } = useLocale()
   return (
     <div className="overflow-x-auto">
       <div className="flex justify-between items-center mb-3">
         <div className="text-sm font-semibold text-[var(--tp-text)]">
-          Comparison ({records.length} machines)
+          {t('mcComparison')} ({records.length} machines)
         </div>
         <button onClick={onClose} className="text-xs text-[var(--tp-text-3)] hover:text-[var(--tp-text)]">
           ✕ Close
@@ -410,7 +411,7 @@ function ComparePanel({
       <table className="w-full text-xs border-collapse">
         <thead>
           <tr>
-            <th className="text-left py-2 pr-4 text-[var(--tp-text-3)] font-medium w-32 min-w-32">Field</th>
+            <th className="text-left py-2 pr-4 text-[var(--tp-text-3)] font-medium w-32 min-w-32">{t('mcField')}</th>
             {records.map(r => (
               <th key={r.stable_id} className="text-left py-2 px-2 text-[var(--tp-text)] font-medium min-w-[140px]">
                 <div className="text-[10px] text-[var(--tp-accent-light)]">{r.manufacturer}</div>

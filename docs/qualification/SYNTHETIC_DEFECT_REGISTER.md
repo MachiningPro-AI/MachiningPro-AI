@@ -24,7 +24,7 @@
 | Recommended Fix | Add i18n keys; replace hardcoded strings with `{t('key')}` |
 | Production Risk | Medium — Process Routes is a core engineering page |
 | Demo Risk | HIGH — visible in any TR demo |
-| Status | OPEN |
+| Status | FIXED (2026-11-12) |
 
 ---
 
@@ -44,7 +44,7 @@
 | Recommended Fix | Add keys to en.ts/tr.ts; use `{t('key')}` |
 | Production Risk | Medium |
 | Demo Risk | HIGH — Manufacturing Analysis is the flagship feature |
-| Status | OPEN |
+| Status | FIXED (2026-11-12) |
 
 ---
 
@@ -62,7 +62,7 @@
 | Root Cause | Hardcoded SectionLabel and label text |
 | Recommended Fix | Add i18n keys + t() calls |
 | Demo Risk | MEDIUM |
-| Status | OPEN |
+| Status | FIXED (2026-11-12) |
 
 ---
 
@@ -80,7 +80,7 @@
 | Root Cause | Table headers hardcoded |
 | Recommended Fix | Add i18n keys |
 | Demo Risk | LOW |
-| Status | OPEN |
+| Status | FIXED (2026-11-12) |
 
 ---
 
@@ -97,20 +97,20 @@
 | Evidence | Various page files (see LOCALIZATION_AUDIT.md) |
 | Root Cause | Minor labels not wired to i18n |
 | Demo Risk | LOW |
-| Status | OPEN |
+| Status | FIXED (2026-11-12) |
 
 ---
 
 ## Defect Summary
 
-| Severity | Count |
-|----------|-------|
-| BLOCKER | 0 |
-| CRITICAL | 0 |
-| MAJOR | 3 (DEF-L001, DEF-L002, DEF-L003) |
-| MINOR | 1 (DEF-L004) |
-| COSMETIC | 1 (DEF-L005) |
-| **Total** | **5** |
+| Severity | Count | Status |
+|----------|-------|--------|
+| BLOCKER | 0 | — |
+| CRITICAL | 0 | — |
+| MAJOR | 3 (DEF-L001, DEF-L002, DEF-L003) | FIXED 2026-11-12 |
+| MINOR | 1 (DEF-L004) | FIXED 2026-11-12 |
+| COSMETIC | 1 (DEF-L005) | FIXED 2026-11-12 |
+| **Total** | **5** | **ALL FIXED** |
 
 ---
 

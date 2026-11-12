@@ -14,6 +14,8 @@
  */
 
 import { useState, useCallback, useEffect, type ChangeEvent } from 'react'
+import { useLocale } from '../i18n'
+import type { TranslationDictionary } from '../i18n/types'
 import {
   CheckCircle, XCircle, AlertCircle, Clock, Loader,
   SkipForward, ChevronRight, FileText, AlertTriangle,
@@ -83,29 +85,38 @@ interface PlanSummary {
 // Stage display metadata
 // ---------------------------------------------------------------------------
 
-const STAGE_LABELS: Record<string, string> = {
-  '01_CAD_IMPORT': 'CAD Import',
-  '02_GEOMETRY': 'Geometry',
-  '03_FEATURE_RECOGNITION': 'Features',
-  '04_DFM': 'DFM',
-  '05_PROCESS_PLANNING': 'Process',
-  '06_MACHINE_SELECTION': 'Machine',
-  '07_TOOL_SELECTION': 'Tool',
-  '08_CUTTING_DATA': 'Cutting Data',
-  '09_CYCLE_TIME': 'Cycle Time',
-  '10_COST_RFQ': 'Cost / RFQ',
-  '11_CAM_PLANNING': 'CAM',
-  '12_TOOLPATH': 'Toolpath',
-  '13_VERIFICATION': 'Verification',
-  '14_NC_CANDIDATE': 'NC',
-  '15_SCHEDULING': 'Scheduling',
-  '16_JOB_ASSIGNMENT': 'Assignment',
-  '17_ADAPTIVE_INTELLIGENCE': 'Adaptive AI',
-  '18_DIGITAL_TWIN': 'Digital Twin',
-  '19_FINAL_MANUFACTURING_PLAN': 'Plan',
-}
+const ALL_STAGES = [
+  '01_CAD_IMPORT', '02_GEOMETRY', '03_FEATURE_RECOGNITION', '04_DFM',
+  '05_PROCESS_PLANNING', '06_MACHINE_SELECTION', '07_TOOL_SELECTION',
+  '08_CUTTING_DATA', '09_CYCLE_TIME', '10_COST_RFQ', '11_CAM_PLANNING',
+  '12_TOOLPATH', '13_VERIFICATION', '14_NC_CANDIDATE', '15_SCHEDULING',
+  '16_JOB_ASSIGNMENT', '17_ADAPTIVE_INTELLIGENCE', '18_DIGITAL_TWIN',
+  '19_FINAL_MANUFACTURING_PLAN',
+]
 
-const ALL_STAGES = Object.keys(STAGE_LABELS)
+function getStageLabels(t: (key: keyof TranslationDictionary) => string): Record<string, string> {
+  return {
+    '01_CAD_IMPORT':              t('wfStageCadImport'),
+    '02_GEOMETRY':                t('wfStageGeometry'),
+    '03_FEATURE_RECOGNITION':     t('wfStageFeatures'),
+    '04_DFM':                     t('wfStageDfm'),
+    '05_PROCESS_PLANNING':        t('wfStageProcess'),
+    '06_MACHINE_SELECTION':       t('wfStageMachine'),
+    '07_TOOL_SELECTION':          t('wfStageTool'),
+    '08_CUTTING_DATA':            t('wfStageCuttingData'),
+    '09_CYCLE_TIME':              t('wfStageCycleTime'),
+    '10_COST_RFQ':                t('wfStageCostRfq'),
+    '11_CAM_PLANNING':            t('wfStageCam'),
+    '12_TOOLPATH':                t('wfStageToolpath'),
+    '13_VERIFICATION':            t('wfStageVerification'),
+    '14_NC_CANDIDATE':            t('wfStageNc'),
+    '15_SCHEDULING':              t('wfStageScheduling'),
+    '16_JOB_ASSIGNMENT':          t('wfStageAssignment'),
+    '17_ADAPTIVE_INTELLIGENCE':   t('wfStageAdaptiveAi'),
+    '18_DIGITAL_TWIN':            t('wfStageDigitalTwin'),
+    '19_FINAL_MANUFACTURING_PLAN': t('wfStagePlan'),
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Status icon component
@@ -201,6 +212,8 @@ async function downloadExport(workflowId: string, format: WorkflowExportFormat):
 // ---------------------------------------------------------------------------
 
 export default function WorkflowPage() {
+  const { t } = useLocale()
+  const stageLabels = getStageLabels(t)
   // Input state
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [uploadState, setUploadState] = useState<UploadState>('NOT_SELECTED')
@@ -394,7 +407,7 @@ export default function WorkflowPage() {
           Level 19/20 — End-to-End Workflow
         </div>
         <div className="flex items-center justify-between">
-          <h1 className="text-lg font-semibold text-tp-text">Manufacturing Analysis</h1>
+          <h1 className="text-lg font-semibold text-tp-text">{t('wfPageTitle')}</h1>
           <button
             onClick={() => setShowHistory(h => !h)}
             className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded border border-tp-border text-tp-text-2 hover:bg-tp-border/50 transition-colors"
@@ -410,7 +423,7 @@ export default function WorkflowPage() {
         <div className="border-b border-tp-border bg-tp-surface px-6 py-3">
           <div className="flex items-center justify-between mb-2">
             <div className="text-[10px] font-semibold uppercase tracking-widest text-tp-text-3">
-              Recent Workflows
+              {t('wfRecentWorkflows')}
             </div>
             <button
               onClick={loadHistory}
@@ -427,7 +440,7 @@ export default function WorkflowPage() {
             </div>
           )}
           {!historyLoading && history.length === 0 && (
-            <div className="text-xs text-tp-text-3">No workflows yet.</div>
+            <div className="text-xs text-tp-text-3">{t('wfNoWorkflows')}</div>
           )}
           <ul className="space-y-1">
             {history.map(item => (
@@ -463,13 +476,13 @@ export default function WorkflowPage() {
         {/* ---------------------------------------------------------------- */}
         <div className="w-full lg:w-56 shrink-0 border-r border-tp-border bg-tp-surface p-3 overflow-y-auto">
           <div className="text-[10px] font-semibold uppercase tracking-widest text-tp-text-3 mb-3">
-            Stages
+            {t('wfStages')}
           </div>
 
           {hasRun && (
             <div className="mb-3">
               <div className="flex justify-between text-xs text-tp-text-2 mb-1">
-                <span>Progress</span>
+                <span>{t('wfProgress')}</span>
                 <span>{passedStages}/{totalStages}</span>
               </div>
               <div className="h-1.5 bg-tp-border rounded-full overflow-hidden">
@@ -497,7 +510,7 @@ export default function WorkflowPage() {
                     }`}
                   >
                     <StatusIcon status={status} />
-                    <span className="truncate">{STAGE_LABELS[stageKey]}</span>
+                    <span className="truncate">{stageLabels[stageKey]}</span>
                   </button>
                 </li>
               )
@@ -512,10 +525,10 @@ export default function WorkflowPage() {
 
           {/* Input panel */}
           <div className="bg-tp-surface border border-tp-border rounded-lg p-5">
-            <h2 className="text-sm font-semibold text-tp-text mb-4">Analysis Input</h2>
+            <h2 className="text-sm font-semibold text-tp-text mb-4">{t('wfAnalysisInput')}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-tp-text-2 mb-1">CAD File</label>
+                <label className="block text-xs font-medium text-tp-text-2 mb-1">{t('wfCadFile')}</label>
                 <input
                   type="file"
                   accept=".dxf,.igs,.iges,.stp,.step"
@@ -526,7 +539,7 @@ export default function WorkflowPage() {
                 {uploadState === 'UPLOADING' && (
                   <div className="mt-1 flex items-center gap-1 text-xs text-blue-500">
                     <Loader className="w-3 h-3 animate-spin" />
-                    Uploading…
+                    {t('wfUploading')}
                   </div>
                 )}
                 {uploadState === 'UPLOADED' && (
@@ -540,7 +553,7 @@ export default function WorkflowPage() {
                 )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-tp-text-2 mb-1">Material</label>
+                <label className="block text-xs font-medium text-tp-text-2 mb-1">{t('wfMaterial')}</label>
                 <input
                   type="text"
                   value={material}
@@ -550,7 +563,7 @@ export default function WorkflowPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-tp-text-2 mb-1">Quantity</label>
+                <label className="block text-xs font-medium text-tp-text-2 mb-1">{t('wfQuantity')}</label>
                 <input
                   type="number"
                   value={quantity}
@@ -560,7 +573,7 @@ export default function WorkflowPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-tp-text-2 mb-1">Stock Reference</label>
+                <label className="block text-xs font-medium text-tp-text-2 mb-1">{t('wfStockReference')}</label>
                 <input
                   type="text"
                   value={stock}
@@ -570,34 +583,34 @@ export default function WorkflowPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-tp-text-2 mb-1">Objective</label>
+                <label className="block text-xs font-medium text-tp-text-2 mb-1">{t('wfObjective')}</label>
                 <select
                   value={objective}
                   onChange={e => setObjective(e.target.value as WorkflowObjective)}
                   className="w-full text-sm bg-tp-bg border border-tp-border rounded px-3 py-2 text-tp-text focus:outline-none focus:ring-1 focus:ring-tp-accent-light"
                 >
-                  <option value="BALANCED">Balanced</option>
-                  <option value="MINIMUM_CYCLE_TIME">Minimum Cycle Time</option>
-                  <option value="MINIMUM_COST">Minimum Cost</option>
-                  <option value="MAXIMUM_TOOL_LIFE">Maximum Tool Life</option>
-                  <option value="MINIMUM_RISK">Minimum Risk</option>
+                  <option value="BALANCED">{t('wfObjectiveBalanced')}</option>
+                  <option value="MINIMUM_CYCLE_TIME">{t('wfObjectiveMinCycleTime')}</option>
+                  <option value="MINIMUM_COST">{t('wfObjectiveMinCost')}</option>
+                  <option value="MAXIMUM_TOOL_LIFE">{t('wfObjectiveMaxToolLife')}</option>
+                  <option value="MINIMUM_RISK">{t('wfObjectiveMinRisk')}</option>
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-tp-text-2 mb-1">Analysis Mode</label>
+                <label className="block text-xs font-medium text-tp-text-2 mb-1">{t('wfAnalysisMode')}</label>
                 <select
                   value={mode}
                   onChange={e => setMode(e.target.value as WorkflowMode)}
                   className="w-full text-sm bg-tp-bg border border-tp-border rounded px-3 py-2 text-tp-text focus:outline-none focus:ring-1 focus:ring-tp-accent-light"
                 >
-                  <option value="FULL_MANUFACTURING_PLAN">Full Manufacturing Plan</option>
-                  <option value="ANALYSIS_ONLY">Analysis Only</option>
-                  <option value="DFM_ONLY">DFM Only</option>
-                  <option value="QUOTE_ONLY">Quote Only</option>
-                  <option value="MACHINE_SELECTION">Machine Selection</option>
-                  <option value="CAM_PLAN_ONLY">CAM Plan Only</option>
-                  <option value="CAM_AND_TOOLPATH">CAM + Toolpath</option>
-                  <option value="OFFLINE_NC">Offline NC</option>
+                  <option value="FULL_MANUFACTURING_PLAN">{t('wfModeFullPlan')}</option>
+                  <option value="ANALYSIS_ONLY">{t('wfModeAnalysisOnly')}</option>
+                  <option value="DFM_ONLY">{t('wfModeDfmOnly')}</option>
+                  <option value="QUOTE_ONLY">{t('wfModeQuoteOnly')}</option>
+                  <option value="MACHINE_SELECTION">{t('wfModeMachineSelection')}</option>
+                  <option value="CAM_PLAN_ONLY">{t('wfModeCamPlanOnly')}</option>
+                  <option value="CAM_AND_TOOLPATH">{t('wfModeCamAndToolpath')}</option>
+                  <option value="OFFLINE_NC">{t('wfModeOfflineNc')}</option>
                 </select>
               </div>
             </div>
@@ -609,7 +622,7 @@ export default function WorkflowPage() {
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded bg-tp-accent-light text-white text-sm font-semibold transition-opacity disabled:opacity-50 hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-tp-accent-light"
               >
                 {running && <Loader className="w-4 h-4 animate-spin" />}
-                RUN MANUFACTURING ANALYSIS
+                {t('wfRunAnalysis')}
               </button>
               {workflowId && (
                 <span className="text-xs text-tp-text-3 font-mono">{workflowId}</span>
@@ -630,7 +643,7 @@ export default function WorkflowPage() {
               <div className="flex items-center gap-2 mb-3">
                 <StatusIcon status={selectedStage.status} />
                 <h2 className="text-sm font-semibold text-tp-text">
-                  {STAGE_LABELS[selectedStage.stage] ?? selectedStage.stage}
+                  {stageLabels[selectedStage.stage] ?? selectedStage.stage}
                 </h2>
                 <span className={`ml-auto text-xs font-medium ${statusColor(selectedStage.status)}`}>
                   {selectedStage.status}
@@ -641,7 +654,7 @@ export default function WorkflowPage() {
               )}
               {selectedStage.warnings.length > 0 && (
                 <div className="mb-2">
-                  <div className="text-xs font-medium text-yellow-600 mb-1">Warnings</div>
+                  <div className="text-xs font-medium text-yellow-600 mb-1">{t('wfWarnings')}</div>
                   <ul className="space-y-0.5">
                     {selectedStage.warnings.map((w, i) => (
                       <li key={i} className="text-xs text-tp-text-2 flex items-start gap-1">
@@ -654,7 +667,7 @@ export default function WorkflowPage() {
               )}
               {selectedStage.errors.length > 0 && (
                 <div className="mb-2">
-                  <div className="text-xs font-medium text-red-500 mb-1">Errors</div>
+                  <div className="text-xs font-medium text-red-500 mb-1">{t('wfErrors')}</div>
                   <ul className="space-y-0.5">
                     {selectedStage.errors.map((e, i) => (
                       <li key={i} className="text-xs text-red-500">{e}</li>
@@ -664,7 +677,7 @@ export default function WorkflowPage() {
               )}
               {selectedStage.blocking_reasons.length > 0 && (
                 <div>
-                  <div className="text-xs font-medium text-red-500 mb-1">Blocking Reasons</div>
+                  <div className="text-xs font-medium text-red-500 mb-1">{t('wfBlockingReasons')}</div>
                   <ul className="space-y-0.5">
                     {selectedStage.blocking_reasons.map((r, i) => (
                       <li key={i} className="text-xs text-red-500">{r}</li>
@@ -675,7 +688,7 @@ export default function WorkflowPage() {
               {selectedStage.review_required && (
                 <div className="mt-2 flex items-center gap-1.5 text-xs text-purple-500">
                   <Eye className="w-3.5 h-3.5" />
-                  Engineering review required
+                  {t('wfEngineerReview')}
                 </div>
               )}
             </div>
@@ -685,10 +698,10 @@ export default function WorkflowPage() {
           {plan && (
             <div className="bg-tp-surface border border-tp-border rounded-lg p-5">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-semibold text-tp-text">Final Manufacturing Plan</h2>
+                <h2 className="text-sm font-semibold text-tp-text">{t('wfFinalPlan')}</h2>
                 <div className="flex items-center gap-2">
                   <span className="text-xs bg-yellow-100 dark:bg-yellow-950/30 text-yellow-700 dark:text-yellow-400 px-2 py-0.5 rounded font-medium">
-                    PROPOSAL — Engineering Review Required
+                    {t('wfProposal')}
                   </span>
                 </div>
               </div>
@@ -696,9 +709,9 @@ export default function WorkflowPage() {
               {/* Safety badges */}
               <div className="flex flex-wrap gap-2 mb-4">
                 {[
-                  { label: 'Production Approved', value: plan.production_approved, safe: !plan.production_approved },
-                  { label: 'Dispatched', value: plan.dispatched, safe: !plan.dispatched },
-                  { label: 'Machine Started', value: plan.machine_started, safe: !plan.machine_started },
+                  { label: t('wfProductionApproved'), value: plan.production_approved, safe: !plan.production_approved },
+                  { label: t('wfDispatched'), value: plan.dispatched, safe: !plan.dispatched },
+                  { label: t('wfMachineStarted'), value: plan.machine_started, safe: !plan.machine_started },
                 ].map(({ label, value, safe }) => (
                   <div
                     key={label}

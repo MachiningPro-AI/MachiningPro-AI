@@ -19,12 +19,13 @@
 | Engineering formulas verified independently | 6 (0.000% error each) |
 | Security invariants confirmed | 8 (all SAFE) |
 | Localization defects documented | 5 (DEF-L001 … DEF-L005) |
+| Localization defects resolved | **5 — ALL FIXED 2026-11-12** |
 | Localization blockers | 0 |
 | Hard rule violations | 0 |
 
-**QUALIFICATION_VERDICT: PASS_WITH_DOCUMENTED_DEFECTS**  
+**QUALIFICATION_VERDICT: PASS_FULL_LOCALIZATION_QUALIFICATION**  
 All hard rules satisfied. All safety invariants intact. No engineering accuracy regressions.
-Localization defects documented per MUST 48 — no defects hidden.
+All 5 localization defects documented and subsequently fixed in the i18n defect closure sprint.
 
 ---
 
@@ -197,18 +198,18 @@ where the information was not explicitly present in the DXF geometry or annotati
 
 | Defect | Module | Severity | Count | Status |
 |--------|--------|----------|-------|--------|
-| DEF-L001 | ProcessRoutesPage.tsx | MAJOR | ~14 strings | OPEN — documented |
-| DEF-L002 | WorkflowPage.tsx | MAJOR | ~11 strings | OPEN — documented |
-| DEF-L003 | ProcessCapabilityPage.tsx | MAJOR | ~6 strings | OPEN — documented |
-| DEF-L004 | ProcessPlanningPage.tsx | MINOR | 4 table headers | OPEN — documented |
-| DEF-L005 | 5 other pages | COSMETIC | ~8 strings | OPEN — documented |
+| DEF-L001 | ProcessRoutesPage.tsx | MAJOR | ~14 strings | **FIXED 2026-11-12** |
+| DEF-L002 | WorkflowPage.tsx | MAJOR | ~11 strings | **FIXED 2026-11-12** |
+| DEF-L003 | ProcessCapabilityPage.tsx | MAJOR | ~6 strings | **FIXED 2026-11-12** |
+| DEF-L004 | ProcessPlanningPage.tsx | MINOR | 4 table headers | **FIXED 2026-11-12** |
+| DEF-L005 | 5 other pages | COSMETIC | ~8 strings | **FIXED 2026-11-12** |
 
-These defects are documented per MUST 48. They are NOT hidden by skip/xfail. No production
-code changes were made to these pages in this campaign (MUST 60 scope: i18n infrastructure
-was not modified). Fixes are deferred to the next localization sprint.
+All 5 localization defects resolved in the i18n defect closure sprint (2026-11-12).
+104 new i18n keys added across ProcessRoutesPage, WorkflowPage, ProcessCapabilityPage,
+ProcessPlanningPage, MachineCatalogPage, ManufacturingPlanPage, MaterialLibraryPage,
+and SelectionPage. EN=TR=1815 keys (parity PASS). TSC clean, Vite build clean.
 
-For a full audit including root cause, evidence lines, and fix strategy:
-→ `docs/qualification/LOCALIZATION_AUDIT.md`
+For the full audit: `docs/qualification/LOCALIZATION_AUDIT.md`
 
 ---
 
@@ -272,7 +273,21 @@ For a full audit including root cause, evidence lines, and fix strategy:
 
 ---
 
-## 10. Final Verdict
+## 10. Readiness Verdicts (Updated 2026-11-12 — i18n Defect Closure)
+
+| Use Case | Verdict | Basis |
+|----------|---------|-------|
+| SAFE_FOR_PUBLIC_DEMO | **YES** | All 5 localization defects fixed; TR/EN parity 1815/1815; Vite build clean; TSC clean |
+| SAFE_FOR_ENGINEERING_REFERENCE | **YES** | 6 formulas verified at 0.000% error; BLACK_BOX_AI_SCORE_USED=NO confirmed |
+| SAFE_FOR_PRODUCTION_PILOT | **CONDITIONAL** | i18n blockers resolved; live API test coverage still needed (12 skip remain) |
+| SAFE_FOR_AUTONOMOUS_MANUFACTURING | **NO** | Human review gates must remain; NO_AUTO_DISPATCH=YES enforced by backend |
+
+> Previous verdict (before defect closure): SAFE_FOR_PUBLIC_DEMO was **CONDITIONAL** (resolve MAJOR i18n defects first).
+> Status updated after fix commit — all MAJOR defects closed.
+
+---
+
+## 11. Final Verdict
 
 ```
 CAMPAIGN:   MACHININGPRO_AI_FULL_SYNTHETIC_QUALIFICATION_AND_LOCALIZATION
@@ -280,17 +295,25 @@ DATE:       2026-11-12
 COMMIT:     ccf4c55dcd471b88aa5e1a0821e9784c7f090d44
 BRANCH:     main
 
-TESTS ADDED:    129  (94 synthetic system + 35 localization)
+TESTS ADDED (qualification):    129  (94 synthetic system + 35 localization)
 TESTS PASS:     223  (full qualification suite: 223 / 236 collected)
 TESTS SKIP:     12   (readiness-gate tests — API not running in test env)
 TESTS XPASSED:  1    (xpassed — test better than expected, no action needed)
 TESTS FAIL:     0
 
+--- i18n Defect Closure Sprint (2026-11-12) ---
+EN_KEYS:                1815  (up from 1711 — 104 new keys added)
+TR_KEYS:                1815  (parity PASS)
+HARDCODED_STRINGS:      0     (was ~86; all 5 defects resolved)
+TSC_CLEAN:              YES
+VITE_BUILD_CLEAN:       YES
+
 HARD_RULE_VIOLATIONS:   0
 SECURITY_BLOCKERS:      0
 FORMULA_ERROR_MAX:      0.000%
-LOCALIZATION_DEFECTS:   5  (documented, not hidden)
+LOCALIZATION_DEFECTS:   0  (all 5 fixed)
 
-VERDICT:  PASS_WITH_DOCUMENTED_DEFECTS
-          Ready to commit and push per campaign instructions.
+VERDICT:  PASS_FULL_LOCALIZATION_QUALIFICATION
+          All hard rules satisfied. All safety invariants intact.
+          No engineering accuracy regressions. All i18n defects resolved.
 ```

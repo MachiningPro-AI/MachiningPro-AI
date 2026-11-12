@@ -2147,10 +2147,10 @@ function PlanStepCard({ step, t }: { step: PlanStep; t: TFunc }) {
                 <table className="w-full text-xs border-collapse">
                   <thead>
                     <tr className="border-b border-tp-border text-tp-text-3 text-left">
-                      <th className="pb-1 pr-3 font-medium">Type</th>
-                      <th className="pb-1 pr-3 font-medium">Range</th>
-                      <th className="pb-1 pr-3 font-medium">Unit</th>
-                      <th className="pb-1 font-medium">Status</th>
+                      <th className="pb-1 pr-3 font-medium">{t('ppParamType')}</th>
+                      <th className="pb-1 pr-3 font-medium">{t('ppParamRange')}</th>
+                      <th className="pb-1 pr-3 font-medium">{t('ppParamUnit')}</th>
+                      <th className="pb-1 font-medium">{t('ppParamStatus')}</th>
                     </tr>
                   </thead>
                   <tbody>

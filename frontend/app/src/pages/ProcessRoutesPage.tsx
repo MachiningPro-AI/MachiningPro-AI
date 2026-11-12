@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useLocale } from '../i18n'
 import { PipelineBreadcrumb } from '../components/PipelineBreadcrumb'
 import {
   processRoutesApi,
@@ -24,13 +25,6 @@ import { getCadFeatures, type ManufacturingFeatureOut } from '../services/cadFea
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
-const STRATEGIES = [
-  { value: 'BALANCED',                  label: 'Balanced' },
-  { value: 'LOWEST_RISK',               label: 'Lowest Risk' },
-  { value: 'MINIMUM_SETUP',             label: 'Minimum Setup' },
-  { value: 'SHORTEST_CYCLE_TIME',       label: 'Shortest Cycle Time' },
-  { value: 'HIGHEST_PROCESS_CAPABILITY', label: 'Highest Process Capability' },
-]
 
 const FEATURE_TYPES = [
   'HOLE', 'PRECISION_BORE', 'COUNTERBORE', 'COUNTERSINK', 'THREADED_HOLE',
@@ -127,6 +121,7 @@ function RouteCard({
   isPareto: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
+  const { t } = useLocale()
 
   return (
     <div
@@ -179,7 +174,7 @@ function RouteCard({
 
           {/* Operations */}
           <div>
-            <SectionLabel>Operations</SectionLabel>
+            <SectionLabel>{t('prOperations')}</SectionLabel>
             <div className="space-y-1">
               {candidate.operations.map((op) => (
                 <div key={op.op_id} className="flex items-center gap-2 text-xs">
@@ -204,14 +199,14 @@ function RouteCard({
 
           {/* Score breakdown */}
           <div>
-            <SectionLabel>Score Breakdown (BLACK_BOX_AI_SCORE_USED=NO)</SectionLabel>
+            <SectionLabel>{t('prScoreBreakdown')}</SectionLabel>
             <ScoreBreakdown score={candidate.score} />
           </div>
 
           {/* Risk flags */}
           {candidate.risk.flags.length > 0 && (
             <div>
-              <SectionLabel>Risk Flags ({candidate.risk.flags.length})</SectionLabel>
+              <SectionLabel>{t('prRiskFlags')} ({candidate.risk.flags.length})</SectionLabel>
               <div className="space-y-2">
                 {candidate.risk.flags.map((f) => (
                   <div
@@ -237,7 +232,7 @@ function RouteCard({
           {/* Machine candidates */}
           {candidate.machine_candidates.length > 0 && (
             <div>
-              <SectionLabel>Machine Candidates (REFERENCE_ONLY)</SectionLabel>
+              <SectionLabel>{t('prMachineCandidates')}</SectionLabel>
               <div className="space-y-1">
                 {candidate.machine_candidates.map((m) => (
                   <div key={m.machine_id} className="flex items-center justify-between text-xs">
@@ -252,7 +247,7 @@ function RouteCard({
           {/* Tool candidates */}
           {candidate.tool_candidates.length > 0 && (
             <div>
-              <SectionLabel>Tool Candidates (REFERENCE_ONLY)</SectionLabel>
+              <SectionLabel>{t('prToolCandidates')}</SectionLabel>
               <div className="space-y-1">
                 {candidate.tool_candidates.map((t) => (
                   <div key={t.tool_id} className="flex items-center justify-between text-xs">
@@ -266,12 +261,12 @@ function RouteCard({
 
           {/* Explanation */}
           <div>
-            <SectionLabel>Why Selected</SectionLabel>
+            <SectionLabel>{t('prWhySelected')}</SectionLabel>
             <p className="text-xs text-[var(--tp-text-2)]">{candidate.explanation.why_selected}</p>
 
             {candidate.explanation.uncertain_data_items.length > 0 && (
               <div className="mt-2">
-                <SectionLabel>Uncertain / Unresolved</SectionLabel>
+                <SectionLabel>{t('prUncertainItems')}</SectionLabel>
                 <ul className="list-disc pl-4 space-y-0.5">
                   {candidate.explanation.uncertain_data_items.map((item, i) => (
                     <li key={i} className="text-xs text-orange-600 dark:text-orange-400">{item}</li>
@@ -475,6 +470,14 @@ function FeatureRow({
 
 export default function ProcessRoutesPage() {
   const navigate = useNavigate()
+  const { t } = useLocale()
+  const strategies = [
+    { value: 'BALANCED',                   label: t('prStrategyBalanced') },
+    { value: 'LOWEST_RISK',                label: t('prStrategyLowestRisk') },
+    { value: 'MINIMUM_SETUP',              label: t('prStrategyMinimumSetup') },
+    { value: 'SHORTEST_CYCLE_TIME',        label: t('prStrategyShortestCycleTime') },
+    { value: 'HIGHEST_PROCESS_CAPABILITY', label: t('prStrategyHighestProcessCapability') },
+  ]
   const { confirmedRequirements, cadSessionId, setManufacturingPlanId } = usePipeline()
   const [strategy, setStrategy] = useState('BALANCED')
   const [features, setFeatures] = useState<FeatureFormState[]>([])
@@ -589,7 +592,7 @@ export default function ProcessRoutesPage() {
             EPIC_04E · Phase 2
           </div>
           <h1 className="text-xl font-semibold text-[var(--tp-text)]">
-            Process Route Optimization
+            {t('prPageTitle')}
           </h1>
           <p className="text-sm text-[var(--tp-text-2)] mt-1">
             Deterministic multi-objective route optimization.{' '}
@@ -600,9 +603,9 @@ export default function ProcessRoutesPage() {
 
         {/* Strategy selector */}
         <div className="bg-[var(--tp-surface)] border border-[var(--tp-border)] rounded-lg p-4">
-          <SectionLabel>Optimization Strategy</SectionLabel>
+          <SectionLabel>{t('prOptimizationStrategy')}</SectionLabel>
           <div className="flex flex-wrap gap-2">
-            {STRATEGIES.map((s) => (
+            {strategies.map((s) => (
               <button
                 key={s.value}
                 onClick={() => setStrategy(s.value)}
@@ -621,12 +624,12 @@ export default function ProcessRoutesPage() {
         {/* Feature table */}
         <div className="bg-[var(--tp-surface)] border border-[var(--tp-border)] rounded-lg p-4">
           <div className="flex items-center justify-between mb-3">
-            <SectionLabel>Features</SectionLabel>
+            <SectionLabel>{t('prFeatures')}</SectionLabel>
             <button
               onClick={addFeature}
               className="text-xs text-[var(--tp-accent)] hover:underline"
             >
-              + Add Feature
+              {t('prAddFeature')}
             </button>
           </div>
 
@@ -659,17 +662,13 @@ export default function ProcessRoutesPage() {
           {features.length === 0 && (
             <div className="text-center py-6 space-y-2">
               <p className="text-sm text-[var(--tp-text-2)]">
-                No manufacturing features recognized or added yet.
+                {t('prNoFeaturesYet')}
               </p>
               <p className="text-xs text-[var(--tp-text-3)]">
-                {cadSessionId
-                  ? 'CAD session loaded — click "+ Add Feature" to add manually, or features will populate from recognized geometry.'
-                  : 'Upload a CAD file in the previous step to populate features automatically, or click "+ Add Feature" to add manually.'
-                }
+                {cadSessionId ? t('prCadSessionLoaded') : t('prNoSessionHint')}
               </p>
               <p className="text-xs text-orange-600 dark:text-orange-400 font-medium">
-                Features must be confirmed by an engineer before use in process planning.
-                Ra, IT grade, material group, and depth are never inferred automatically.
+                {t('prEngineerConfirmHint')}
               </p>
             </div>
           )}
@@ -682,7 +681,7 @@ export default function ProcessRoutesPage() {
             disabled={loading || features.length === 0}
             className="px-5 py-2 bg-[var(--tp-accent)] text-white rounded font-medium text-sm disabled:opacity-50 hover:opacity-90 transition-opacity"
           >
-            {loading ? 'Optimizing…' : 'Optimize Routes'}
+            {loading ? t('prOptimizing') : t('prOptimizeRoutes')}
           </button>
 
           {error && (
@@ -696,7 +695,7 @@ export default function ProcessRoutesPage() {
             {/* Plan summary */}
             <div className="bg-[var(--tp-surface)] border border-[var(--tp-border)] rounded-lg p-4">
               <div className="flex items-center justify-between mb-2">
-                <SectionLabel>Optimized Plan</SectionLabel>
+                <SectionLabel>{t('prOptimizedPlan')}</SectionLabel>
                 <StatusBadge status={result.plan.status} />
               </div>
               <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-xs">
@@ -713,7 +712,7 @@ export default function ProcessRoutesPage() {
               </div>
               {result.plan.generation_warnings.length > 0 && (
                 <div className="mt-3">
-                  <SectionLabel>Warnings</SectionLabel>
+                  <SectionLabel>{t('prWarnings')}</SectionLabel>
                   <ul className="list-disc pl-4 space-y-0.5">
                     {result.plan.generation_warnings.map((w, i) => (
                       <li key={i} className="text-xs text-orange-600 dark:text-orange-400">{w}</li>
@@ -756,7 +755,7 @@ export default function ProcessRoutesPage() {
                   <div key={altSet.feature_id} className="bg-[var(--tp-surface)] border border-[var(--tp-border)] rounded-lg p-4">
                     <SectionLabel>Feature: {altSet.feature_id}</SectionLabel>
                     {altSet.pareto_frontier.length === 0 ? (
-                      <p className="text-xs text-[var(--tp-text-2)]">No Pareto data available.</p>
+                      <p className="text-xs text-[var(--tp-text-2)]">{t('prNoPareto')}</p>
                     ) : (
                       <div className="space-y-2">
                         {altSet.pareto_frontier.map((p) => (
@@ -791,7 +790,7 @@ export default function ProcessRoutesPage() {
             {/* Benchmark tab */}
             {activeTab === 'benchmark' && (
               <div className="bg-[var(--tp-surface)] border border-[var(--tp-border)] rounded-lg p-4">
-                <SectionLabel>Benchmark Metrics</SectionLabel>
+                <SectionLabel>{t('prBenchmarkMetrics')}</SectionLabel>
                 <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-xs">
                   <span className="text-[var(--tp-text-2)]">Total Candidates</span>
                   <span className="font-mono text-[var(--tp-text)]">{result.benchmark.total_candidates_generated}</span>
@@ -807,7 +806,7 @@ export default function ProcessRoutesPage() {
                   <span className="font-mono text-green-600 dark:text-green-400">{result.benchmark.determinism_rate}</span>
                 </div>
                 <div className="mt-4 space-y-1">
-                  <SectionLabel>Safety Invariants</SectionLabel>
+                  <SectionLabel>{t('prSafetyInvariants')}</SectionLabel>
                   {[
                     ['FABRICATED_ROUTE', result.benchmark.FABRICATED_ROUTE],
                     ['AUTO_SELECTED_ROUTE_MARKED_APPROVED', result.benchmark.AUTO_SELECTED_ROUTE_MARKED_APPROVED],

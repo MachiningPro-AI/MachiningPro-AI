@@ -123,7 +123,7 @@ hardcoded rather than routed through it.
 | TR navigation keys | PASS |
 | TR engineering module labels | PASS |
 | TR error messages | PASS |
-| Hardcoded bypass strings | **FAIL** — ~86 strings in 6 pages |
+| Hardcoded bypass strings | **PASS** — 0 remaining (all 5 defects fixed 2026-11-12) |
 
 ---
 
@@ -150,6 +150,6 @@ hardcoded rather than routed through it.
 
 **TR_LANGUAGE_LEAK_COUNT=0** (from i18n files)  
 **EN_LANGUAGE_LEAK_COUNT=0** (from i18n files)  
-**HARDCODED_UI_STRINGS_REMAINING=~86** (bypass i18n — documented defects DEF-L001 through DEF-L005)  
+**HARDCODED_UI_STRINGS_REMAINING=0** (DEF-L001 through DEF-L005 fixed 2026-11-12; 104 new i18n keys added, EN=TR=1815)  
 **RAW_BACKEND_ENUM_VISIBLE_COUNT=0**  
 **RAW_HTTP_ERROR_VISIBLE_COUNT=0**

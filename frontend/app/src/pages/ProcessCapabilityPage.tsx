@@ -8,6 +8,7 @@
  */
 
 import { useCallback, useState } from 'react'
+import { useLocale } from '../i18n'
 import { calibrationService } from '../services/calibration'
 import type {
   CapabilityMargin,
@@ -84,6 +85,7 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function ToleranceTab() {
+  const { t } = useLocale()
   const [operation, setOperation] = useState(TOLERANCE_OPS[1])
   const [toleranceUm, setToleranceUm] = useState('25')
   const [sizeUm, setSizeUm] = useState('50')
@@ -120,7 +122,7 @@ function ToleranceTab() {
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-[var(--tp-text-2)] mb-1">Operation Family</label>
+          <label className="block text-xs font-medium text-[var(--tp-text-2)] mb-1">{t('calOperation')}</label>
           <select
             value={operation}
             onChange={e => setOperation(e.target.value)}
@@ -152,7 +154,7 @@ function ToleranceTab() {
               onChange={e => setMachineValidated(e.target.checked)}
               className="accent-[var(--tp-accent)]"
             />
-            Machine validated
+            {t('calMachineValidated')}
           </label>
         </div>
       </div>
@@ -166,7 +168,7 @@ function ToleranceTab() {
       {result && (
         <div className="border border-[var(--tp-border)] rounded p-3 space-y-2">
           <div className="flex items-center gap-2">
-            <SectionLabel>Result</SectionLabel>
+            <SectionLabel>{t('calResult')}</SectionLabel>
             <CapBadge status={result.status} />
           </div>
           <InfoRow label="Operation" value={result.operation} />
@@ -188,6 +190,7 @@ function ToleranceTab() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function SurfaceTab() {
+  const { t } = useLocale()
   const [operation, setOperation] = useState(SURFACE_OPS[1])
   const [raUm, setRaUm] = useState('1.6')
   const [useTypical, setUseTypical] = useState(false)
@@ -211,7 +214,7 @@ function SurfaceTab() {
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-[var(--tp-text-2)] mb-1">Operation Family</label>
+          <label className="block text-xs font-medium text-[var(--tp-text-2)] mb-1">{t('calOperation')}</label>
           <select value={operation} onChange={e => setOperation(e.target.value)}
             className="w-full border border-[var(--tp-border)] rounded px-2 py-1.5 text-sm bg-[var(--tp-bg-1)] text-[var(--tp-text-1)]">
             {SURFACE_OPS.map(op => <option key={op}>{op}</option>)}
@@ -225,7 +228,7 @@ function SurfaceTab() {
         <div className="flex items-end pb-1.5">
           <label className="flex items-center gap-2 text-xs text-[var(--tp-text-2)] cursor-pointer">
             <input type="checkbox" checked={useTypical} onChange={e => setUseTypical(e.target.checked)} className="accent-[var(--tp-accent)]" />
-            Use typical Ra (not best-case)
+            {t('calUseTypicalRa')}
           </label>
         </div>
       </div>
@@ -236,7 +239,7 @@ function SurfaceTab() {
       {error && <p className="text-xs text-red-500">{error}</p>}
       {result && (
         <div className="border border-[var(--tp-border)] rounded p-3 space-y-2">
-          <div className="flex items-center gap-2"><SectionLabel>Result</SectionLabel><CapBadge status={result.status} /></div>
+          <div className="flex items-center gap-2"><SectionLabel>{t('calResult')}</SectionLabel><CapBadge status={result.status} /></div>
           <InfoRow label="Operation" value={result.operation} />
           <InfoRow label="Required Ra" value={`${result.required_ra_um} µm`} />
           <InfoRow label="Achievable Ra (best)" value={result.achievable_ra_um_best != null ? `${result.achievable_ra_um_best} µm` : '—'} />
@@ -255,6 +258,7 @@ function SurfaceTab() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function CycleTimeTab() {
+  const { t } = useLocale()
   const [cuttingMin, setCuttingMin] = useState('')
   const [cuttingMax, setCuttingMax] = useState('')
   const [rapidSec, setRapidSec] = useState('')
@@ -322,7 +326,7 @@ function CycleTimeTab() {
       {error && <p className="text-xs text-red-500">{error}</p>}
       {result && (
         <div className="border border-[var(--tp-border)] rounded p-3 space-y-3">
-          <div className="flex items-center gap-2"><SectionLabel>Cycle Time Estimate</SectionLabel><CompBadge completeness={result.completeness} /></div>
+          <div className="flex items-center gap-2"><SectionLabel>{t('calCycleTimeEstimate')}</SectionLabel><CompBadge completeness={result.completeness} /></div>
           <InfoRow label="Known total (min)" value={fmtSec(result.known_total_sec_min)} />
           <InfoRow label="Known total (max)" value={fmtSec(result.known_total_sec_max)} />
           <InfoRow label="Full cycle time (min)" value={result.total_cycle_time_sec_min != null ? fmtSec(result.total_cycle_time_sec_min) : 'UNKNOWN (partial data only)'} />
@@ -367,6 +371,7 @@ function CycleTimeTab() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function ProfilesTab() {
+  const { t } = useLocale()
   const [profiles, setProfiles] = useState<ShopCalibrationProfile[]>([])
   const [loaded, setLoaded] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -406,7 +411,7 @@ function ProfilesTab() {
   return (
     <div className="space-y-4">
       <div className="border border-[var(--tp-border)] rounded p-3 space-y-3">
-        <SectionLabel>New Shop Profile</SectionLabel>
+        <SectionLabel>{t('calNewShopProfile')}</SectionLabel>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-medium text-[var(--tp-text-2)] mb-1">Label *</label>
@@ -414,7 +419,7 @@ function ProfilesTab() {
               className="w-full border border-[var(--tp-border)] rounded px-2 py-1.5 text-sm bg-[var(--tp-bg-1)] text-[var(--tp-text-1)]" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-[var(--tp-text-2)] mb-1">Machine ID</label>
+            <label className="block text-xs font-medium text-[var(--tp-text-2)] mb-1">{t('calMachineId')}</label>
             <input value={newMachineId} onChange={e => setNewMachineId(e.target.value)} placeholder="optional"
               className="w-full border border-[var(--tp-border)] rounded px-2 py-1.5 text-sm bg-[var(--tp-bg-1)] text-[var(--tp-text-1)]" />
           </div>
@@ -437,7 +442,7 @@ function ProfilesTab() {
 
       <button onClick={load} disabled={loading}
         className="px-3 py-1.5 text-xs rounded border border-[var(--tp-border)] text-[var(--tp-text-2)] hover:bg-[var(--tp-bg-2)]">
-        {loading ? 'Loading…' : 'Refresh Profiles'}
+        {loading ? 'Loading…' : t('calRefreshProfiles')}
       </button>
 
       {error && <p className="text-xs text-red-500">{error}</p>}
@@ -470,13 +475,14 @@ function ProfilesTab() {
 type Tab = 'tolerance' | 'surface' | 'cycletime' | 'profiles'
 
 export default function ProcessCapabilityPage() {
+  const { t } = useLocale()
   const [tab, setTab] = useState<Tab>('tolerance')
 
   const tabs: { id: Tab; label: string }[] = [
-    { id: 'tolerance', label: 'Tolerance Capability' },
-    { id: 'surface', label: 'Surface Finish' },
-    { id: 'cycletime', label: 'Cycle Time' },
-    { id: 'profiles', label: 'Shop Profiles' },
+    { id: 'tolerance', label: t('calTabTolerance') },
+    { id: 'surface', label: t('calTabSurface') },
+    { id: 'cycletime', label: t('calTabCycleTime') },
+    { id: 'profiles', label: t('calTabProfiles') },
   ]
 
   return (

@@ -603,7 +603,7 @@ function ReviewTab({
 
       {/* Actions */}
       <div>
-        <h4 className="text-sm font-semibold text-[var(--tp-text-1)] mb-2">Actions</h4>
+        <h4 className="text-sm font-semibold text-[var(--tp-text-1)] mb-2">{t('mfpActionsHeading')}</h4>
         <div className="mb-2">
           <label className="block text-xs text-[var(--tp-text-3)] mb-1">{t('mfpEngineerNote')}</label>
           <input
@@ -836,13 +836,13 @@ export default function ManufacturingPlanPage() {
         {/* Sidebar — plan list */}
         <div className="lg:col-span-1">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-sm font-semibold text-[var(--tp-text-1)]">Plans</h2>
+            <h2 className="text-sm font-semibold text-[var(--tp-text-1)]">{t('mfpPlansHeading')}</h2>
             <button
               onClick={fetchList}
               disabled={loadingList}
               className="text-xs text-blue-600 hover:underline disabled:opacity-50"
             >
-              {loadingList ? '...' : 'Refresh'}
+              {loadingList ? '...' : t('mfpRefresh')}
             </button>
           </div>
           {listError && <p className="text-xs text-red-500 mb-2">{listError}</p>}
