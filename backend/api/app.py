@@ -16,18 +16,19 @@ import os
 import pathlib
 from datetime import UTC, datetime
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from ..auth.pilot_users import is_pilot_mode, list_pilot_users_safe
 from ..observability import metrics
 from ..observability.correlation import CorrelationMiddleware
 from ..observability.logging_config import configure_logging
 from ..observability.security import SecurityHeadersMiddleware
 from .adaptive import router as adaptive_router
-from .auth import LoginRequest, authenticate, get_configured_credentials
+from .auth import LoginRequest, authenticate, get_configured_credentials, verify_token
 from .cad_features import router as cad_features_router
 from .cad_upload import router as cad_upload_router
 from .calibration import router as calibration_router
@@ -228,13 +229,15 @@ async def get_metrics():
 
 @app.post("/api/login")
 async def login(req: LoginRequest):
-    if not get_configured_credentials():
+    # In pilot mode the credential store provides auth; dev env-vars are not needed.
+    if not is_pilot_mode() and not get_configured_credentials():
         raise HTTPException(
             status_code=401,
             detail=(
-                "Local development credentials not configured. "
-                "Set MACHININGPRO_DEV_USERNAME, MACHININGPRO_DEV_PASSWORD, "
-                "and MACHININGPRO_DEV_JWT_SECRET environment variables."
+                "Authentication not configured. "
+                "Set MACHININGPRO_PILOT_USERS_FILE (pilot mode) or "
+                "MACHININGPRO_DEV_USERNAME / MACHININGPRO_DEV_PASSWORD / "
+                "MACHININGPRO_DEV_JWT_SECRET (dev mode)."
             ),
         )
 
@@ -244,6 +247,30 @@ async def login(req: LoginRequest):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     return response.model_dump()
+
+
+@app.get("/api/pilot/users")
+async def list_pilot_users(authorization: str | None = Header(default=None)):
+    """
+    Admin-only endpoint: list pilot users without password hashes.
+    Requires a valid JWT with role=pilot_admin.
+    Only available in pilot mode.
+    """
+    if not is_pilot_mode():
+        raise HTTPException(status_code=404, detail="Not found")
+
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    token = authorization[len("Bearer "):]
+    payload = verify_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    if payload.get("role") != "pilot_admin":
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    return {"users": list_pilot_users_safe()}
 
 
 @app.post("/api/change-password")

@@ -20,7 +20,7 @@
 
 ---
 
-## Pilot Environment Secrets (Planned)
+## Pilot Environment Secrets (Implemented — pending provisioning)
 
 | Variable Name | Purpose | Storage | Notes |
 |---|---|---|---|

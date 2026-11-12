@@ -141,7 +141,21 @@ This plan must be implemented and tested before:
 ## Current Status
 
 ```
-MULTI_USER_AUTH_SUPPORTED  = NO
-IMPLEMENTATION_STATUS      = PLANNED (not started)
-BLOCKING_PILOT_GO_LIVE     = YES
+MULTI_USER_AUTH_SUPPORTED  = YES
+IMPLEMENTATION_STATUS      = IMPLEMENTED (feat(auth): implement multi-user bcrypt pilot authentication)
+BLOCKING_PILOT_GO_LIVE     = NO (credential provisioning + hosting remain as ops actions)
+PASSWORD_HASH_SCHEME       = bcrypt (bcrypt>=4.0, cost factor 12)
 ```
+
+### Implementation Summary
+
+Files created/modified:
+- `backend/auth/__init__.py` — package init
+- `backend/auth/pilot_users.py` — credential store (bcrypt load/verify/list)
+- `backend/auth/pilot_users.json.example` — schema example (no real users)
+- `backend/api/auth.py` — authenticate() extended with pilot mode path
+- `backend/api/app.py` — login endpoint updated; /api/pilot/users admin endpoint added
+- `scripts/provision_pilot_user.py` — interactive provisioning helper
+- `tests/unit/api/test_pilot_auth.py` — 33 tests (all PASS)
+- `pyproject.toml` — added bcrypt>=4.0 dependency
+- `.gitignore` — pilot_users.json excluded from source control

@@ -1,0 +1,27 @@
+{
+  "_comment": "Example schema for MACHININGPRO_PILOT_USERS_FILE. Do NOT commit a file with real values.",
+  "_note": "Generate password_hash with: python scripts/provision_pilot_user.py",
+  "users": [
+    {
+      "username": "pilot-engineer-01",
+      "password_hash": "$2b$12$EXAMPLE_BCRYPT_HASH_REPLACE_WITH_REAL_HASH_FROM_PROVISION_SCRIPT",
+      "display_name": "Pilot Engineer 01",
+      "role": "pilot_engineer",
+      "active": true
+    },
+    {
+      "username": "pilot-reviewer-01",
+      "password_hash": "$2b$12$EXAMPLE_BCRYPT_HASH_REPLACE_WITH_REAL_HASH_FROM_PROVISION_SCRIPT",
+      "display_name": "Pilot Reviewer 01",
+      "role": "pilot_reviewer",
+      "active": true
+    },
+    {
+      "username": "pilot-admin-01",
+      "password_hash": "$2b$12$EXAMPLE_BCRYPT_HASH_REPLACE_WITH_REAL_HASH_FROM_PROVISION_SCRIPT",
+      "display_name": "Pilot Administrator 01",
+      "role": "pilot_admin",
+      "active": true
+    }
+  ]
+}

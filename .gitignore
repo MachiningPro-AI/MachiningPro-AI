@@ -60,3 +60,7 @@ selection-*.png
 # Qualification results and run logs (generated, not committed)
 docs/qualification/results/
 docs/qualification/run_logs/
+
+# --- Pilot credential store (never commit real credentials) ---
+backend/auth/pilot_users.json
+pilot_users.json
