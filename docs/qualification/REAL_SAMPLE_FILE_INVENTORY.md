@@ -1,8 +1,8 @@
 # Real Sample File Inventory
 
-**Campaign:** RSQ — Real Sample File Qualification  
-**Date:** 2026-11-12  
-**Source directory:** `D:\makina_ogrenmesi\olcum_denemeleri\örnek dosyalar` (READ-ONLY, outside repo)  
+**Campaign:** MACHININGPRO_AI_REAL_SAMPLE_FILES_QUALIFICATION (extends RSQ 2026-11-12)  
+**Date:** 2026-11-13  
+**Source directory:** `[SAMPLE_ROOT]` (READ-ONLY, outside repo — absolute path not published)  
 **Total files found:** 84  
 
 ---
@@ -86,7 +86,15 @@ PDF files are not supported by the CAD import pipeline (`/api/import`). Drawing 
 | RAB055S(41_NOKTALI).dwg | 9 400 000 | Large — not selected |
 | RAB055S(42_NOKTALI).dwg | 9 500 000 | Large — not selected |
 
-`Pense_Sema.dwg` selected to demonstrate graceful UNSUPPORTED response.
+`Pense_Sema.dwg` (DWG-01) selected; large RAB055S files (DWG-02, DWG-03) selected to exercise size handling on UNSUPPORTED path.
+
+**Extended selection (2026-11-13 campaign):**
+
+| Test ID | Filename | Size (bytes) | SHA-256 (first 16 hex) |
+|---------|----------|-------------:|------------------------|
+| DWG-01  | Pense_Sema.dwg | 172 340 | 81140812206525b3 |
+| DWG-02  | RAB055S(41_NOKTALI).dwg | 9 473 951 | 92db6a2f788bfd0c |
+| DWG-03  | RAB055S(42_NOKTALI).dwg | 9 474 430 | c234eef6bd9aaa61 |
 
 ---
 
@@ -101,7 +109,15 @@ PDF files are not supported by the CAD import pipeline (`/api/import`). Drawing 
 | 46795382-OSSATURA-FIANC.model | 3 384 880 |
 | 46792434-CS-FIANCATA-D-.model | 14 009 760 |
 
-Smallest file (720 KB) selected to demonstrate graceful UNSUPPORTED response.
+Three files selected (small/medium/large) to verify UNSUPPORTED handling across sizes.
+
+**Extended selection (2026-11-13 campaign):**
+
+| Test ID  | Filename | Size (bytes) | SHA-256 (first 16 hex) |
+|----------|----------|-------------:|------------------------|
+| MODEL-01 | 46795221-FONDELLO-SEDE-.model | 720 160    | 4586fb9702d90fda |
+| MODEL-02 | 46795237-CANALINO-SUPER.model | 2 089 200  | e197331b27bbfdf2 |
+| MODEL-03 | 46795382-OSSATURA-FIANC.model | 3 384 880  | 0cb31e9c2e83d681 |
 
 ---
 
@@ -119,5 +135,16 @@ From `backend/interoperability/orchestrator.py` and `backend/interoperability/ad
 | CATIA .model | — | — | — | — | Not registered |
 
 ---
+
+---
+
+## Post-Test Integrity Verification (2026-11-13)
+
+All 15 selected source files re-hashed after testing. Result:
+
+```
+ALL_SOURCE_FILES_UNCHANGED=YES
+SOURCE_SAMPLE_FILES_COMMITTED=NO
+```
 
 *Source files are READ-ONLY. This document records their existence and properties only. No sample files have been copied into the repository.*
