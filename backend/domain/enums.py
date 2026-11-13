@@ -27,6 +27,10 @@ class ProvenanceType(StrEnum):
     DETERMINISTIC_CALCULATION = "DETERMINISTIC_CALCULATION"
     AI_SUGGESTION = "AI_SUGGESTION"
     UNKNOWN = "UNKNOWN"
+    # --- Missing-data resolution provenance (P0) ---
+    TITLE_BLOCK = "TITLE_BLOCK"
+    USER_CONFIRMED_FIELD = "USER_CONFIRMED_FIELD"
+    LIBRARY_RESOLUTION = "LIBRARY_RESOLUTION"
 
 
 class FeatureType(StrEnum):
