@@ -924,7 +924,7 @@ export default function WorkflowPage() {
                 {stages.flatMap(s =>
                   s.warnings.map((w, i) => (
                     <li key={`${s.stage}-${i}`} className="text-xs text-tp-text-2">
-                      <span className="font-medium text-tp-text-3">{STAGE_LABELS[s.stage]}: </span>
+                      <span className="font-medium text-tp-text-3">{stageLabels[s.stage]}: </span>
                       {w}
                     </li>
                   ))

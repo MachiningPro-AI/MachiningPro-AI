@@ -1950,4 +1950,48 @@ export interface TranslationDictionary {
   csStatusHeader: string
   csReasonHeader: string
   csDetailHeader: string
+
+  // Missing Engineering Data Resolution (P0)
+  mdPanelTitle: string
+  mdPanelSubtitle: string
+  mdGeometryReady: string
+  mdGeometryNotReady: string
+  mdFieldMaterial: string
+  mdFieldUnit: string
+  mdFieldTolerance: string
+  mdFieldSurfaceFinish: string
+  mdFieldHoleDepth: string
+  mdFieldTopology: string
+  mdStatusKnown: string
+  mdStatusUnknown: string
+  mdStatusUserConfirmed: string
+  mdStatusConflict: string
+  mdStatusNotApplicable: string
+  mdSourceFile: string
+  mdSourceTitleBlock: string
+  mdSourceUserConfirmed: string
+  mdSourceLibrary: string
+  mdConfirmButton: string
+  mdSkipButton: string
+  mdConflictWarning: string
+  mdUserInputWarning: string
+  mdMaterialPlaceholder: string
+  mdUnitPlaceholder: string
+  mdTolerancePlaceholder: string
+  mdSurfaceFinishPlaceholder: string
+  mdHoleDepthPlaceholder: string
+  mdReadinessGeometry: string
+  mdReadinessDrawingReview: string
+  mdReadinessProcessPlanning: string
+  mdReadinessCuttingData: string
+  mdReadinessCam: string
+  mdReadinessReady: string
+  mdReadinessBlocked: string
+  mdBlockedByMaterial: string
+  mdBlockedByUnit: string
+  mdBlockedByTopology: string
+  mdBlockedByTolerance: string
+  mdPhaseRaw: string
+  mdPhaseConfirmed: string
+  mdNoMissingRequired: string
 }

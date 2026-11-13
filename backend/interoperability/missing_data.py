@@ -28,7 +28,6 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
-
 # ---------------------------------------------------------------------------
 # Enums
 # ---------------------------------------------------------------------------
@@ -205,7 +204,7 @@ class EngineeringField:
     library_resolved_designation: str | None = None
 
     @classmethod
-    def unknown(cls, field_name: str) -> "EngineeringField":
+    def unknown(cls, field_name: str) -> EngineeringField:
         """Construct a field with UNKNOWN status and no value."""
         return cls(
             field_name=field_name,
@@ -224,7 +223,7 @@ class EngineeringField:
         value: str,
         source: EngineeringFieldSource,
         confidence: float | None = None,
-    ) -> "EngineeringField":
+    ) -> EngineeringField:
         """Construct a field with KNOWN status from file evidence."""
         return cls(
             field_name=field_name,
@@ -237,7 +236,7 @@ class EngineeringField:
         )
 
     @classmethod
-    def not_applicable(cls, field_name: str) -> "EngineeringField":
+    def not_applicable(cls, field_name: str) -> EngineeringField:
         """Construct a field that does not apply to this document type."""
         return cls(
             field_name=field_name,
@@ -254,7 +253,7 @@ class EngineeringField:
         user_value: str,
         library_id: str | None = None,
         library_designation: str | None = None,
-    ) -> "EngineeringField":
+    ) -> EngineeringField:
         """Return a new field with user-confirmed value.
 
         Does NOT overwrite original_extracted_value.

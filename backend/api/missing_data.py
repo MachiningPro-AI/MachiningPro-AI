@@ -25,15 +25,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from backend.api.auth import verify_token
-from backend.interoperability.missing_data import (
-    MissingDataAnalysis,
-    analyze_import_missing_data,
-    apply_user_confirmations,
-)
 
 router = APIRouter(prefix="/api/missing-data", tags=["missing-data"])
 
@@ -141,7 +136,7 @@ _UI_WARNING_TR = (
 @router.post("/analyze", response_model=AnalyzeResponse)
 async def analyze_missing_data(
     req: AnalyzeRequest,
-    _: dict = Depends(verify_token),
+    _: dict = Depends(verify_token),  # noqa: B008
 ) -> AnalyzeResponse:
     """Analyze missing engineering data for a CAD import result.
 
@@ -153,16 +148,15 @@ async def analyze_missing_data(
 
     Returns the RAW_FILE analysis phase.
     """
+
     from backend.interoperability.missing_data import (
+        FIELD_DEFINITIONS,
         EngineeringField,
         EngineeringFieldSource,
         EngineeringFieldStatus,
-        ReadinessState,
-        _compute_readiness,
-        FIELD_DEFINITIONS,
         FieldRequirementTier,
+        _compute_readiness,
     )
-    from datetime import UTC, datetime
 
     # Build fields from structured request
     fields: dict[str, EngineeringField] = {}
@@ -294,7 +288,7 @@ async def analyze_missing_data(
 @router.post("/confirm", response_model=ConfirmResponse)
 async def confirm_missing_data(
     req: ConfirmRequest,
-    _: dict = Depends(verify_token),
+    _: dict = Depends(verify_token),  # noqa: B008
 ) -> ConfirmResponse:
     """Accept user-confirmed values for missing engineering fields.
 
@@ -307,13 +301,12 @@ async def confirm_missing_data(
     Blank strings are rejected — the field remains UNKNOWN.
     """
     from backend.interoperability.missing_data import (
+        FIELD_DEFINITIONS,
         EngineeringField,
         EngineeringFieldSource,
         EngineeringFieldStatus,
-        ReadinessState,
-        _compute_readiness,
-        FIELD_DEFINITIONS,
         FieldRequirementTier,
+        _compute_readiness,
     )
 
     # Reconstruct fields from raw_analysis if provided
@@ -350,7 +343,11 @@ async def confirm_missing_data(
 
     # Apply confirmations
     confirmations_dict = {
-        fname: {"value": fc.value, "library_id": fc.library_id, "library_designation": fc.library_designation}
+        fname: {
+            "value": fc.value,
+            "library_id": fc.library_id,
+            "library_designation": fc.library_designation,
+        }
         for fname, fc in req.confirmations.items()
     }
     new_fields = dict(raw_fields)

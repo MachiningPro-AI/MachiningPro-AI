@@ -29,9 +29,7 @@ from typing import NamedTuple
 from backend.interoperability.missing_data import (
     EngineeringField,
     EngineeringFieldSource,
-    EngineeringFieldStatus,
 )
-
 
 # ---------------------------------------------------------------------------
 # Known material aliases → canonical material library IDs
