@@ -181,10 +181,14 @@ class TestDxfMalformed:
         assert doc.normalization_status == NormalizationStatus.FAILED
 
     def test_partial_dxf_still_parsed(self, tmp_path: Path) -> None:
-        # Has valid group codes but no ENTITIES section
+        # Has valid group codes but no ENTITIES section.
+        # With ezdxf installed the adapter reaches LEVEL_2_NORMALIZED even on a
+        # minimal DXF; without ezdxf it reaches LEVEL_1_PARSED.  Either way it
+        # must not regress to LEVEL_0_RECOGNIZED.
         text = "  0\nSECTION\n  2\nHEADER\n  9\n$ACADVER\n  1\nAC1009\n  0\nENDSEC\n"
         doc = _ingest_dxf(text, tmp_path, "partial.dxf")
-        assert doc.capability_level == CapabilityLevel.LEVEL_1_PARSED
+        levels = list(CapabilityLevel)
+        assert levels.index(doc.capability_level) >= levels.index(CapabilityLevel.LEVEL_1_PARSED)
 
     def test_wrong_http_method_endpoint_exists(self) -> None:
         """DXF endpoint is POST /api/import — a GET would return 405.

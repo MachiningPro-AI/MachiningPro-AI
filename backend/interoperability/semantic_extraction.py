@@ -700,6 +700,32 @@ def make_detection(
     )
 
 
+# Matches AutoCAD MTEXT inline formatting codes.
+_MTEXT_FORMAT_RE = re.compile(
+    r'\\[A-Za-z][^;]{0,64};'   # \fFont; \H2.0; \W1.0; \C3; etc.
+    r'|\\[PplLouOwW~\{\}nQqSsAa]'  # single-char codes: \P \p \l \L etc.
+    r'|\{\\[A-Za-z][^}]*\}'    # {\\fBold;...} groups
+)
+_MTEXT_SPECIAL_RE = re.compile(r'%%([dDcCpP])')
+
+_MTEXT_SPECIAL_MAP: dict[str, str] = {'D': '°', 'C': 'Ø', 'P': '±'}
+
+
+def strip_mtext_codes(text: str) -> str:
+    """Strip AutoCAD MTEXT inline formatting codes from *text*.
+
+    Converts ``%%c`` → ``Ø``, ``%%d`` → ``°``, ``%%p`` → ``±`` and removes
+    all ``\\fFont;``, ``\\H2.0;``, ``\\P``, ``{\\...}`` format codes so that
+    the resulting string contains only engineering-readable content.
+    """
+    text = _MTEXT_SPECIAL_RE.sub(
+        lambda m: _MTEXT_SPECIAL_MAP.get(m.group(1).upper(), m.group(0)), text
+    )
+    text = _MTEXT_FORMAT_RE.sub(' ', text)
+    text = text.replace('{', ' ').replace('}', ' ')
+    return ' '.join(text.split())
+
+
 def run_token_extraction(
     tokens: list[str],
     source_type: DetectionSourceType = DetectionSourceType.VECTOR_PDF,
@@ -720,6 +746,12 @@ def run_token_extraction(
     for token in tokens:
         if not token or not token.strip():
             continue
+
+        # Strip AutoCAD MTEXT formatting codes before pattern matching.
+        if source_type == DetectionSourceType.DXF:
+            token = strip_mtext_codes(token)
+            if not token:
+                continue
 
         # Surface finish
         sf = parse_surface_finish_token(token)

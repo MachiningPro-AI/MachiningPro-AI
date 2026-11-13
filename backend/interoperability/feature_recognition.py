@@ -494,7 +494,22 @@ def _recognize_geometry_only(geo: object) -> FeatureRecognitionResult:
                     "fillet radius and bounding faces unknown; topology required for CONFIRMED"
                 ),
             ))
-        # PLANAR, FREEFORM, SPHERICAL, UNKNOWN → no feature candidate without topology
+        elif cls == FaceClassification.PLANAR:
+            features.append(ManufacturingFeature(
+                feature_id=_fid(),
+                feature_type=ManufacturingFeatureType.UNKNOWN,
+                status=FeatureStatus.CANDIDATE,
+                surface_ids=(surf.surface_id,),
+                source_entity_refs=(
+                    (surf.source_entity_ref,) if surf.source_entity_ref else ()
+                ),
+                evidence_notes=(
+                    "planar surface without topology: "
+                    "machining operation undetermined (facing/step/pocket floor); "
+                    "topology required for CONFIRMED"
+                ),
+            ))
+        # FREEFORM, SPHERICAL, UNKNOWN → no feature candidate without topology
 
     return FeatureRecognitionResult(
         classified_faces=tuple(classified_faces),

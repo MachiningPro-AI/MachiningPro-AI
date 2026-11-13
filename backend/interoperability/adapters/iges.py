@@ -431,7 +431,13 @@ class IgesTokenAdapter(FormatAdapter):
             session.mark_failed()
             session.set_fidelity_completeness(FidelityReportCompleteness.PARTIAL)
         elif unsupported_fatal_issue:
-            session.mark_unsupported()
+            # When geometry was extracted despite unsupported entities, downgrade to
+            # PARTIAL instead of UNSUPPORTED.  Reserve UNSUPPORTED for files that
+            # yield no usable geometry at all.
+            if mapping.geometry is not None:
+                session.mark_partial()
+            else:
+                session.mark_unsupported()
             session.set_fidelity_completeness(FidelityReportCompleteness.PARTIAL)
         elif mapping.issues:
             session.mark_partial()

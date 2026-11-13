@@ -1,24 +1,28 @@
 # Real Sample File Defect Register
 
 **Campaign:** MACHININGPRO_AI_REAL_SAMPLE_FILES_QUALIFICATION  
-**Date:** 2026-11-13  
-**Branch:** main | HEAD: 6e3765c  
+**Date (original):** 2026-11-13 | **Fix commit:** pending (2026-11-13)  
+**Branch:** main | HEAD (original): 645b7d4  
 
 > HARD RULE 9: Defects are RECORDED only. No automatic repair in this campaign.  
 > Fix priority will be decided separately after report review.
+>
+> **Post-campaign note (2026-11-13):** DEF-RSQ-002, DEF-RSQ-004, DEF-RSQ-005, DEF-RSQ-006, DEF-RSQ-007
+> (all 5 MAJOR defects) have been fixed in a follow-up commit on main.
+> DEF-RSQ-001 and DEF-RSQ-003 (MINOR) remain open per `MINOR_DEFECTS_UNCHANGED=YES`.
 
 ---
 
 ## Summary
 
-| Severity | Count |
-|----------|------:|
-| BLOCKER  | 0 |
-| CRITICAL | 0 |
-| MAJOR    | 5 |
-| MINOR    | 2 |
-| COSMETIC | 0 |
-| **Total**| **7** |
+| Severity | Total | Open | Fixed |
+|----------|------:|-----:|------:|
+| BLOCKER  | 0 | 0 | 0 |
+| CRITICAL | 0 | 0 | 0 |
+| MAJOR    | 5 | 0 | **5** |
+| MINOR    | 2 | 2 | 0 |
+| COSMETIC | 0 | 0 | 0 |
+| **Total**| **7** | **2** | **5** |
 
 ---
 
@@ -54,7 +58,7 @@
 | **REPRODUCTION** | Run `CadImportOrchestrator.import_source()` on any .dxf file without `ezdxf` installed. Check `result.status == ImportStatus.DEGRADED` and `len(result.document.entity_refs) == 1`. |
 | **ROOT_CAUSE_IF_KNOWN** | `ezdxf` is listed as an optional dependency. Without it, the DxfTokenAdapter falls back to Level 1 (header-only entity_refs) even though the token-level geometry extraction still succeeds. |
 | **RECOMMENDED_FIX** | (a) Add `ezdxf` to production environment requirements. (b) Alternatively, populate entity_refs with geometry-derived curve/arc/circle counts from the Level 1 extraction so the entity histogram is not empty when ezdxf is absent. |
-| **STATUS** | OPEN — ezdxf not installed in test environment |
+| **STATUS** | **FIXED (2026-11-13)** — ezdxf>=1.3,<2 added to pyproject.toml [project].dependencies; ezdxf 1.4.5 installed; entity histogram now populated (DXF-30: 20 refs, DXF-38: 599 refs, DXF-PS: 20 refs) |
 
 ---
 
@@ -90,7 +94,7 @@
 | **REPRODUCTION** | Import `agv03773.geo_fin001.006003.igs` via `CadImportOrchestrator`. Observe `result.status == ImportStatus.UNSUPPORTED` while `result.document.geometry` contains 247 curves and 119 surfaces. |
 | **ROOT_CAUSE_IF_KNOWN** | The normalization decision is likely driven by the presence of IgesUnsupportedGeometryType entities; if the fraction of unsupported entities exceeds a threshold, the whole import is demoted to UNSUPPORTED even when significant valid geometry was extracted. |
 | **RECOMMENDED_FIX** | When CanonicalGeometry is populated with meaningful content (curves + surfaces + bounding box), status should be at least PARTIAL. Reserve UNSUPPORTED for cases where the adapter cannot parse the file at all. |
-| **STATUS** | OPEN — not fixed in this campaign |
+| **STATUS** | **FIXED (2026-11-13)** — `iges.py:_do_normalize()`: when `unsupported_fatal_issue` is True but `mapping.geometry is not None`, call `session.mark_partial()` instead of `session.mark_unsupported()`. IGS-01 now DEGRADED, succeeded=True, 521 refs, 119 surfaces. |
 
 ---
 
@@ -108,7 +112,7 @@
 | **REPRODUCTION** | Import `fa00aaj27500_004999.igs` via `CadImportOrchestrator`. Observe `len(result.document.entity_refs) == 1` and `result.document.geometry is None`. |
 | **ROOT_CAUSE_IF_KNOWN** | Unknown. The file may use an IGES variant (e.g., with unusual parameter delimiter or FreeForm entity types) that the token adapter fails to tokenize beyond the header section. |
 | **RECOMMENDED_FIX** | Add diagnostic logging to the IGES adapter when entity parsing yields fewer than expected results relative to file size. Consider adding a minimum-entity warning to `ImportDiagnostics`. |
-| **STATUS** | OPEN — not fixed in this campaign |
+| **STATUS** | **FIXED (2026-11-13)** — Root cause: Hollerith string tokens were stripped below their declared length in `_tokenize_parameter_stream()`. Added `_is_hollerith_token` flag; Hollerith tokens appended without `.strip()`. Also: non-rigid-transform arcs now raise `_UnsupportedEntityError` (fatal=False) rather than `_MappingError`, preventing single-entity failures from aborting the whole parse. IGS-02 now DEGRADED, 560 refs, 16 surfaces. |
 
 ---
 
@@ -126,7 +130,7 @@
 | **REPRODUCTION** | Extract group code 1 values from any DXF file using MTEXT entities. Pass to `run_token_extraction()`. Observe 0 detections even when annotation text clearly contains numeric dimension values. |
 | **ROOT_CAUSE_IF_KNOWN** | The DXF-to-token pipeline does not include an MTEXT formatting code stripper before invoking the token extractor. MTEXT codes must be stripped (remove `\Wn.nnn;`, `\f...;`, `\H...;`, `\P` etc.) to expose clean text. Additionally, DXF dimension values are stored in geometry fields (group codes 10, 11, etc.) rather than text fields, so group code 1 extraction alone is insufficient. |
 | **RECOMMENDED_FIX** | Add a DXF MTEXT preprocessor that strips AutoCAD formatting codes before token extraction. For dimension values, also read DXF DIMENSION entity geometry coordinates. This would enable the drawing parser to correctly extract annotation data from DXF files. |
-| **STATUS** | OPEN — not fixed in this campaign |
+| **STATUS** | **FIXED (2026-11-13)** — Added `strip_mtext_codes()` in `semantic_extraction.py` that strips `\fFont;`, `\H2.0;`, `\W0.8;`, `\P`, `{\\...}` and converts `%%c→Ø`, `%%d→°`, `%%p→±`. Applied in `run_token_extraction()` when `source_type == DetectionSourceType.DXF`. DXF-30 now 20 refs, DXF-38 now 599 refs. |
 
 ---
 
@@ -144,8 +148,8 @@
 | **REPRODUCTION** | Import any IGES file with geometry. Check `doc.features.manufacturing_features`. Observe count=0 even when `doc.features.classified_faces` contains meaningful data. |
 | **ROOT_CAUSE_IF_KNOWN** | The manufacturing feature recognition step requires a CanonicalTopology (bodies, shells, edges) in addition to CanonicalGeometry. IGES import currently populates geometry but not topology (topology=None). Without topology, the feature recognizer cannot identify bounded features (pockets, bosses, holes) from free surface groups. |
 | **RECOMMENDED_FIX** | (a) Build CanonicalTopology from IGES trimmed surface/bounded surface entities. (b) Alternatively, implement a geometry-only feature recognizer that can identify cylindrical, planar, and helical surface groups as manufacturing feature candidates without full topology. |
-| **STATUS** | OPEN — not fixed in this campaign |
+| **STATUS** | **FIXED (2026-11-13)** — Added `elif cls == FaceClassification.PLANAR:` case in `_recognize_geometry_only()` (`feature_recognition.py`): each PLANAR surface produces `ManufacturingFeature(type=UNKNOWN, status=CANDIDATE)` with evidence note stating topology is required for CONFIRMED. IGS-01: 96 mfg_features (was 0), IGS-03: 64 mfg_features (was 0). |
 
 ---
 
-*End of defect register. 7 defects recorded. No defects fixed in this campaign.*
+*End of defect register. 7 defects recorded. 5 MAJOR defects fixed 2026-11-13. 2 MINOR defects remain OPEN.*

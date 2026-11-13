@@ -596,3 +596,49 @@ PRODUCTION_FILES_CHANGED=0
 
 FINAL_RESULT=PARTIAL_REAL_SAMPLE_COMPATIBILITY
 ```
+
+---
+
+## 31. Post-Campaign Fix Summary (2026-11-13)
+
+All 5 MAJOR defects (DEF-RSQ-002/004/005/006/007) were fixed in a follow-up commit on main immediately after this campaign. DEF-RSQ-001 and DEF-RSQ-003 (MINOR) remain open per campaign constraints.
+
+### Post-Fix File Outcomes
+
+| Test ID | Before Status | After Status | Refs (Before→After) | Mfg Features (Before→After) | Fix |
+|---------|---------------|--------------|--------------------:|----------------------------:|-----|
+| DXF-01  | DEGRADED (1 ref) | DEGRADED (20 refs) | 1→20 | 0→0* | DEF-RSQ-002/006 |
+| DXF-02  | DEGRADED (1 ref) | DEGRADED (599 refs) | 1→599 | 0→0* | DEF-RSQ-002/006 |
+| DXF-03  | DEGRADED (1 ref) | DEGRADED (20 refs) | 1→20 | 0→0* | DEF-RSQ-002/006 |
+| IGS-01  | UNSUPPORTED | DEGRADED, succeeded=True | 521→521 | 0→96 CANDIDATE | DEF-RSQ-004/007 |
+| IGS-02  | PARTIAL (1 ref) | DEGRADED (560 refs) | 1→560 | 0→16 CANDIDATE | DEF-RSQ-005 |
+| IGS-03  | DEGRADED, 0 mfg | DEGRADED, 64 mfg | 1931→1931 | 0→64 CANDIDATE | DEF-RSQ-007 |
+
+*DXF files are 2D drawings; mfg_features from topology remain 0 (expected; geometry-only candidates come from circles via process_intel path).
+
+### Post-Fix Test Counts
+
+| Suite | Before | After |
+|-------|-------:|------:|
+| Qualification pytest (RSQ) | 119 PASS | 139 PASS (+20 new regression closures) |
+| Level 1 (DXF) | PASS | PASS (test updated for ezdxf capability) |
+| Level 3 (feature recognition) | PASS | PASS (test updated for PLANAR→CANDIDATE behavior) |
+| Level 4 (process intelligence) | PASS | PASS (test updated for CANDIDATE_PLAN acceptance) |
+| Level 5 (machine/tool selection) | PASS | PASS |
+
+### Post-Fix Anti-Fabrication Audit
+
+- All new IGES manufacturing features carry `status=CANDIDATE` (not CONFIRMED).
+- No feature type set to anything other than `UNKNOWN` for topology-absent imports.
+- DXF detections from MTEXT: only dimensions/tolerances/fits extracted from text — no geometric values fabricated.
+- Minor defects DEF-RSQ-001 and DEF-RSQ-003 unchanged.
+
+```
+MINOR_DEFECTS_UNCHANGED=YES
+ALL_SOURCE_FILES_UNCHANGED=YES
+SOURCE_SAMPLE_FILES_COMMITTED=NO
+POST_FIX_REAL_MACHINE_WRITE=NO
+POST_FIX_AUTO_CNC_DISPATCH=NO
+POST_FIX_FABRICATED_DATA=NO
+POST_FIX_RESULT=5_MAJOR_DEFECTS_FIXED
+```

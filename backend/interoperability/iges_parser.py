@@ -311,13 +311,18 @@ def _tokenize_parameter_stream(
 ) -> tuple[str, ...]:
     tokens: list[str] = []
     token_parts: list[str] = []
+    # Hollerith tokens preserve trailing whitespace that is part of the declared
+    # string content; stripping them shortens the token below the declared length.
+    _is_hollerith_token = False
     index = 0
     terminated = False
     while index < len(stream):
         char = stream[index]
         if char == parameter_delimiter or char == record_delimiter:
-            tokens.append("".join(token_parts).strip())
+            raw = "".join(token_parts)
+            tokens.append(raw if _is_hollerith_token else raw.strip())
             token_parts.clear()
+            _is_hollerith_token = False
             index += 1
             if char == record_delimiter:
                 terminated = True
@@ -328,6 +333,7 @@ def _tokenize_parameter_stream(
             if hollerith is not None:
                 content, index = hollerith
                 token_parts.append(f"{len(content)}H{content}")
+                _is_hollerith_token = True
                 continue
         token_parts.append(char)
         index += 1

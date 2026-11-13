@@ -123,6 +123,16 @@ class _MappingError(ValueError):
     pass
 
 
+class _UnsupportedEntityError(ValueError):
+    """Entity is a supported type but this instance cannot be mapped (non-fatal).
+
+    Raised instead of _MappingError when the entity should be silently skipped
+    rather than failing the whole import (e.g. non-rigid transformation on a
+    circular arc from a CATIA V5 mirror-symmetry export).
+    """
+    pass
+
+
 @dataclass(frozen=True, slots=True)
 class IgesMappingIssue:
     de_pointer: int
@@ -494,7 +504,9 @@ class _MappingContext:
         _require_parameter_count(entity, 8, "type 100 circular arc")
         matrix = self._matrix_for_entity(entity)
         if not _is_rigid(matrix):
-            raise _MappingError("type 100 arc requires a rigid transformation")
+            raise _UnsupportedEntityError(
+                "type 100 arc: non-rigid transformation (mirror/scale not supported)"
+            )
         z = _numeric(entity, 1, "plane Z")
         center_raw = (_numeric(entity, 2, "center X"), _numeric(entity, 3, "center Y"), z)
         start_raw = (_numeric(entity, 4, "start X"), _numeric(entity, 5, "start Y"), z)
@@ -618,7 +630,9 @@ class _MappingContext:
         _require_parameter_count(entity, 5, "type 108 plane")
         matrix = self._matrix_for_entity(entity)
         if not _is_rigid(matrix):
-            raise _MappingError("type 108 plane requires a rigid transformation")
+            raise _UnsupportedEntityError(
+                "type 108 plane: non-rigid transformation (mirror/scale not supported)"
+            )
         coefficients = tuple(_numeric(entity, index, "plane coefficient") for index in range(1, 4))
         displacement = _numeric(entity, 4, "plane displacement")
         norm_squared = sum(value * value for value in coefficients)
@@ -951,6 +965,15 @@ class _MappingContext:
                         self.surfaces[entity.directory.de_pointer] = mapped
                         kind = "IgesCanonicalSurface"
                     self._add_ref(entity, kind)
+                except _UnsupportedEntityError as exc:
+                    # Non-fatal: entity instance cannot be mapped (e.g. non-rigid
+                    # transformation) but does not invalidate the rest of the file.
+                    self._record_issue(
+                        entity,
+                        f"unsupported IGES entity instance type {entity_type}: {exc}",
+                        fatal=False,
+                        affects_topology=False,
+                    )
                 except (_MappingError, ValidationError, InvalidOperation) as exc:
                     self._record_issue(
                         entity,

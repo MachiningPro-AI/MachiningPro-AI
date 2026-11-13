@@ -403,12 +403,26 @@ class TestNegativeRules:
         assert feat.status == FeatureStatus.CANDIDATE
         assert feat.hole_subtype == HoleSubtype.UNKNOWN
 
-    def test_plane_surface_alone_produces_no_feature_candidate(self) -> None:
-        """A lone planar surface without topology/adjacency MUST NOT produce a feature."""
+    def test_plane_surface_alone_produces_candidate_unknown(self) -> None:
+        """A lone planar surface without topology MUST produce a CANDIDATE/UNKNOWN feature.
+
+        DEF-RSQ-007: planar surfaces now emit CANDIDATE with UNKNOWN type so that
+        real IGES files (CATIA export) are not silently swallowed. The operation
+        (facing/step/pocket floor) can only be determined once topology is available.
+        CONFIRMED must never be set without topology.
+        """
         geo = _geometry_with_surfaces(_plane_surface("S1"))
         result = recognize_features(geo, None)
-        assert len(result.features) == 0
         assert result.planar_face_count == 1
+        assert len(result.features) == 1, "Lone planar surface must produce exactly one CANDIDATE"
+        feat = result.features[0]
+        assert feat.status == FeatureStatus.CANDIDATE, "Planar surface feature must be CANDIDATE"
+        assert feat.feature_type == ManufacturingFeatureType.UNKNOWN, (
+            "Planar surface feature type must be UNKNOWN (topology required for type determination)"
+        )
+        assert all(
+            f.status != FeatureStatus.CONFIRMED for f in result.features
+        ), "No feature from lone planar surface may be CONFIRMED without topology"
 
     def test_bspline_surface_produces_no_feature_candidate(self) -> None:
         """A B-spline/NURBS surface MUST NOT produce any feature candidate."""
@@ -784,11 +798,17 @@ class TestProductionFileRegressions:
         assert doc.features.hole_candidates == 0
 
     def test_iges_no_fabricated_features(self) -> None:
-        """Feature count must reflect real geometry — not hard-coded."""
+        """Features must reflect real geometry — no CONFIRMED features without topology."""
         doc = self._load_iges_doc()
         assert doc.features is not None
-        # Total features is exactly 0 (no cylinder/cone/tori in production file)
-        assert len(doc.features.features) == 0
+        # PLANAR surfaces now produce UNKNOWN CANDIDATE features (DEF-RSQ-007 fix).
+        # No feature must be CONFIRMED without topology (that would be fabrication).
+        from backend.interoperability.features import FeatureStatus
+        for feat in doc.features.features:
+            assert feat.status == FeatureStatus.CANDIDATE, (
+                f"CONFIRMED feature without topology: type={feat.feature_type} "
+                f"status={feat.status} — possible fabrication"
+            )
 
     def test_iges_topology_not_available(self) -> None:
         doc = self._load_iges_doc()

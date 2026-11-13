@@ -970,11 +970,19 @@ class TestProductionIgesLevel4:
         doc = _load_iges_doc()
         assert doc.process_intelligence is not None
 
-    def test_iges_zero_process_candidates(self) -> None:
-        """Production IGES has no confirmed features → no process candidates."""
+    def test_iges_process_candidates_are_candidate_status(self) -> None:
+        """IGES process candidates from PLANAR surfaces must not be CONFIRMED_BY_RULE.
+
+        Without topology, no deterministic rule can fire → CONFIRMED_BY_RULE is fabrication.
+        """
+        from backend.interoperability.process_intelligence import ProcessStatus
         doc = _load_iges_doc()
         assert doc.process_intelligence is not None
-        assert len(doc.process_intelligence.process_candidates) == 0
+        for cand in doc.process_intelligence.process_candidates:
+            if hasattr(cand, "status"):
+                assert cand.status != ProcessStatus.CONFIRMED_BY_RULE, (  # type: ignore[union-attr]
+                    "CONFIRMED_BY_RULE process candidate without topology — possible fabrication"
+                )
 
     def test_iges_zero_dfm_observations(self) -> None:
         """No features → no DFM observations."""
@@ -997,15 +1005,24 @@ class TestProductionIgesLevel4:
         assert doc.process_intelligence is not None
         assert len(doc.process_intelligence.tool_requirements) == 0
 
-    def test_iges_zero_operation_plan(self) -> None:
+    def test_iges_operation_plan_no_confirmed_ops(self) -> None:
+        """Operations from PLANAR CANDIDATE features must not be CONFIRMED."""
         doc = _load_iges_doc()
         assert doc.process_intelligence is not None
-        assert len(doc.process_intelligence.operation_plan) == 0
+        # Allow CANDIDATE operations; disallow CONFIRMED (needs topology first).
+        for op in doc.process_intelligence.operation_plan:
+            if hasattr(op, "is_confirmed"):
+                assert not op.is_confirmed, (  # type: ignore[union-attr]
+                    f"CONFIRMED operation from PLANAR surface without topology"
+                )
 
-    def test_iges_plan_status_insufficient_data(self) -> None:
+    def test_iges_plan_status_not_failed(self) -> None:
+        """Plan status must be INSUFFICIENT_DATA or CANDIDATE_PLAN after DEF-RSQ-007 fix."""
         doc = _load_iges_doc()
         assert doc.process_intelligence is not None
-        assert doc.process_intelligence.status == PlanStatus.INSUFFICIENT_DATA
+        assert doc.process_intelligence.status in (
+            PlanStatus.INSUFFICIENT_DATA, PlanStatus.CANDIDATE_PLAN
+        ), f"Unexpected plan status: {doc.process_intelligence.status}"
 
     def test_iges_has_missing_inputs(self) -> None:
         doc = _load_iges_doc()

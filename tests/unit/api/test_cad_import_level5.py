@@ -885,12 +885,15 @@ class TestAlternativesAndRanking:
 @pytest.mark.skipif(not _has_iges(), reason="production IGES file not available")
 class TestProductionIgesLevel5:
     def test_iges_no_l4_regression(self) -> None:
-        """L4 process_intelligence must still be present and INSUFFICIENT_DATA."""
+        """L4 process_intelligence must be present. After DEF-RSQ-007 fix PLANAR surfaces
+        produce CANDIDATE features; status may be INSUFFICIENT_DATA or CANDIDATE_PLAN."""
         from backend.interoperability.process_intelligence import PlanStatus
 
         doc = _load_iges_doc()
         assert doc.process_intelligence is not None
-        assert doc.process_intelligence.status == PlanStatus.INSUFFICIENT_DATA
+        assert doc.process_intelligence.status in (
+            PlanStatus.INSUFFICIENT_DATA, PlanStatus.CANDIDATE_PLAN
+        ), f"Unexpected plan status: {doc.process_intelligence.status}"
 
     def test_iges_machine_tool_intelligence_field_present(self) -> None:
         doc = _load_iges_doc()

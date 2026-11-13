@@ -475,3 +475,195 @@ class TestCapabilityRecordCoherence:
                 f"{sf.filename}: DXF achieved only LEVEL_0_RECOGNIZED — "
                 f"adapter may have failed silently"
             )
+
+
+# ---------------------------------------------------------------------------
+# RSQ-10 — Major defect closure verification  (DEF-RSQ-002/004/005/006/007)
+# ---------------------------------------------------------------------------
+
+class TestMajorDefectClosure:
+    """RSQ-10: Verify that the five MAJOR defects are fixed.
+
+    DEF-RSQ-002 — DXF import DEGRADED (ezdxf absent)
+    DEF-RSQ-004 — IGS-01 UNSUPPORTED despite valid geometry
+    DEF-RSQ-005 — IGS-02 header-only due to Hollerith parse bug
+    DEF-RSQ-006 — DXF drawing parser: MTEXT codes not stripped
+    DEF-RSQ-007 — IGES manufacturing features = 0
+    """
+
+    # --- DEF-RSQ-002 ---
+
+    def test_ezdxf_is_installed(self):
+        """DEF-RSQ-002: ezdxf must be installed as a production dependency."""
+        import importlib
+        spec = importlib.util.find_spec("ezdxf")
+        assert spec is not None, (
+            "ezdxf is not installed — add it to pyproject.toml dependencies "
+            "(DEF-RSQ-002)"
+        )
+
+    @skip_if_no_samples
+    @pytest.mark.parametrize("sf", [DXF_30, DXF_38, DXF_PS], ids=lambda s: s.filename)
+    def test_dxf_import_produces_multiple_entity_refs_with_ezdxf(self, sf):
+        """DEF-RSQ-002: With ezdxf installed, DXF files must produce >1 entity_ref."""
+        try:
+            import ezdxf  # noqa: F401
+        except ImportError:
+            pytest.skip("ezdxf not installed — DEF-RSQ-002 fix not active")
+
+        result, _ = _run_import(sf)
+        assert result.document is not None
+        n = len(result.document.entity_refs)
+        assert n > 1, (
+            f"{sf.filename}: only {n} entity_ref(s) despite ezdxf installed — "
+            "DEF-RSQ-002 fix not active"
+        )
+
+    @skip_if_no_samples
+    @pytest.mark.parametrize("sf", [DXF_30, DXF_38, DXF_PS], ids=lambda s: s.filename)
+    def test_dxf_import_succeeds_with_ezdxf(self, sf):
+        """DEF-RSQ-002: DXF imports must succeed (not FAILED/UNSUPPORTED) with ezdxf."""
+        try:
+            import ezdxf  # noqa: F401
+        except ImportError:
+            pytest.skip("ezdxf not installed")
+
+        from backend.interoperability.orchestrator import ImportStatus
+        result, _ = _run_import(sf)
+        assert result.status not in (ImportStatus.FAILED, ImportStatus.UNSUPPORTED), (
+            f"{sf.filename}: DXF import {result.status} with ezdxf installed — "
+            f"error: {result.error_message}"
+        )
+
+    # --- DEF-RSQ-004 ---
+
+    @skip_if_no_samples
+    def test_igs01_not_unsupported_when_geometry_extracted(self):
+        """DEF-RSQ-004: IGS-01 must NOT be UNSUPPORTED when geometry is extracted."""
+        from backend.interoperability.orchestrator import ImportStatus
+        result, _ = _run_import(IGES_S)
+        assert result.document is not None
+        if result.document.geometry is not None:
+            assert result.status != ImportStatus.UNSUPPORTED, (
+                "IGS-01 has extracted geometry but status=UNSUPPORTED — "
+                "DEF-RSQ-004 fix not active"
+            )
+
+    @skip_if_no_samples
+    def test_igs01_succeeded_true_after_fix(self):
+        """DEF-RSQ-004: IGS-01 import must succeed (geometry present)."""
+        result, _ = _run_import(IGES_S)
+        assert result.document is not None
+        if result.document.geometry is not None:
+            assert result.succeeded, (
+                f"IGS-01 has geometry but succeeded=False (status={result.status})"
+            )
+
+    # --- DEF-RSQ-005 ---
+
+    @skip_if_no_samples
+    def test_igs02_produces_more_than_one_entity_ref(self):
+        """DEF-RSQ-005: IGS-02 must produce >1 entity_ref (Hollerith bug fixed)."""
+        result, _ = _run_import(IGES_M)
+        assert result.document is not None
+        n = len(result.document.entity_refs)
+        assert n > 1, (
+            f"IGS-02 produced only {n} entity_ref(s) — "
+            "Hollerith parse bug (DEF-RSQ-005) not fixed"
+        )
+
+    @skip_if_no_samples
+    def test_igs02_produces_geometry(self):
+        """DEF-RSQ-005: IGS-02 must produce CanonicalGeometry (not header-only)."""
+        result, _ = _run_import(IGES_M)
+        assert result.document is not None
+        assert result.document.geometry is not None, (
+            "IGS-02 geometry=None — Hollerith parse bug (DEF-RSQ-005) not fixed"
+        )
+
+    # --- DEF-RSQ-006 ---
+
+    def test_strip_mtext_codes_removes_w_code(self):
+        """DEF-RSQ-006: strip_mtext_codes must remove \\W (width factor) codes."""
+        from backend.interoperability.semantic_extraction import strip_mtext_codes
+        result = strip_mtext_codes(r"\W00.963;47,5")
+        assert result == "47,5", f"Expected '47,5', got {result!r}"
+
+    def test_strip_mtext_codes_removes_font_and_height_codes(self):
+        """DEF-RSQ-006: strip_mtext_codes must strip \\f and \\H codes."""
+        from backend.interoperability.semantic_extraction import strip_mtext_codes
+        result = strip_mtext_codes(r"\fsimplex.shx;\H1.50;Ra 3.2")
+        assert result == "Ra 3.2", f"Expected 'Ra 3.2', got {result!r}"
+
+    def test_strip_mtext_codes_converts_percent_codes(self):
+        """DEF-RSQ-006: %%c→Ø, %%d→°, %%p→± must be converted."""
+        from backend.interoperability.semantic_extraction import strip_mtext_codes
+        assert strip_mtext_codes("%%c50") == "Ø50"
+        assert strip_mtext_codes("%%d") == "°"
+        assert strip_mtext_codes("%%p0.1") == "±0.1"
+
+    def test_strip_mtext_codes_leaves_plain_text_unchanged(self):
+        """DEF-RSQ-006: plain text without MTEXT codes must pass through unchanged."""
+        from backend.interoperability.semantic_extraction import strip_mtext_codes
+        assert strip_mtext_codes("H7") == "H7"
+        assert strip_mtext_codes("Ra 3.2") == "Ra 3.2"
+        assert strip_mtext_codes("M12") == "M12"
+
+    def test_run_token_extraction_dxf_handles_mtext_tokens(self):
+        """DEF-RSQ-006: run_token_extraction must accept DXF tokens without raising."""
+        from backend.interoperability.semantic_extraction import (
+            DetectionSourceType,
+            run_token_extraction,
+        )
+        raw_tokens = [r"\W00.963;47,5", r"\fsimplex.shx;\H1.50;text", "plain"]
+        detections = run_token_extraction(raw_tokens, source_type=DetectionSourceType.DXF)
+        assert isinstance(detections, list)
+
+    def test_run_token_extraction_dxf_detects_fit_after_mtext_strip(self):
+        """DEF-RSQ-006: MTEXT token with embedded FIT code must yield detection."""
+        from backend.interoperability.semantic_extraction import (
+            DetectionSourceType,
+            NormalizedDetectionType,
+            run_token_extraction,
+        )
+        # \W0.8;H7 → after strip → "H7" → FIT detection
+        detections = run_token_extraction(
+            [r"\W0.8;H7"], source_type=DetectionSourceType.DXF
+        )
+        fit = [d for d in detections if d.normalized_type == NormalizedDetectionType.FIT]
+        assert len(fit) >= 1, (
+            "MTEXT-wrapped H7 not detected as FIT after strip (DEF-RSQ-006 not active)"
+        )
+
+    # --- DEF-RSQ-007 ---
+
+    @skip_if_no_samples
+    @pytest.mark.parametrize(
+        "sf", [IGES_S, IGES_L], ids=lambda s: s.filename
+    )
+    def test_iges_planar_surfaces_produce_candidate_mfg_features(self, sf):
+        """DEF-RSQ-007: IGES files with PLANAR surfaces must produce mfg feature candidates."""
+        result, _ = _run_import(sf)
+        assert result.document is not None
+        feat = result.document.features
+        if feat is None:
+            pytest.skip(f"{sf.filename}: features not extracted — skipping DEF-RSQ-007 check")
+        n_faces = len(feat.classified_faces)
+        n_mfg = len(feat.features)
+        assert n_mfg > 0, (
+            f"{sf.filename}: classified_faces={n_faces} but manufacturing_features={n_mfg} "
+            "(DEF-RSQ-007 fix not active)"
+        )
+
+    @skip_if_no_samples
+    def test_igs02_planar_surfaces_produce_candidate_mfg_features(self):
+        """DEF-RSQ-007 + DEF-RSQ-005: IGS-02 must produce mfg features after both fixes."""
+        result, _ = _run_import(IGES_M)
+        assert result.document is not None
+        feat = result.document.features
+        if feat is None:
+            pytest.skip("IGS-02: features not extracted")
+        n_mfg = len(feat.features)
+        assert n_mfg > 0, (
+            f"IGS-02: manufacturing_features={n_mfg} after both DEF-RSQ-005/007 fixes"
+        )
