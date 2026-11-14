@@ -261,6 +261,22 @@ class RouteGenerator:
                     "100% size inspection required before GD&T conformance check"
                 )
 
+            # R-RT-GDT-007: Parallelism — surface grinding or precision milling
+            elif char == GdtCharacteristic.PARALLELISM:
+                warnings.append(
+                    f"R-RT-GDT-007 [{geom.req_id}]: PARALLELISM {tol} mm — "
+                    "surface grinding or precision milling recommended; "
+                    "machine parallelism capability must be reviewed"
+                )
+
+            # R-RT-GDT-008: Flatness — finishing / inspection step
+            elif char == GdtCharacteristic.FLATNESS:
+                warnings.append(
+                    f"R-RT-GDT-008 [{geom.req_id}]: FLATNESS {tol} mm — "
+                    "surface plate inspection or grinding required; "
+                    "verify surface finishing step in route"
+                )
+
         return warnings
 
     # ------------------------------------------------------------------ #
