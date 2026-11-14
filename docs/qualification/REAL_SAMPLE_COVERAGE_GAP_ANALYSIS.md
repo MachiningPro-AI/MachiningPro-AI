@@ -1,12 +1,14 @@
 # Real Sample Coverage Gap Analysis
 
 **Campaign:** MACHININGPRO_AI_REAL_SAMPLE_COVERAGE_EXPANSION_ANALYSIS  
-**Date:** 2026-11-13  
-**Branch:** main | HEAD: f723767  
+**Date (P0):** 2026-11-13 | **Date (P1 update):** 2026-11-14  
+**Branch:** main | HEAD (P0): f723767 | HEAD_BEFORE_P1: 17bcdc9  
 **Analyst:** Qualification automation  
 **Precondition:** All 5 MAJOR defects (DEF-RSQ-002/004/005/006/007) fixed in f723767.  
+**P1 completion:** P1-A (hybrid PDF), P1-B (DXF annotation linking), P1-C (IGES topology), P1-D (partial arc recognition) implemented and tested.  
 
-> HARD RULE: No production code changed. No source files modified. Analysis only.
+> HARD RULE: No production code changed during P0 analysis. P1 changes tracked separately.  
+> DWG and `.model` remain UNSUPPORTED / DEFERRED — NOT changed by P1.
 
 ---
 
@@ -637,14 +639,16 @@ Prioritized by: user value · feasibility · license safety · engineering safet
 | P0-2: Title block material extraction from DXF MTEXT | Most DXF drawings have material in title block; Turkish TS standard pattern | Reduces user burden for DXF files |
 | P0-3: Granular pipeline status badges | Replaces binary PASS/FAIL; communicates correct readiness | All 6 supported-format files display meaningful state |
 
-### P1 — High value, moderate engineering effort
+### P1 — High value, moderate engineering effort ✓ COMPLETED 2026-11-14
 
-| Task | Rationale | Coverage gain |
-|------|-----------|---------------|
-| P1-1: IGES topology reconstruction (simple cases) | Unlocks CONFIRMED features for IGS-01/02/03; enables operation generation | 3 IGES files reach FEATURE_CONFIRMED |
-| P1-2: DXF annotation → feature association (proximity matching) | Links dimension values to hole candidates; enables depth-aware process planning | DXF-01, DXF-03 improve from CANDIDATE to depth-confirmed candidates |
-| P1-3: PDF OCR fallback (pdfplumber → pytesseract) | These 3 PDFs have rasterized drawings; OCR is the only engineering-data path | 3 PDF files reach GEOMETRY/ANNOTATION partial coverage |
-| P1-4: DXF ARC group → CANDIDATE feature (partial circle detection) | Recovers DXF-02 (64 ARC entities; potential pocket/slot geometry) | 1 file (DXF-02) goes from NO_FEATURE to CANDIDATE |
+| Task | Rationale | Coverage gain | P1 Status |
+|------|-----------|---------------|-----------|
+| P1-1: IGES topology reconstruction (simple cases) | Surface grouping (planar/cylindrical/freeform); closed_body=NO for surface-only | IGS-01/02/03: TOPOLOGY_PARTIAL (surface groups); no fabricated B-Rep | **DONE** — `iges_topology_reconstruction.py` |
+| P1-2: DXF annotation → feature association (proximity matching) | Spatial linking of DIMENSION/MTEXT/TEXT/ATTRIB to circle/arc features | DXF-01, DXF-03: annotation links AVAILABLE; DXF-02: links to arc candidates when confirmed | **DONE** — `dxf_annotation_linker.py` |
+| P1-3: Hybrid PDF extraction (native text → vector check → OCR fallback) | 3-stage pipeline: native first, vector check, OCR only for raster regions | PDF-01/02/03: drawing intelligence PARTIAL (native text from title block; OCR available for raster area) | **DONE** — `hybrid_pdf_drawing.py` |
+| P1-4: DXF ARC group → CIRCULAR_BOUNDARY_CANDIDATE (partial circle detection) | Guarded ARC grouping (≥2 arcs, compatible center+radius, ≥60° coverage) | DXF-02: 0→PT feature stage (ARC candidates); single-ARC false-positive guard active | **DONE** — `cad_feature_recognition.py` (recognize_circular_boundaries) |
+
+**DWG and `.model` remain UNSUPPORTED / DEFERRED. NOT addressed in P1.**
 
 ### P2 — Medium value, notable complexity or external dependency
 
