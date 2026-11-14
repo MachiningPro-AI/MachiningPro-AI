@@ -528,6 +528,7 @@ def extract_iges_feature_candidates(
     from decimal import Decimal
     from types import MappingProxyType
 
+    from backend.domain.units import Quantity, Unit
     from backend.interoperability.cad_feature_recognition import (
         FeatureRecognitionConfidence,
         ManufacturingFeature,
@@ -535,11 +536,9 @@ def extract_iges_feature_candidates(
         RecognitionMethod,
     )
     from backend.interoperability.geometry import (
-        CanonicalPoint3D,
         CanonicalSurfaceType,
         CanonicalVector3D,
     )
-    from backend.domain.units import Quantity, Unit
 
     def _qty(v: float) -> Quantity:
         return Quantity(value=Decimal(str(round(v, 4))), unit=Unit.MM)

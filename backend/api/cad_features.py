@@ -32,6 +32,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
+from backend.interoperability.association import AnnotationType
 from backend.interoperability.cad_feature_recognition import (
     FeatureRecognitionConfidence,
     ManufacturingFeatureRecognitionResult,
@@ -298,8 +299,13 @@ _HISTOGRAM_ENTITY_TYPES = frozenset({
     "ELLIPSE", "SPLINE", "INSERT", "BLOCK",
     "DIMENSION", "TEXT", "MTEXT",
 })
-_ANNOTATION_ENTITY_TYPES_CF = frozenset({"DIMENSION", "TEXT", "MTEXT", "LEADER", "MLEADER", "ATTDEF", "ATTRIB"})
-_GEOMETRY_ENTITY_TYPES_CF = frozenset({"CIRCLE", "ARC", "LINE", "LWPOLYLINE", "POLYLINE", "ELLIPSE", "SPLINE", "INSERT", "BLOCK"})
+_ANNOTATION_ENTITY_TYPES_CF = frozenset({
+    "DIMENSION", "TEXT", "MTEXT", "LEADER", "MLEADER", "ATTDEF", "ATTRIB",
+})
+_GEOMETRY_ENTITY_TYPES_CF = frozenset({
+    "CIRCLE", "ARC", "LINE", "LWPOLYLINE", "POLYLINE",
+    "ELLIPSE", "SPLINE", "INSERT", "BLOCK",
+})
 
 
 def _parse_dxf_2d(content_bytes: bytes) -> tuple[list, dict]:
@@ -357,14 +363,20 @@ def _parse_dxf_2d(content_bytes: bytes) -> tuple[list, dict]:
                     if c2 == "8":
                         layer = v2
                     elif c2 == "10":
-                        try: cx = float(v2)
-                        except ValueError: pass
+                        try:
+                            cx = float(v2)
+                        except ValueError:
+                            pass
                     elif c2 == "20":
-                        try: cy = float(v2)
-                        except ValueError: pass
+                        try:
+                            cy = float(v2)
+                        except ValueError:
+                            pass
                     elif c2 == "40":
-                        try: r = float(v2)
-                        except ValueError: pass
+                        try:
+                            r = float(v2)
+                        except ValueError:
+                            pass
                 if r > 0.0:
                     entities.append(Dxf2dEntity(
                         entity_type="CIRCLE", layer=layer,
@@ -383,20 +395,30 @@ def _parse_dxf_2d(content_bytes: bytes) -> tuple[list, dict]:
                     if c2 == "8":
                         layer = v2
                     elif c2 == "10":
-                        try: cx = float(v2)
-                        except ValueError: pass
+                        try:
+                            cx = float(v2)
+                        except ValueError:
+                            pass
                     elif c2 == "20":
-                        try: cy = float(v2)
-                        except ValueError: pass
+                        try:
+                            cy = float(v2)
+                        except ValueError:
+                            pass
                     elif c2 == "40":
-                        try: r = float(v2)
-                        except ValueError: pass
+                        try:
+                            r = float(v2)
+                        except ValueError:
+                            pass
                     elif c2 == "50":
-                        try: sa = float(v2)
-                        except ValueError: pass
+                        try:
+                            sa = float(v2)
+                        except ValueError:
+                            pass
                     elif c2 == "51":
-                        try: se = float(v2)
-                        except ValueError: pass
+                        try:
+                            se = float(v2)
+                        except ValueError:
+                            pass
                 if r > 0.0:
                     entities.append(Dxf2dEntity(
                         entity_type="ARC", layer=layer,
@@ -419,17 +441,23 @@ def _parse_dxf_2d(content_bytes: bytes) -> tuple[list, dict]:
                     if c2 == "8":
                         layer = v2
                     elif c2 == "70":
-                        try: closed = bool(int(v2) & 1)
-                        except ValueError: pass
+                        try:
+                            closed = bool(int(v2) & 1)
+                        except ValueError:
+                            pass
                     elif c2 == "10":
                         if cur_x is not None and cur_y is not None:
                             verts.append((cur_x, cur_y))
-                        try: cur_x = float(v2)
-                        except ValueError: cur_x = None
+                        try:
+                            cur_x = float(v2)
+                        except ValueError:
+                            cur_x = None
                         cur_y = None
                     elif c2 == "20":
-                        try: cur_y = float(v2)
-                        except ValueError: pass
+                        try:
+                            cur_y = float(v2)
+                        except ValueError:
+                            pass
                 if cur_x is not None and cur_y is not None:
                     verts.append((cur_x, cur_y))
                 if verts:
@@ -451,20 +479,30 @@ def _parse_dxf_2d(content_bytes: bytes) -> tuple[list, dict]:
                     if c2 == "8":
                         layer = v2
                     elif c2 == "10":
-                        try: cx = float(v2)
-                        except ValueError: pass
+                        try:
+                            cx = float(v2)
+                        except ValueError:
+                            pass
                     elif c2 == "20":
-                        try: cy = float(v2)
-                        except ValueError: pass
+                        try:
+                            cy = float(v2)
+                        except ValueError:
+                            pass
                     elif c2 == "11":
-                        try: mx = float(v2)
-                        except ValueError: pass
+                        try:
+                            mx = float(v2)
+                        except ValueError:
+                            pass
                     elif c2 == "21":
-                        try: my = float(v2)
-                        except ValueError: pass
+                        try:
+                            my = float(v2)
+                        except ValueError:
+                            pass
                     elif c2 == "40":
-                        try: ratio = float(v2)
-                        except ValueError: pass
+                        try:
+                            ratio = float(v2)
+                        except ValueError:
+                            pass
                 entities.append(Dxf2dEntity(
                     entity_type="ELLIPSE", layer=layer,
                     center_x=cx, center_y=cy,
@@ -485,7 +523,6 @@ def _parse_dxf_annotations(content_bytes: bytes) -> list:
 
     FABRICATED_ANNOTATION=NO
     """
-    from backend.interoperability.association import AnnotationType
     from backend.interoperability.dxf_annotation_linker import (
         DxfAnnotation,
         DxfAnnotationSource,
@@ -541,26 +578,40 @@ def _parse_dxf_annotations(content_bytes: bytes) -> list:
                     elif c2 == "8":
                         layer = v2
                     elif c2 == "10":
-                        try: dp1x = float(v2)
-                        except ValueError: pass
+                        try:
+                            dp1x = float(v2)
+                        except ValueError:
+                            pass
                     elif c2 == "20":
-                        try: dp1y = float(v2)
-                        except ValueError: pass
+                        try:
+                            dp1y = float(v2)
+                        except ValueError:
+                            pass
                     elif c2 == "11":
-                        try: ix = float(v2)
-                        except ValueError: pass
+                        try:
+                            ix = float(v2)
+                        except ValueError:
+                            pass
                     elif c2 == "21":
-                        try: iy = float(v2)
-                        except ValueError: pass
+                        try:
+                            iy = float(v2)
+                        except ValueError:
+                            pass
                     elif c2 == "13":
-                        try: dp2x = float(v2)
-                        except ValueError: pass
+                        try:
+                            dp2x = float(v2)
+                        except ValueError:
+                            pass
                     elif c2 == "23":
-                        try: dp2y = float(v2)
-                        except ValueError: pass
+                        try:
+                            dp2y = float(v2)
+                        except ValueError:
+                            pass
                     elif c2 == "70":
-                        try: dim_type = int(v2) & 0x0F
-                        except ValueError: pass
+                        try:
+                            dim_type = int(v2) & 0x0F
+                        except ValueError:
+                            pass
                 if dp1x is None and ix is None:
                     continue
                 subtype = {0: "LINEAR", 1: "ALIGNED", 2: "ANGULAR", 3: "DIAMETRAL",
@@ -598,11 +649,15 @@ def _parse_dxf_annotations(content_bytes: bytes) -> list:
                     elif c2 == "8":
                         layer = v2
                     elif c2 == "10":
-                        try: ix = float(v2)
-                        except ValueError: pass
+                        try:
+                            ix = float(v2)
+                        except ValueError:
+                            pass
                     elif c2 == "20":
-                        try: iy = float(v2)
-                        except ValueError: pass
+                        try:
+                            iy = float(v2)
+                        except ValueError:
+                            pass
                 if not ann_text.strip() or ix is None:
                     continue
                 src = DxfAnnotationSource.MTEXT if etype == "MTEXT" else DxfAnnotationSource.TEXT
@@ -623,12 +678,11 @@ def _parse_dxf_annotations(content_bytes: bytes) -> list:
     return annotations
 
 
-def _classify_annotation_text(text: str) -> "AnnotationType":
+def _classify_annotation_text(text: str) -> AnnotationType:
     """Classify annotation text to AnnotationType using existing parsers."""
-    from backend.interoperability.association import AnnotationType
-    from backend.interoperability.fit_drawing import parse_fit_token, FitParseStatus
-    from backend.interoperability.thread_drawing import parse_thread_token
+    from backend.interoperability.fit_drawing import FitParseStatus, parse_fit_token
     from backend.interoperability.surface_finish_drawing import parse_surface_finish_token
+    from backend.interoperability.thread_drawing import parse_thread_token
 
     t = text.strip()
     if not t:
