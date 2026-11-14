@@ -44,6 +44,7 @@ from .drawing_to_process import router as drawing_to_process_router
 from .engineering_import import router as engineering_import_router
 from .export import router as export_router
 from .missing_data import router as missing_data_router
+from .setup_stock import router as setup_stock_router
 from .gdt import router as gdt_router
 from .job_planning import router as job_planning_router
 from .machines import router as machines_router
@@ -123,6 +124,7 @@ app.include_router(workflow_router)
 app.include_router(cad_upload_router)
 app.include_router(export_router)
 app.include_router(missing_data_router)
+app.include_router(setup_stock_router)
 
 
 # ---------------------------------------------------------------------------
