@@ -1459,6 +1459,60 @@ export interface TranslationDictionary {
   cfAutoMatched: string
   cfCadOnly: string
 
+  // P3-A: Feature & Dimension Review
+  p3Feat_reviewTitle: string
+  p3Feat_reviewSubtitle: string
+  p3Feat_typeLabel: string
+  p3Feat_typeHint: string
+  p3Feat_depthLabel: string
+  p3Feat_depthHint: string
+  p3Feat_widthLabel: string
+  p3Feat_widthHint: string
+  p3Feat_notesLabel: string
+  p3Feat_confirmWithDim: string
+  p3Feat_provenance: string
+  p3Feat_depthUserOnly: string
+  p3Feat_reviewRequired: string
+  p3Feat_dimensionConfirmed: string
+  p3Feat_keepCurrentType: string
+
+  // P3-B: Setup & Stock Definition
+  p3Stock_title: string
+  p3Stock_subtitle: string
+  p3Stock_shapeLabel: string
+  p3Stock_rectBlock: string
+  p3Stock_roundBar: string
+  p3Stock_ring: string
+  p3Stock_plate: string
+  p3Stock_forging: string
+  p3Stock_lengthLabel: string
+  p3Stock_widthLabel: string
+  p3Stock_heightLabel: string
+  p3Stock_diameterLabel: string
+  p3Stock_innerDiamLabel: string
+  p3Stock_materialLabel: string
+  p3Stock_materialHint: string
+  p3Stock_notesLabel: string
+  p3Stock_saveButton: string
+  p3Stock_setupTitle: string
+  p3Stock_datumA: string
+  p3Stock_datumB: string
+  p3Stock_datumC: string
+  p3Stock_nSetups: string
+  p3Stock_fixtureNote: string
+  p3Stock_orientationLabel: string
+  p3Stock_saveSetup: string
+  p3Stock_provenanceNote: string
+  p3Stock_camPrereqMet: string
+  p3Stock_camPrereqMissing: string
+
+  // P3-C: OCR Status
+  p3Ocr_statusTitle: string
+  p3Ocr_available: string
+  p3Ocr_unavailable: string
+  p3Ocr_installHint: string
+  p3Ocr_reviewNote: string
+
   // Process Capability & Calibration (EPIC_04F)
   calPageTitle: string
   calPageSubtitle: string

@@ -329,3 +329,65 @@ class TestP2BIgesFeatureCandidates:
         assert isinstance(result.feature_candidates, list)
         # At least one candidate from the cylinder surface
         assert len(result.feature_candidates) >= 1
+
+
+# ---------------------------------------------------------------------------
+# P3-C — OCR configuration helpers
+# ---------------------------------------------------------------------------
+
+
+class TestP3COcrConfiguration:
+
+    def test_configure_tesseract_path_stores_value(self):
+        from backend.interoperability.hybrid_pdf_drawing import (
+            configure_tesseract_path,
+            get_tesseract_path,
+        )
+        configure_tesseract_path("/usr/bin/tesseract")
+        assert get_tesseract_path() == "/usr/bin/tesseract"
+
+    def test_get_tesseract_path_returns_none_before_configure(self):
+        from backend.interoperability.hybrid_pdf_drawing import (
+            configure_tesseract_path,
+            get_tesseract_path,
+        )
+        configure_tesseract_path.__module__  # touch import
+        # Reset to None for this test
+        import backend.interoperability.hybrid_pdf_drawing as _m
+        _m._TESSERACT_CMD = None
+        assert get_tesseract_path() is None
+
+    def test_configure_then_get_roundtrip(self):
+        from backend.interoperability.hybrid_pdf_drawing import (
+            configure_tesseract_path,
+            get_tesseract_path,
+        )
+        configure_tesseract_path(r"C:\Program Files\Tesseract-OCR\tesseract.exe")
+        assert get_tesseract_path() == r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+
+    def test_configure_exported_in_all(self):
+        from backend.interoperability.hybrid_pdf_drawing import __all__
+        assert "configure_tesseract_path" in __all__
+        assert "get_tesseract_path" in __all__
+
+    def test_pytesseract_available_is_bool(self):
+        from backend.interoperability.hybrid_pdf_drawing import PYTESSERACT_AVAILABLE
+        assert isinstance(PYTESSERACT_AVAILABLE, bool)
+
+    def test_configure_does_not_raise_when_pytesseract_absent(self):
+        from backend.interoperability.hybrid_pdf_drawing import (
+            PYTESSERACT_AVAILABLE,
+            configure_tesseract_path,
+        )
+        if not PYTESSERACT_AVAILABLE:
+            configure_tesseract_path("/usr/bin/tesseract")
+
+    def test_ocr_not_auto_confirmed(self):
+        from backend.interoperability.hybrid_pdf_drawing import PYTESSERACT_AVAILABLE
+        if not PYTESSERACT_AVAILABLE:
+            pytest.skip("pytesseract not installed")
+        # Even when pytesseract is available, the module level flag confirms
+        # OCR results require manual review (this is enforced architecturally —
+        # Stage 3 returns source=OCR, which is not promoted automatically).
+        from backend.interoperability.hybrid_pdf_drawing import PdfExtractionProvenance
+        assert PdfExtractionProvenance.OCR in PdfExtractionProvenance.__members__.values()

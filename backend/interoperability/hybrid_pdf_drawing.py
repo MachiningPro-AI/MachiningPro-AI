@@ -39,8 +39,14 @@ try:
 except ImportError:
     PYTESSERACT_AVAILABLE = False
 
+# Session-level Tesseract binary path override (P3-C).
+# Set via configure_tesseract_path(); None means use system PATH default.
+_TESSERACT_CMD: str | None = None
+
 __all__ = [
     "PYTESSERACT_AVAILABLE",
+    "configure_tesseract_path",
+    "get_tesseract_path",
     "PdfContentType",
     "OcrConfidenceLevel",
     "PdfExtractionProvenance",
@@ -54,6 +60,27 @@ __all__ = [
     "extract_hybrid_pdf",
     "extract_engineering_tokens_from_text",
 ]
+
+
+def configure_tesseract_path(path: str) -> None:
+    """Set the Tesseract binary path for this process (P3-C).
+
+    Call once at application startup, e.g.:
+      configure_tesseract_path(r"C:\\Program Files\\Tesseract-OCR\\tesseract.exe")
+
+    Has no effect when pytesseract is not installed.
+    Does NOT auto-confirm any OCR result.
+    """
+    global _TESSERACT_CMD
+    _TESSERACT_CMD = path
+    if PYTESSERACT_AVAILABLE:
+        import pytesseract
+        pytesseract.pytesseract.tesseract_cmd = path
+
+
+def get_tesseract_path() -> str | None:
+    """Return the currently configured Tesseract binary path, or None."""
+    return _TESSERACT_CMD
 
 # ---------------------------------------------------------------------------
 # Enumerations

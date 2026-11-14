@@ -82,6 +82,31 @@ export interface ConfirmFeatureResponse {
   message: string
 }
 
+export interface ConfirmWithDimensionRequest {
+  user_id?: string
+  feature_type_override?: string | null
+  depth_mm?: number | null
+  width_mm?: number | null
+  review_notes?: string | null
+}
+
+export interface ConfirmWithDimensionResponse {
+  session_id: string
+  feature_id: string
+  status: string
+  user_id: string
+  confidence: string
+  feature_type: string
+  depth_mm: number | null
+  width_mm: number | null
+  type_changed: boolean
+  depth_supplied: boolean
+  width_supplied: boolean
+  dimension_provenance: string
+  review_notes: string | null
+  feature: ManufacturingFeatureOut
+}
+
 export interface RejectFeatureResponse {
   session_id: string
   feature_id: string
@@ -137,5 +162,16 @@ export async function rejectFeature(
   return api<RejectFeatureResponse>(
     `/cad-features/${encodeURIComponent(sessionId)}/features/${encodeURIComponent(featureId)}/reject`,
     { method: 'POST', body: JSON.stringify({}) },
+  )
+}
+
+export async function confirmFeatureWithDimension(
+  sessionId: string,
+  featureId: string,
+  req: ConfirmWithDimensionRequest,
+): Promise<ConfirmWithDimensionResponse> {
+  return api<ConfirmWithDimensionResponse>(
+    `/cad-features/${encodeURIComponent(sessionId)}/features/${encodeURIComponent(featureId)}/confirm-with-dimension`,
+    { method: 'POST', body: JSON.stringify({ user_id: 'engineer', ...req }) },
   )
 }

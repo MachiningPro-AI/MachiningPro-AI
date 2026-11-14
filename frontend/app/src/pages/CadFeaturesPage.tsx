@@ -10,6 +10,7 @@ import {
   getFusionStatus,
   confirmFeature,
   rejectFeature,
+  confirmFeatureWithDimension,
   type ManufacturingFeatureOut,
   type PatternOut,
   type FusionStatusResponse,
@@ -84,20 +85,179 @@ function DimValue({ label, value, unit = 'mm' }: { label: string; value: number 
 }
 
 // ---------------------------------------------------------------------------
+// Dimension review form (P3-A)
+// ---------------------------------------------------------------------------
+
+const HOLE_TYPES = [
+  'HOLE', 'BLIND_HOLE', 'THROUGH_HOLE', 'COUNTERBORE', 'COUNTERSINK',
+  'STEPPED_HOLE', 'THREADED_HOLE_CANDIDATE', 'PRECISION_BORE_CANDIDATE',
+]
+const SLOT_TYPES = ['OPEN_SLOT', 'CLOSED_SLOT', 'OPEN_POCKET', 'CLOSED_POCKET']
+const ALL_FEATURE_TYPES = [
+  'HOLE', 'BLIND_HOLE', 'THROUGH_HOLE', 'COUNTERBORE', 'COUNTERSINK',
+  'STEPPED_HOLE', 'THREADED_HOLE_CANDIDATE', 'PRECISION_BORE_CANDIDATE',
+  'CLOSED_POCKET', 'OPEN_POCKET', 'ISLAND',
+  'OPEN_SLOT', 'CLOSED_SLOT',
+  'BOSS', 'STEP', 'SHOULDER', 'PAD',
+  'CHAMFER', 'FILLET', 'EDGE_BREAK',
+  'OUTER_DIAMETER', 'INNER_DIAMETER', 'GROOVE', 'FACE_TURN', 'TAPER',
+  'PLANAR_FACE', 'FREEFORM', 'TURNING_DIAMETER',
+]
+
+interface DimensionReviewFormProps {
+  feature: ManufacturingFeatureOut
+  sessionId: string
+  onConfirmed: () => void
+  t: (key: keyof TranslationDictionary) => string
+}
+
+function DimensionReviewForm({ feature, sessionId, onConfirmed, t }: DimensionReviewFormProps) {
+  const [typeOverride, setTypeOverride] = useState<string>('')
+  const [depth, setDepth] = useState<string>('')
+  const [width, setWidth] = useState<string>('')
+  const [notes, setNotes] = useState<string>('')
+  const [busy, setBusy] = useState(false)
+  const [confirmed, setConfirmed] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const effectiveType = typeOverride || feature.feature_type
+  const needsDepth = HOLE_TYPES.includes(effectiveType)
+  const needsWidth = SLOT_TYPES.includes(effectiveType)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!sessionId) return
+    setBusy(true)
+    setError(null)
+    try {
+      await confirmFeatureWithDimension(sessionId, feature.feature_id, {
+        feature_type_override: typeOverride || null,
+        depth_mm: depth ? parseFloat(depth) : null,
+        width_mm: width ? parseFloat(width) : null,
+        review_notes: notes.trim() || null,
+      })
+      setConfirmed(true)
+      onConfirmed()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (confirmed) {
+    return (
+      <div className="mt-2 text-xs text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 rounded p-2">
+        {t('p3Feat_dimensionConfirmed')} · {t('p3Feat_provenance')}
+      </div>
+    )
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="mt-2 space-y-2 border border-dashed border-[var(--tp-border)] rounded p-3 bg-[var(--tp-bg)]">
+      <div className="text-[10px] font-semibold uppercase tracking-widest text-[var(--tp-accent-light)]">
+        {t('p3Feat_reviewTitle')}
+      </div>
+
+      {/* Feature type override */}
+      <div>
+        <label className="block text-[10px] text-[var(--tp-text-3)] mb-0.5">{t('p3Feat_typeLabel')}</label>
+        <select
+          className="w-full text-xs rounded border border-[var(--tp-border)] bg-[var(--tp-surface)] text-[var(--tp-text)] px-2 py-1"
+          value={typeOverride}
+          onChange={e => setTypeOverride(e.target.value)}
+        >
+          <option value="">{t('p3Feat_keepCurrentType')} ({feature.feature_type.replace(/_/g, ' ')})</option>
+          {ALL_FEATURE_TYPES.map(ft => (
+            <option key={ft} value={ft}>{ft.replace(/_/g, ' ')}</option>
+          ))}
+        </select>
+        <div className="text-[9px] text-[var(--tp-text-3)] mt-0.5">{t('p3Feat_typeHint')}</div>
+      </div>
+
+      {/* Depth */}
+      {needsDepth && (
+        <div>
+          <label className="block text-[10px] text-[var(--tp-text-3)] mb-0.5">{t('p3Feat_depthLabel')}</label>
+          <input
+            type="number"
+            min="0.001"
+            step="0.001"
+            className="w-full text-xs rounded border border-[var(--tp-border)] bg-[var(--tp-surface)] text-[var(--tp-text)] px-2 py-1 font-mono"
+            placeholder="e.g. 25.000"
+            value={depth}
+            onChange={e => setDepth(e.target.value)}
+          />
+          <div className="text-[9px] text-[var(--tp-text-3)] mt-0.5">{t('p3Feat_depthHint')}</div>
+        </div>
+      )}
+
+      {/* Width */}
+      {needsWidth && (
+        <div>
+          <label className="block text-[10px] text-[var(--tp-text-3)] mb-0.5">{t('p3Feat_widthLabel')}</label>
+          <input
+            type="number"
+            min="0.001"
+            step="0.001"
+            className="w-full text-xs rounded border border-[var(--tp-border)] bg-[var(--tp-surface)] text-[var(--tp-text)] px-2 py-1 font-mono"
+            placeholder="e.g. 10.000"
+            value={width}
+            onChange={e => setWidth(e.target.value)}
+          />
+          <div className="text-[9px] text-[var(--tp-text-3)] mt-0.5">{t('p3Feat_widthHint')}</div>
+        </div>
+      )}
+
+      {/* Notes */}
+      <div>
+        <label className="block text-[10px] text-[var(--tp-text-3)] mb-0.5">{t('p3Feat_notesLabel')}</label>
+        <input
+          type="text"
+          maxLength={500}
+          className="w-full text-xs rounded border border-[var(--tp-border)] bg-[var(--tp-surface)] text-[var(--tp-text)] px-2 py-1"
+          value={notes}
+          onChange={e => setNotes(e.target.value)}
+        />
+      </div>
+
+      {error && (
+        <div className="text-[10px] text-red-600 dark:text-red-400">{error}</div>
+      )}
+
+      <div className="flex items-center justify-between pt-1">
+        <div className="text-[9px] text-[var(--tp-text-3)]">{t('p3Feat_provenance')}</div>
+        <button
+          type="submit"
+          disabled={busy}
+          className="text-[11px] px-3 py-1 rounded bg-[var(--tp-accent)] text-white hover:opacity-90 disabled:opacity-40"
+        >
+          {busy ? '…' : t('p3Feat_confirmWithDim')}
+        </button>
+      </div>
+    </form>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Feature tree panel
 // ---------------------------------------------------------------------------
 
 interface FeatureTreePanelProps {
   features: ManufacturingFeatureOut[]
   patterns: PatternOut[]
+  sessionId: string
   onConfirm: (featureId: string) => void
   onReject: (featureId: string) => void
+  onDimConfirmed: () => void
   busy: boolean
   t: (key: keyof TranslationDictionary) => string
 }
 
-function FeatureTreePanel({ features, patterns, onConfirm, onReject, busy, t }: FeatureTreePanelProps) {
+function FeatureTreePanel({ features, patterns, sessionId, onConfirm, onReject, onDimConfirmed, busy, t }: FeatureTreePanelProps) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [dimReviewOpen, setDimReviewOpen] = useState<Set<string>>(new Set())
+
   const toggle = (id: string) =>
     setExpanded(prev => {
       const next = new Set(prev)
@@ -106,7 +266,17 @@ function FeatureTreePanel({ features, patterns, onConfirm, onReject, busy, t }: 
       return next
     })
 
+  const toggleDimReview = (id: string) =>
+    setDimReviewOpen(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+
   const patternFeatureIds = new Set(patterns.flatMap(p => p.feature_ids))
+  const needsDimReview = (feat: ManufacturingFeatureOut) =>
+    feat.confidence === 'INFERRED' || feat.confidence === 'AMBIGUOUS' || feat.depth_mm == null
 
   return (
     <div className="space-y-1">
@@ -116,6 +286,8 @@ function FeatureTreePanel({ features, patterns, onConfirm, onReject, busy, t }: 
       {features.map(feat => {
         const isOpen = expanded.has(feat.feature_id)
         const inPattern = patternFeatureIds.has(feat.feature_id)
+        const isConfirmed = feat.confidence === 'USER_CONFIRMED'
+        const showDimForm = dimReviewOpen.has(feat.feature_id)
         return (
           <div key={feat.feature_id} className="border border-[var(--tp-border)] rounded-md overflow-hidden">
             <button
@@ -125,6 +297,10 @@ function FeatureTreePanel({ features, patterns, onConfirm, onReject, busy, t }: 
               <span className="text-[var(--tp-text-3)] text-xs select-none">{isOpen ? '▼' : '▶'}</span>
               <FeatureTypeBadge type={feat.feature_type} />
               {inPattern && <Badge label={t('cfPattern')} color="blue" />}
+              {isConfirmed && <Badge label="✓" color="green" />}
+              {!isConfirmed && needsDimReview(feat) && (
+                <Badge label={t('p3Feat_reviewRequired')} color="yellow" />
+              )}
               <span className="ml-auto">
                 <ConfidenceBadge confidence={feat.confidence} />
               </span>
@@ -137,19 +313,48 @@ function FeatureTreePanel({ features, patterns, onConfirm, onReject, busy, t }: 
                   <DimValue label="R" value={feat.radius_mm} />
                   <DimValue label={t('cfDepth')} value={feat.depth_mm} />
                 </div>
+                {feat.depth_mm == null && (
+                  <div className="text-[10px] text-amber-700 dark:text-amber-400">
+                    {t('p3Feat_depthUserOnly')}
+                  </div>
+                )}
                 {feat.axis_count && (
                   <div className="text-xs text-[var(--tp-text-2)]">
                     <span className="text-[var(--tp-text-3)]">{t('cfAxis')}:</span> {feat.axis_count.replace(/_/g, ' ')}
                   </div>
                 )}
                 <div className="text-xs text-[var(--tp-text-2)]">
-                  <span className="text-[var(--tp-text-3)]">{t('cfMethod')}:</span> {feat.method}
+                  <span className="text-[var(--tp-text-3)]">{t('cfMethod')}:</span> {feat.method ?? feat.recognition_method}
                 </div>
                 {(feat.warnings?.length ?? 0) > 0 && (
                   <div className="text-xs text-yellow-700 dark:text-yellow-400">
                     {feat.warnings!.join(' · ')}
                   </div>
                 )}
+
+                {/* Dimension review form (P3-A) */}
+                {!isConfirmed && (
+                  <div>
+                    <button
+                      className="text-[10px] text-[var(--tp-accent)] underline"
+                      onClick={() => toggleDimReview(feat.feature_id)}
+                    >
+                      {showDimForm ? '▲ ' : '▼ '}{t('p3Feat_reviewTitle')}
+                    </button>
+                    {showDimForm && (
+                      <DimensionReviewForm
+                        feature={feat}
+                        sessionId={sessionId}
+                        onConfirmed={() => {
+                          toggleDimReview(feat.feature_id)
+                          onDimConfirmed()
+                        }}
+                        t={t}
+                      />
+                    )}
+                  </div>
+                )}
+
                 <div className="flex gap-2 pt-1">
                   <button
                     className="text-[11px] px-2 py-0.5 rounded border border-green-500 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 disabled:opacity-40"
@@ -335,6 +540,14 @@ export default function CadFeaturesPage() {
     }
   }
 
+  const handleDimConfirmed = useCallback(async () => {
+    if (!sessionId) return
+    try {
+      const featsRes = await getCadFeatures(sessionId)
+      setFeaturesData(featsRes)
+    } catch { /* ignore */ }
+  }, [sessionId])
+
   const features = featuresData?.features ?? []
 
   return (
@@ -492,8 +705,10 @@ export default function CadFeaturesPage() {
                 <FeatureTreePanel
                   features={features}
                   patterns={patterns}
+                  sessionId={sessionId ?? ''}
                   onConfirm={handleConfirm}
                   onReject={handleReject}
+                  onDimConfirmed={handleDimConfirmed}
                   busy={actionBusy}
                   t={t}
                 />
