@@ -14,6 +14,7 @@ import {
 } from '../services/drawingParser'
 import { usePipeline } from '../context/PipelineContext'
 import { bytesToBase64 } from '../lib/encoding'
+import MissingFieldsPanel from '../components/ui/MissingFieldsPanel'
 
 // ---------------------------------------------------------------------------
 // Small reusable UI helpers
@@ -365,6 +366,13 @@ export default function DrawingParserPage() {
             )}
             <div className="mt-2 text-[10px] text-tp-text-3 italic">{analyzeResult.disclaimer}</div>
           </Card>
+        )}
+
+        {/* Missing engineering data confirmation panel + readiness badges */}
+        {analyzeResult && (
+          <MissingFieldsPanel
+            drawingSessionId={analyzeResult.session_id}
+          />
         )}
 
         {/* Edit modal */}

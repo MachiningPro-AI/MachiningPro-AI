@@ -2027,4 +2027,33 @@ export const trTranslations: TranslationDictionary = {
   p1ArcPartialCandidate: 'Kısmi dairesel sınır — inceleme gerekli',
   p1ArcReviewRequired: 'Yay kapsama < %100 — delik veya profil olarak onaylayın',
   p1ArcSingleExcluded: 'Tek yay — kapalı sınır değil',
+
+  // P2-C: Boru hattı hazırlık rozetleri
+  p2ReadinessBadge_importReady: 'İçe Aktarma',
+  p2ReadinessBadge_geometryReady: 'Geometri',
+  p2ReadinessBadge_drawingIntelligenceReady: 'Çizim',
+  p2ReadinessBadge_featureReady: 'Özellikler',
+  p2ReadinessBadge_metadataReady: 'Meta Veri',
+  p2ReadinessBadge_processPlanning: 'Proses',
+  p2ReadinessBadge_camReady: 'CAM',
+  p2ReadinessBadge_reviewRequired: 'Devam etmeden önce inceleme gerekli',
+  p2ReadinessBadge_tooltip: 'Boru hattı hazırlık aşaması',
+
+  // P2-C: Malzeme onay paneli
+  p2Material_panelTitle: 'Eksik Mühendislik Verisi',
+  p2Material_missingFields: 'Aşağıdaki alanlar proses planlamasından önce onay gerektirir:',
+  p2Material_confirmButton: 'Malzeme Sınıfını Onayla',
+  p2Material_confirmHint: 'Onaylanan malzeme sınıfını girin (örn. 42CrMo4, C45)',
+  p2Material_grade: 'Malzeme sınıfı',
+  p2Material_unknownGrade: 'Sınıf bilinmiyor — onay gerekli',
+  p2Material_reviewNote: 'Onaylanan tüm veriler planlamada kullanılmadan önce mühendislik imzası gerektirir.',
+
+  // P2-E: Desteklenmeyen format kılavuzu
+  p2Unsupported_dwgTitle: 'DWG Formatı — Dönüştürme Gerekli',
+  p2Unsupported_dwgBody: 'DWG dosyaları doğrudan açılamaz. İçe aktarmadan önce AutoCAD veya uyumlu bir araç kullanarak DXF\'e dönüştürün.',
+  p2Unsupported_dwgStep1: 'AutoCAD (veya FreeCAD / LibreCAD) ile açın',
+  p2Unsupported_dwgStep2: 'Farklı Kaydet → DXF (R2010 veya üzeri), ardından buraya yeniden aktarın',
+  p2Unsupported_modelTitle: 'CATIA V4 .model — Desteklenmiyor',
+  p2Unsupported_modelBody: 'CATIA V4 .model dosyaları bu sürümde mevcut olmayan özel araçlar gerektirir. CATIA veya uyumlu bir CAD çevirici kullanarak IGES veya STEP\'e dönüştürün.',
+  p2Unsupported_contactSupport: 'Dönüştürme yardımı için desteğe başvurun',
 }

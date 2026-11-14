@@ -2027,4 +2027,33 @@ export const enTranslations: TranslationDictionary = {
   p1ArcPartialCandidate: 'Partial circular boundary — requires review',
   p1ArcReviewRequired: 'Arc coverage < 100% — confirm as hole or profile',
   p1ArcSingleExcluded: 'Single arc — not a closed boundary',
+
+  // P2-C: Pipeline readiness badges
+  p2ReadinessBadge_importReady: 'Import',
+  p2ReadinessBadge_geometryReady: 'Geometry',
+  p2ReadinessBadge_drawingIntelligenceReady: 'Drawing',
+  p2ReadinessBadge_featureReady: 'Features',
+  p2ReadinessBadge_metadataReady: 'Metadata',
+  p2ReadinessBadge_processPlanning: 'Process',
+  p2ReadinessBadge_camReady: 'CAM',
+  p2ReadinessBadge_reviewRequired: 'Review required before proceeding',
+  p2ReadinessBadge_tooltip: 'Pipeline readiness stage',
+
+  // P2-C: Material confirmation panel
+  p2Material_panelTitle: 'Missing Engineering Data',
+  p2Material_missingFields: 'The following fields require confirmation before process planning:',
+  p2Material_confirmButton: 'Confirm Material Grade',
+  p2Material_confirmHint: 'Enter the confirmed material grade (e.g. 42CrMo4, C45)',
+  p2Material_grade: 'Material grade',
+  p2Material_unknownGrade: 'Grade unknown — confirmation required',
+  p2Material_reviewNote: 'All confirmed data requires engineering sign-off before use in planning.',
+
+  // P2-E: Unsupported format guidance
+  p2Unsupported_dwgTitle: 'DWG Format — Conversion Required',
+  p2Unsupported_dwgBody: 'DWG files cannot be opened directly. Convert to DXF using AutoCAD or a compatible tool before importing.',
+  p2Unsupported_dwgStep1: 'Open in AutoCAD (or FreeCAD / LibreCAD)',
+  p2Unsupported_dwgStep2: 'Save As → DXF (R2010 or later), then re-import here',
+  p2Unsupported_modelTitle: 'CATIA V4 .model — Not Supported',
+  p2Unsupported_modelBody: 'CATIA V4 .model files require proprietary tooling not available in this release. Convert to IGES or STEP using CATIA or a compatible CAD translator.',
+  p2Unsupported_contactSupport: 'Contact support for conversion assistance',
 }

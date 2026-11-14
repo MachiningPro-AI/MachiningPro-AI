@@ -20,6 +20,9 @@ import { FolderOpen, LoaderCircle, RefreshCw, X } from 'lucide-react'
 import Panel from '../components/ui/Panel'
 import EngineeringFileInfo from '../components/drawing-review/EngineeringFileInfo'
 import MeshViewer from '../components/cad-viewer/MeshViewer'
+import PipelineReadinessBadges from '../components/ui/PipelineReadinessBadges'
+import MissingFieldsPanel from '../components/ui/MissingFieldsPanel'
+import UnsupportedFormatGuidance from '../components/ui/UnsupportedFormatGuidance'
 import { useLocale } from '../i18n'
 import { detectFormatByFile, NATIVE_ACCEPT } from '../lib/engineeringFormats'
 import type { FormatRoute } from '../lib/engineeringFormats'
@@ -338,6 +341,28 @@ export default function CadImportPage() {
           <Panel title={t('ciPreviewUnavailable')}>
             <p className="text-sm text-tp-text-3">{t('ciPreviewUnavailableHint')}</p>
           </Panel>
+        )}
+
+        {/* Pipeline readiness badges — derived from import result */}
+        {importResult && importResult.import_status !== 'UNSUPPORTED' && !importLoading && (
+          <PipelineReadinessBadges
+            readiness={{
+              stages: [
+                ...(['SUCCESS', 'PARTIAL_SUCCESS', 'RECOGNIZED_ONLY'].includes(importResult.import_status)
+                  ? (['IMPORT_READY'] as const) : []),
+                ...(importResult.has_renderable_geometry || (importResult.entity_count ?? 0) > 0
+                  ? (['GEOMETRY_READY'] as const) : []),
+              ],
+            }}
+          />
+        )}
+
+        {/* Unsupported format guidance (DWG / CATIA .model) */}
+        {importResult?.import_status === 'UNSUPPORTED' && !importLoading && (
+          <UnsupportedFormatGuidance
+            errorMessage={importResult.errors?.[0]}
+            formatId={importResult.format_id}
+          />
         )}
       </div>
     </div>

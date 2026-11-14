@@ -2029,4 +2029,33 @@ export interface TranslationDictionary {
   p1ArcPartialCandidate: string
   p1ArcReviewRequired: string
   p1ArcSingleExcluded: string
+
+  // P2-C: Pipeline readiness badges
+  p2ReadinessBadge_importReady: string
+  p2ReadinessBadge_geometryReady: string
+  p2ReadinessBadge_drawingIntelligenceReady: string
+  p2ReadinessBadge_featureReady: string
+  p2ReadinessBadge_metadataReady: string
+  p2ReadinessBadge_processPlanning: string
+  p2ReadinessBadge_camReady: string
+  p2ReadinessBadge_reviewRequired: string
+  p2ReadinessBadge_tooltip: string
+
+  // P2-C: Material confirmation panel
+  p2Material_panelTitle: string
+  p2Material_missingFields: string
+  p2Material_confirmButton: string
+  p2Material_confirmHint: string
+  p2Material_grade: string
+  p2Material_unknownGrade: string
+  p2Material_reviewNote: string
+
+  // P2-E: Unsupported format guidance
+  p2Unsupported_dwgTitle: string
+  p2Unsupported_dwgBody: string
+  p2Unsupported_dwgStep1: string
+  p2Unsupported_dwgStep2: string
+  p2Unsupported_modelTitle: string
+  p2Unsupported_modelBody: string
+  p2Unsupported_contactSupport: string
 }
