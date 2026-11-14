@@ -1994,4 +1994,39 @@ export interface TranslationDictionary {
   mdPhaseRaw: string
   mdPhaseConfirmed: string
   mdNoMissingRequired: string
+
+  // P1: Hybrid PDF extraction
+  p1PdfNativeText: string
+  p1PdfVector: string
+  p1PdfRaster: string
+  p1PdfHybrid: string
+  p1PdfOcrRequired: string
+  p1PdfOcrConfHigh: string
+  p1PdfOcrConfMedium: string
+  p1PdfOcrConfLow: string
+  p1PdfReviewRequired: string
+  p1PdfNativeFirst: string
+  p1PdfOcrFallback: string
+
+  // P1: DXF annotation linking
+  p1DxfLinked: string
+  p1DxfAmbiguous: string
+  p1DxfConflict: string
+  p1DxfUnresolved: string
+  p1DxfReviewRequired: string
+
+  // P1: IGES topology reconstruction
+  p1IgesSurfaceOnly: string
+  p1IgesClosedBodyNo: string
+  p1IgesSurfacesAvailable: string
+  p1IgesTopologyPartial: string
+  p1IgesPlanarGroup: string
+  p1IgesCylindricalGroup: string
+  p1IgesFreeformGroup: string
+
+  // P1: Partial circular boundary detection
+  p1ArcHoleCandidate: string
+  p1ArcPartialCandidate: string
+  p1ArcReviewRequired: string
+  p1ArcSingleExcluded: string
 }

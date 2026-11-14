@@ -1992,4 +1992,39 @@ export const enTranslations: TranslationDictionary = {
   mdPhaseRaw: 'Raw file result (before user input)',
   mdPhaseConfirmed: 'After user confirmation',
   mdNoMissingRequired: 'All required fields resolved — ready for manufacturing planning.',
+
+  // P1: Hybrid PDF extraction
+  p1PdfNativeText: 'Native text',
+  p1PdfVector: 'Vector drawing',
+  p1PdfRaster: 'Raster / scanned',
+  p1PdfHybrid: 'Hybrid (text + raster)',
+  p1PdfOcrRequired: 'OCR required',
+  p1PdfOcrConfHigh: 'High confidence',
+  p1PdfOcrConfMedium: 'Medium confidence — review required',
+  p1PdfOcrConfLow: 'Low confidence — not promoted',
+  p1PdfReviewRequired: 'Review required before use',
+  p1PdfNativeFirst: 'Native text extraction used (Stage 1)',
+  p1PdfOcrFallback: 'OCR fallback applied (Stage 3)',
+
+  // P1: DXF annotation linking
+  p1DxfLinked: 'Linked',
+  p1DxfAmbiguous: 'Ambiguous — multiple candidates',
+  p1DxfConflict: 'Conflict — annotations disagree',
+  p1DxfUnresolved: 'Unresolved — no spatial evidence',
+  p1DxfReviewRequired: 'Requires engineering review',
+
+  // P1: IGES topology reconstruction
+  p1IgesSurfaceOnly: 'Surface-sheet model (no B-Rep)',
+  p1IgesClosedBodyNo: 'Closed body not available from surface-only IGES',
+  p1IgesSurfacesAvailable: 'Surfaces available',
+  p1IgesTopologyPartial: 'Topology: surface groups only (no B-Rep vertices/edges)',
+  p1IgesPlanarGroup: 'Planar surface group',
+  p1IgesCylindricalGroup: 'Cylindrical surface group',
+  p1IgesFreeformGroup: 'Freeform surface group',
+
+  // P1: Partial circular boundary detection
+  p1ArcHoleCandidate: 'Complete circular boundary — hole candidate',
+  p1ArcPartialCandidate: 'Partial circular boundary — requires review',
+  p1ArcReviewRequired: 'Arc coverage < 100% — confirm as hole or profile',
+  p1ArcSingleExcluded: 'Single arc — not a closed boundary',
 }

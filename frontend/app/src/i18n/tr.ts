@@ -1992,4 +1992,39 @@ export const trTranslations: TranslationDictionary = {
   mdPhaseRaw: 'Ham dosya sonucu (kullanıcı girişi öncesi)',
   mdPhaseConfirmed: 'Kullanıcı onayı sonrası',
   mdNoMissingRequired: 'Tüm zorunlu alanlar çözüldü — imalat planlamaya hazır.',
+
+  // P1: Hibrit PDF çıkarma
+  p1PdfNativeText: 'Yerel metin',
+  p1PdfVector: 'Vektör çizim',
+  p1PdfRaster: 'Raster / taranmış',
+  p1PdfHybrid: 'Hibrit (metin + raster)',
+  p1PdfOcrRequired: 'OCR gerekli',
+  p1PdfOcrConfHigh: 'Yüksek güven',
+  p1PdfOcrConfMedium: 'Orta güven — inceleme gerekli',
+  p1PdfOcrConfLow: 'Düşük güven — otomatik olarak yükseltilmez',
+  p1PdfReviewRequired: 'Kullanım öncesi inceleme gerekli',
+  p1PdfNativeFirst: 'Yerel metin çıkarma kullanıldı (Aşama 1)',
+  p1PdfOcrFallback: 'OCR yedek çıkarma uygulandı (Aşama 3)',
+
+  // P1: DXF açıklama bağlantısı
+  p1DxfLinked: 'Bağlandı',
+  p1DxfAmbiguous: 'Belirsiz — birden fazla aday',
+  p1DxfConflict: 'Çakışma — açıklamalar uyuşmuyor',
+  p1DxfUnresolved: 'Çözümsüz — uzamsal kanıt yok',
+  p1DxfReviewRequired: 'Mühendislik incelemesi gerektirir',
+
+  // P1: IGES topoloji yeniden yapılandırması
+  p1IgesSurfaceOnly: 'Yüzey-tabakası modeli (B-Rep yok)',
+  p1IgesClosedBodyNo: 'Yalnızca yüzey IGES\'inden kapalı katı mevcut değil',
+  p1IgesSurfacesAvailable: 'Yüzeyler mevcut',
+  p1IgesTopologyPartial: 'Topoloji: yalnızca yüzey grupları (B-Rep köşe/kenar yok)',
+  p1IgesPlanarGroup: 'Düzlemsel yüzey grubu',
+  p1IgesCylindricalGroup: 'Silindirik yüzey grubu',
+  p1IgesFreeformGroup: 'Serbest biçimli yüzey grubu',
+
+  // P1: Kısmi dairesel sınır tespiti
+  p1ArcHoleCandidate: 'Tam dairesel sınır — delik adayı',
+  p1ArcPartialCandidate: 'Kısmi dairesel sınır — inceleme gerekli',
+  p1ArcReviewRequired: 'Yay kapsama < %100 — delik veya profil olarak onaylayın',
+  p1ArcSingleExcluded: 'Tek yay — kapalı sınır değil',
 }
