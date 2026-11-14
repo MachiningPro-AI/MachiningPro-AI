@@ -247,6 +247,37 @@ class ManufacturingFeature:
         return replace(self, confirmed_by=user_id,
                        confidence=FeatureRecognitionConfidence.USER_CONFIRMED)
 
+    def confirm_with_dimensions(
+        self,
+        user_id: str,
+        *,
+        feature_type_override: ManufacturingFeatureType | None = None,
+        depth_mm: Decimal | None = None,
+        width_mm: Decimal | None = None,
+        review_notes: str | None = None,
+    ) -> ManufacturingFeature:
+        """Return a new feature with USER_CONFIRMED confidence and engineer-supplied dimensions.
+
+        Only the caller-supplied values override existing fields; unspecified fields keep their
+        original values.  depth_mm and width_mm MUST come from the engineer — never inferred.
+        """
+        from dataclasses import replace as _replace
+        updates: dict = {
+            "confirmed_by": user_id,
+            "confidence": FeatureRecognitionConfidence.USER_CONFIRMED,
+        }
+        if feature_type_override is not None:
+            updates["feature_type"] = feature_type_override
+        if depth_mm is not None:
+            updates["depth_mm"] = depth_mm
+        if width_mm is not None:
+            updates["width_mm"] = width_mm
+        if review_notes is not None:
+            updates["metadata"] = MappingProxyType(
+                {**dict(self.metadata), "review_notes": review_notes}
+            )
+        return _replace(self, **updates)
+
     def as_dict(self) -> dict:
         return {
             "feature_id": self.feature_id,

@@ -118,6 +118,47 @@ class RejectRequest(BaseModel):
     reason: str | None = None
 
 
+class FeatureDimensionConfirmRequest(BaseModel):
+    """Engineer-supplied dimension confirmation (P3-A).
+
+    HARD RULES:
+      - depth_mm MUST be positive when supplied.
+      - width_mm MUST be positive when supplied.
+      - feature_type_override must be a valid ManufacturingFeatureType string.
+      - Values are tagged USER_CONFIRMED — never reported as file-extracted data.
+    """
+
+    user_id: str = Field(default="engineer")
+    feature_type_override: str | None = None
+    depth_mm: float | None = None
+    width_mm: float | None = None
+    review_notes: str | None = Field(default=None, max_length=500)
+
+    @field_validator("depth_mm")
+    @classmethod
+    def _depth_positive(cls, v: float | None) -> float | None:
+        if v is not None and v <= 0:
+            raise ValueError("depth_mm must be positive")
+        return v
+
+    @field_validator("width_mm")
+    @classmethod
+    def _width_positive(cls, v: float | None) -> float | None:
+        if v is not None and v <= 0:
+            raise ValueError("width_mm must be positive")
+        return v
+
+    @field_validator("feature_type_override")
+    @classmethod
+    def _valid_type(cls, v: str | None) -> str | None:
+        if v is not None:
+            try:
+                ManufacturingFeatureType(v)
+            except ValueError as exc:
+                raise ValueError(f"Unknown ManufacturingFeatureType: {v!r}") from exc
+        return v
+
+
 class AssociateDrawingRequest(BaseModel):
     requirement_id: str = Field(..., min_length=1)
     feature_id: str = Field(..., min_length=1)
@@ -912,6 +953,78 @@ async def confirm_feature(
         "confirmed": True,
         "confidence": str(confirmed.confidence),
         "user_id": body.user_id,
+    }
+
+
+@router.post(
+    "/{session_id}/features/{feature_id}/confirm-with-dimension",
+    summary="Engineer confirms feature with explicit dimension data (P3-A)",
+)
+async def confirm_feature_with_dimension(
+    session_id: str,
+    feature_id: str,
+    body: FeatureDimensionConfirmRequest,
+) -> dict:
+    """Confirm a feature and supply engineer-measured dimension values.
+
+    Use this when depth_mm or feature_type must be explicitly provided by the
+    engineer — for example, 2D DXF hole candidates (depth not in drawing) or
+    IGES bore candidates (depth not recoverable from surface-only topology).
+
+    HARD RULES:
+      - depth_mm and width_mm values come from the engineer, never inferred.
+      - Returned values are tagged dimension_provenance=USER_CONFIRMED.
+      - This endpoint does NOT trigger CNC dispatch or automatic downstream action.
+    """
+    from decimal import Decimal as _Dec
+
+    sess = _get_session(session_id)
+    feature = next(
+        (f for f in sess.recognition_result.features if f.feature_id == feature_id),
+        None,
+    )
+    if feature is None:
+        raise HTTPException(status_code=404, detail=f"Feature {feature_id!r} not found")
+
+    type_override = (
+        ManufacturingFeatureType(body.feature_type_override)
+        if body.feature_type_override
+        else None
+    )
+    depth = _Dec(str(body.depth_mm)) if body.depth_mm is not None else None
+    width = _Dec(str(body.width_mm)) if body.width_mm is not None else None
+
+    confirmed = feature.confirm_with_dimensions(
+        body.user_id,
+        feature_type_override=type_override,
+        depth_mm=depth,
+        width_mm=width,
+        review_notes=body.review_notes,
+    )
+
+    idx = next(
+        i for i, f in enumerate(sess.recognition_result.features)
+        if f.feature_id == feature_id
+    )
+    sess.recognition_result.features[idx] = confirmed
+    sess.confirmed_feature_ids.add(feature_id)
+
+    return {
+        "session_id": session_id,
+        "feature_id": feature_id,
+        "status": "CONFIRMED_WITH_DIMENSION",
+        "user_id": body.user_id,
+        "confidence": str(confirmed.confidence),
+        "feature_type": str(confirmed.feature_type),
+        "depth_mm": float(confirmed.depth_mm) if confirmed.depth_mm is not None else None,
+        "width_mm": float(confirmed.width_mm) if confirmed.width_mm is not None else None,
+        "type_changed": type_override is not None and type_override != feature.feature_type,
+        "depth_supplied": body.depth_mm is not None,
+        "width_supplied": body.width_mm is not None,
+        "dimension_provenance": "USER_CONFIRMED",
+        "review_notes": body.review_notes,
+        "feature": confirmed.as_dict(),
+        "disclaimer": "USER_CONFIRMED: dimension values supplied by engineer — not inferred",
     }
 
 
