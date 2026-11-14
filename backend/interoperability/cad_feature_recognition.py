@@ -72,6 +72,10 @@ __all__ = [
     # DXF 2D support
     "Dxf2dEntity",
     "recognize_dxf_features",
+    # P1-D: partial circular boundary detection
+    "CircularBoundaryStatus",
+    "CircularBoundaryCandidate",
+    "recognize_circular_boundaries",
 ]
 
 _RECOGNITION_VERSION = "1.0.0"
@@ -1799,3 +1803,176 @@ def recognize_dxf_features(
         ))
 
     return features
+
+
+# ---------------------------------------------------------------------------
+# P1-D: Partial circular boundary detection (MUST 19-23)
+# ---------------------------------------------------------------------------
+
+# Minimum angular coverage to report a partial arc group as a candidate
+_PARTIAL_ARC_COVERAGE_MIN = 60.0     # degrees — below this: not a circular boundary
+_PARTIAL_ARC_COVERAGE_FULL = 358.0   # degrees — at/above this: HOLE_CANDIDATE
+
+
+class CircularBoundaryStatus(StrEnum):
+    HOLE_CANDIDATE = "HOLE_CANDIDATE"                     # Complete (≈360°) circular boundary
+    CIRCULAR_BOUNDARY_CANDIDATE = "CIRCULAR_BOUNDARY_CANDIDATE"  # Partial arc set
+    PARTIAL = "PARTIAL"                                   # Sub-classification of above
+    REVIEW_REQUIRED = "REVIEW_REQUIRED"                   # Always True for partial arcs
+    INSUFFICIENT_COVERAGE = "INSUFFICIENT_COVERAGE"       # Too few degrees to be a boundary
+
+
+@dataclass(frozen=True)
+class CircularBoundaryCandidate:
+    """A detected circular or partial-circular boundary from DXF arc geometry.
+
+    Every candidate requires user review — no automatic confirmation.
+
+    Design invariants:
+      SINGLE_ARC_FALSE_POSITIVE=NO   (requires arc_count ≥ 2 for PARTIAL)
+      DIFFERENT_CENTER_MERGE=NO      (strict center tolerance)
+      DIFFERENT_RADIUS_MERGE=NO      (strict radius tolerance)
+      FABRICATED_DEPTH=NO            (depth_mm is always None for 2D DXF)
+      AUTO_CONFIRMED=NO
+
+    Fields:
+      candidate_id:    Unique identifier
+      center_x/y:      Center coordinates (drawing units)
+      radius:          Radius (drawing units, same as diameter_mm/2 when unit=mm)
+      coverage_deg:    Total angular coverage of contributing arcs
+      arc_count:       Number of ARC entities in this candidate
+      status:          HOLE_CANDIDATE (≈360°) or CIRCULAR_BOUNDARY_CANDIDATE (partial)
+      is_partial:      True when coverage < 358°
+      review_required: Always True
+      source_note:     How this candidate was produced
+    """
+
+    candidate_id: str
+    center_x: float
+    center_y: float
+    radius: float
+    coverage_deg: float
+    arc_count: int
+    status: CircularBoundaryStatus
+    is_partial: bool
+    review_required: bool = True
+    source_note: str = ""
+
+
+def _group_all_arc_coverage(
+    arcs: list[Dxf2dEntity],
+) -> list[dict]:
+    """Group ARCs with matching center+radius regardless of angular coverage.
+
+    Returns ALL multi-arc groups with coverage ≥ _PARTIAL_ARC_COVERAGE_MIN.
+    Single ARCs are never returned.
+
+    SINGLE_ARC_FALSE_POSITIVE=NO
+    DIFFERENT_CENTER_MERGE=NO
+    DIFFERENT_RADIUS_MERGE=NO
+    """
+    groups: dict[tuple[float, float, float], list[Dxf2dEntity]] = {}
+    for arc in arcs:
+        if arc.center_x is None or arc.center_y is None or arc.radius is None:
+            continue
+        if arc.radius <= 0.0:
+            continue
+        matched: tuple[float, float, float] | None = None
+        for key in groups:
+            kx, ky, kr = key
+            if (abs(arc.center_x - kx) <= _ARC_TOLERANCE_CENTER
+                    and abs(arc.center_y - ky) <= _ARC_TOLERANCE_CENTER
+                    and abs(arc.radius - kr) <= _ARC_TOLERANCE_RADIUS):
+                matched = key
+                break
+        if matched is None:
+            matched = (arc.center_x, arc.center_y, arc.radius)
+            groups[matched] = []
+        groups[matched].append(arc)
+
+    result = []
+    for (cx, cy, r), grp in groups.items():
+        if len(grp) < 2:
+            continue   # single ARC → never a boundary candidate
+        total = 0.0
+        for arc in grp:
+            sa = (arc.start_angle or 0.0) % 360.0
+            ea = (arc.end_angle or 0.0) % 360.0
+            cov = (ea - sa) if ea > sa else (360.0 - sa + ea)
+            if 0.0 < cov <= 360.0:
+                total += cov
+        if total >= _PARTIAL_ARC_COVERAGE_MIN:
+            result.append({
+                "center_x": cx, "center_y": cy, "radius": r,
+                "total_coverage_deg": total, "arc_count": len(grp),
+            })
+    return result
+
+
+def recognize_circular_boundaries(
+    entities: list[Dxf2dEntity],
+    *,
+    source_document_id: str = "unknown",
+) -> list[CircularBoundaryCandidate]:
+    """Recognize circular boundary candidates from DXF arc entities.
+
+    Returns both complete (HOLE_CANDIDATE) and partial (CIRCULAR_BOUNDARY_CANDIDATE)
+    arc groups. Single isolated ARCs are never returned.
+
+    Classification rules:
+      coverage ≥ 358°  → HOLE_CANDIDATE, is_partial=False
+      60° ≤ coverage < 358° → CIRCULAR_BOUNDARY_CANDIDATE, is_partial=True
+      coverage < 60° → not returned (excluded from output)
+
+    FALSE_POSITIVE_GUARDS:
+      - Single ARC: not returned (arc_count ≥ 2 required)
+      - Different centers: not grouped (center tolerance = 0.001 mm)
+      - Different radii: not grouped (radius tolerance = 0.001 mm)
+      - Ellipse entities: ignored (not ARC type)
+      - Decorative arc: insufficient coverage → excluded
+      - Square with rounded corners: different radii per corner → not grouped
+      - Open circular profile (arc_count=1): not returned
+
+    FABRICATED_DEPTH=NO
+    SINGLE_ARC_FALSE_POSITIVE=NO
+    AUTO_CONFIRMED=NO
+    """
+    _MIN_RADIUS = 0.05
+    arcs = [e for e in entities if e.entity_type == "ARC"]
+    candidates: list[CircularBoundaryCandidate] = []
+    counter = 0
+
+    for group in _group_all_arc_coverage(arcs):
+        r = group["radius"]
+        if r <= _MIN_RADIUS:
+            continue
+        coverage = group["total_coverage_deg"]
+        counter += 1
+        cand_id = f"circ-{source_document_id}-{counter:04d}"
+
+        if coverage >= _PARTIAL_ARC_COVERAGE_FULL:
+            candidates.append(CircularBoundaryCandidate(
+                candidate_id=cand_id,
+                center_x=group["center_x"],
+                center_y=group["center_y"],
+                radius=r,
+                coverage_deg=coverage,
+                arc_count=group["arc_count"],
+                status=CircularBoundaryStatus.HOLE_CANDIDATE,
+                is_partial=False,
+                source_note="arc-loop-complete",
+            ))
+        else:
+            candidates.append(CircularBoundaryCandidate(
+                candidate_id=cand_id,
+                center_x=group["center_x"],
+                center_y=group["center_y"],
+                radius=r,
+                coverage_deg=coverage,
+                arc_count=group["arc_count"],
+                status=CircularBoundaryStatus.CIRCULAR_BOUNDARY_CANDIDATE,
+                is_partial=True,
+                source_note="arc-loop-partial",
+            ))
+
+    return candidates
