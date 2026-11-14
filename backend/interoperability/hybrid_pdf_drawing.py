@@ -30,7 +30,17 @@ from io import BytesIO
 
 from backend.interoperability.drawing import DrawingIngestionStatus
 
+# Probe for optional OCR dependency at import time.  The Tesseract binary is a
+# system-level requirement not bundled with the package; install with:
+#   pip install "machiningpro-ai[ocr]"
+try:
+    import pytesseract as _pytesseract_probe  # noqa: F401
+    PYTESSERACT_AVAILABLE: bool = True
+except ImportError:
+    PYTESSERACT_AVAILABLE = False
+
 __all__ = [
+    "PYTESSERACT_AVAILABLE",
     "PdfContentType",
     "OcrConfidenceLevel",
     "PdfExtractionProvenance",
@@ -257,10 +267,23 @@ _FP_GUARD_PATTERNS = [
     re.compile(r"^\d{6,}$"),                       # Long part numbers (≥6 digits)
 ]
 
+# Material grade codes that match the revision-code pattern (e.g. ^[A-Z]\d{2}$)
+# but are valid steel/alloy designations per EN 10027-1 / ISO 683-1.
+_MATERIAL_GRADE_ALLOWLIST: frozenset[str] = frozenset({
+    "C45", "C15", "C22", "C35", "C60", "C80",
+    "Ck45", "Cm45",
+})
+
 
 def _is_false_positive(text: str) -> bool:
-    """Return True if the text matches a known false-positive pattern."""
+    """Return True if the text matches a known false-positive pattern.
+
+    Material grade codes that happen to match a revision-code pattern are
+    whitelisted so that e.g. 'C45' is never suppressed.
+    """
     cleaned = text.strip()
+    if cleaned in _MATERIAL_GRADE_ALLOWLIST:
+        return False
     return any(p.match(cleaned) for p in _FP_GUARD_PATTERNS)
 
 

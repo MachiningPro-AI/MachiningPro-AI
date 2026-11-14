@@ -125,12 +125,13 @@ class TestMaterialDetection:
         types = _types(tokens)
         assert PdfEngineeringTokenType.MATERIAL in types
 
-    def test_c45_filtered_by_fp_guard(self):
-        # C45 matches the ^[A-Z]\d{2}$ FP guard (looks like revision code A02).
-        # This test documents expected behavior: C45 alone is excluded as FP.
+    def test_c45_not_filtered_by_fp_guard(self):
+        # C45 is a valid EN 10083-2 steel grade and must NOT be filtered by the
+        # ^[A-Z]\d{2}$ revision-code FP guard.  DEF-P1A-001 fix.
         tokens = _extract("C45")
         mat_tokens = [t for t in tokens if t.token_type == PdfEngineeringTokenType.MATERIAL]
-        assert mat_tokens == []  # filtered by FP guard
+        assert len(mat_tokens) == 1
+        assert mat_tokens[0].normalized_value == "C45"
 
     def test_stainless_316l(self):
         tokens = _extract("316L")

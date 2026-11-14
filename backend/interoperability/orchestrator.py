@@ -701,6 +701,7 @@ class CadImportOrchestrator:
         *,
         selection_reason: str = "no_matching_adapter",
     ) -> ImportResult:
+        display_format = format_id or self._ext_from_source(source) or "UNKNOWN"
         diag = ImportDiagnostics(
             format_detection=detection,
             adapter_candidates=candidate_ids,
@@ -709,7 +710,7 @@ class CadImportOrchestrator:
             fidelity_adverse_count=0,
             has_unsupported_content=True,
             has_loss=False,
-            notes=(f"No adapter found for format {format_id!r}",),
+            notes=(f"No adapter found for format {display_format!r}",),
         )
         cap = CapabilityRecord(
             achieved_level=CapabilityLevel.LEVEL_0_RECOGNIZED,
@@ -724,8 +725,16 @@ class CadImportOrchestrator:
             diagnostics=diag,
             capability=cap,
             provenance=None,
-            error_message=f"No adapter registered for format {format_id!r}",
+            error_message=f"No adapter registered for format {display_format!r}",
         )
+
+    @staticmethod
+    def _ext_from_source(source: EngineeringSource) -> str:
+        """Return the uppercase file extension from source_id or file_name, or ''."""
+        for name in (getattr(source, "file_name", None), source.source_id):
+            if name and "." in str(name):
+                return str(name).rsplit(".", 1)[-1].upper()
+        return ""
 
     def _build_error_result(
         self,

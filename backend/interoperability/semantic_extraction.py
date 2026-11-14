@@ -33,6 +33,12 @@ from backend.interoperability.fit_drawing import parse_fit_token
 from backend.interoperability.surface_finish_drawing import parse_surface_finish_token
 from backend.interoperability.thread_drawing import parse_thread_token
 
+# Revision-code false-positive guard: tokens matching these patterns look like
+# ISO 286-1 fit codes but are revision identifiers on real drawings.
+# Pattern covers:  "P00", "A02", "K01"  (letter + zero-padded 2-digit revision)
+#               and "A2", "K1"          (letter + single-digit low revision number)
+_RE_REVISION_CODE_FP = re.compile(r"^[A-Za-z]\d{2}$|^[A-Za-z][12]$")
+
 # ---------------------------------------------------------------------------
 # Confidence model
 # ---------------------------------------------------------------------------
@@ -787,21 +793,25 @@ def run_token_extraction(
             ))
             continue
 
-        # Fit
-        status, fits = parse_fit_token(token)
-        if fits:
-            for fit in fits:
-                results.append(make_detection(
-                    NormalizedDetectionType.FIT,
-                    raw_text=token,
-                    normalized_value=fit.fit_code,
-                    unit=None,
-                    confidence_method=confidence_method,
-                    source_type=source_type,
-                    page=page,
-                    subtype=fit.fit_class.value,
-                ))
-            continue
+        # Fit — skip tokens that match revision-code patterns (e.g. P00, A2, K1).
+        # These short alphanumeric codes are syntactically valid ISO 286-1 tokens
+        # but appear as revision identifiers on real drawings without dimensional
+        # context, causing false-positive fit detections.
+        if not _RE_REVISION_CODE_FP.match(token):
+            status, fits = parse_fit_token(token)
+            if fits:
+                for fit in fits:
+                    results.append(make_detection(
+                        NormalizedDetectionType.FIT,
+                        raw_text=token,
+                        normalized_value=fit.fit_code,
+                        unit=None,
+                        confidence_method=confidence_method,
+                        source_type=source_type,
+                        page=page,
+                        subtype=fit.fit_class.value,
+                    ))
+                continue
 
     return results
 
