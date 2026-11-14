@@ -50,6 +50,7 @@ __all__ = [
     "IgesReconstructionStatus",
     "IgesTopologyReconstructionResult",
     "reconstruct_iges_topology",
+    "extract_iges_feature_candidates",
 ]
 
 # ---------------------------------------------------------------------------
@@ -141,6 +142,11 @@ class IgesTopologyReconstructionResult:
 
     # Canonical topology (empty B-Rep; geometry reference preserved)
     canonical_topology: CanonicalTopology | None = None
+
+    # Feature candidates inferred from surface groups (SURFACE_HEURISTIC method).
+    # depth_mm is always None — cannot be determined from surface-only IGES.
+    # topology_fabricated stays False; these are inference hints only.
+    feature_candidates: list = field(default_factory=list)  # list[ManufacturingFeature]
 
     # Warnings and issues
     warnings: list[str] = field(default_factory=list)
@@ -472,6 +478,9 @@ def reconstruct_iges_topology(
         "no B-Rep vertices/edges/loops (not present in source IGES file)"
     )
 
+    # Populate feature_candidates after result is otherwise complete
+    result.feature_candidates = extract_iges_feature_candidates(result, source_id)
+
     return result
 
 
@@ -494,3 +503,130 @@ def reconstruct_topology_from_file(
     model = parse_iges_bytes(iges_bytes)
     mapping = map_iges_model(model)
     return reconstruct_iges_topology(mapping, source_id=source_id)
+
+
+def extract_iges_feature_candidates(
+    recon: IgesTopologyReconstructionResult,
+    source_document_id: str = "iges",
+) -> list:
+    """Infer manufacturing feature candidates from IGES surface groups.
+
+    Produces CANDIDATE-only features using SURFACE_HEURISTIC method.
+    These are inference hints — not confirmed engineering data.
+
+    Rules:
+      - CYLINDRICAL_FAMILY → PRECISION_BORE_CANDIDATE with radius/axis if known.
+        depth_mm is always None (cannot be derived from surface-only IGES).
+      - PLANAR_ASSEMBLY with ≥1 surface → PLANAR_FACE candidate.
+      - topology_fabricated stays False.
+      - closed_body_available stays False.
+      - Every candidate has confidence=INFERRED and review_required=True.
+
+    Returns list[ManufacturingFeature].
+    """
+    import uuid
+    from decimal import Decimal
+    from types import MappingProxyType
+
+    from backend.interoperability.cad_feature_recognition import (
+        FeatureRecognitionConfidence,
+        ManufacturingFeature,
+        ManufacturingFeatureType,
+        RecognitionMethod,
+    )
+    from backend.interoperability.geometry import (
+        CanonicalPoint3D,
+        CanonicalSurfaceType,
+        CanonicalVector3D,
+    )
+    from backend.domain.units import Quantity, Unit
+
+    def _qty(v: float) -> Quantity:
+        return Quantity(value=Decimal(str(round(v, 4))), unit=Unit.MM)
+
+    def _vec(x: float, y: float, z: float) -> CanonicalVector3D:
+        return CanonicalVector3D(
+            x=Quantity(value=Decimal(str(x)), unit=Unit.DIMENSIONLESS),
+            y=Quantity(value=Decimal(str(y)), unit=Unit.DIMENSIONLESS),
+            z=Quantity(value=Decimal(str(z)), unit=Unit.DIMENSIONLESS),
+        )
+
+    candidates: list[ManufacturingFeature] = []
+
+    for group in recon.surface_groups:
+        if group.group_type == SurfaceGroupType.CYLINDRICAL_FAMILY:
+            radius = group.radius_mm
+            diam: Decimal | None = (
+                Decimal(str(round(radius * 2.0, 4))) if radius is not None else None
+            )
+            axis = None
+            if (group.axis_x is not None
+                    and group.axis_y is not None
+                    and group.axis_z is not None):
+                axis = _vec(group.axis_x, group.axis_y, group.axis_z)
+            fid = f"feat-iges-bore-{uuid.uuid4().hex[:8]}"
+            candidates.append(ManufacturingFeature(
+                feature_id=fid,
+                feature_type=ManufacturingFeatureType.PRECISION_BORE_CANDIDATE,
+                source_body_id=source_document_id,
+                source_face_ids=group.surface_ids,
+                source_edge_ids=(),
+                surface_type=CanonicalSurfaceType.CYLINDER,
+                location=None,
+                axis=axis,
+                diameter_mm=diam,
+                depth_mm=None,       # cannot be determined from surface-only IGES
+                width_mm=None,
+                length_mm=None,
+                radius_mm=Decimal(str(round(radius, 4))) if radius is not None else None,
+                angle_deg=None,
+                bounding_box=None,
+                recognition_method=RecognitionMethod.SURFACE_HEURISTIC,
+                confidence=FeatureRecognitionConfidence.INFERRED,
+                pattern_id=None,
+                confirmed_by=None,
+                metadata=MappingProxyType({
+                    "source": "IGES_SURFACE_GROUP",
+                    "group_id": group.group_id,
+                    "surface_count": str(group.surface_count),
+                    "depth_unknown": "YES",
+                    "review_required": "YES",
+                }),
+            ))
+
+        elif group.group_type == SurfaceGroupType.PLANAR_ASSEMBLY:
+            axis = None
+            if (group.normal_x is not None
+                    and group.normal_y is not None
+                    and group.normal_z is not None):
+                axis = _vec(group.normal_x, group.normal_y, group.normal_z)
+            fid = f"feat-iges-face-{uuid.uuid4().hex[:8]}"
+            candidates.append(ManufacturingFeature(
+                feature_id=fid,
+                feature_type=ManufacturingFeatureType.PLANAR_FACE,
+                source_body_id=source_document_id,
+                source_face_ids=group.surface_ids,
+                source_edge_ids=(),
+                surface_type=CanonicalSurfaceType.PLANE,
+                location=None,
+                axis=axis,
+                diameter_mm=None,
+                depth_mm=None,
+                width_mm=None,
+                length_mm=None,
+                radius_mm=None,
+                angle_deg=None,
+                bounding_box=None,
+                recognition_method=RecognitionMethod.SURFACE_HEURISTIC,
+                confidence=FeatureRecognitionConfidence.INFERRED,
+                pattern_id=None,
+                confirmed_by=None,
+                metadata=MappingProxyType({
+                    "source": "IGES_SURFACE_GROUP",
+                    "group_id": group.group_id,
+                    "surface_count": str(group.surface_count),
+                    "review_required": "YES",
+                }),
+            ))
+
+    return candidates

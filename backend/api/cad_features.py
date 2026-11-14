@@ -71,6 +71,7 @@ class CadFeatureSession:
     rejected_feature_ids: set[str]
     confirmed_feature_ids: set[str]
     created_at: datetime
+    annotation_link_result: object | None = None  # DxfAnnotationLinkResult | None
 
 
 _SESSIONS: dict[str, CadFeatureSession] = {}
@@ -164,12 +165,34 @@ def _try_parse_iges_or_step(
         try:
             from backend.interoperability.iges_mapping import map_iges_model
             from backend.interoperability.iges_parser import parse_iges_bytes
+            from backend.interoperability.iges_topology_reconstruction import (
+                reconstruct_iges_topology,
+            )
             iges_model = parse_iges_bytes(content_bytes)
             mapping = map_iges_model(iges_model)
+            doc_id = hashlib.sha256(content_bytes[:256]).hexdigest()[:16]
             if mapping.topology and mapping.geometry:
-                doc_id = hashlib.sha256(content_bytes[:256]).hexdigest()[:16]
                 return recognize_manufacturing_features(
                     mapping.topology, mapping.geometry, doc_id
+                )
+            # No B-Rep topology: use surface-group reconstruction to produce
+            # PRECISION_BORE_CANDIDATE and PLANAR_FACE hints (SURFACE_HEURISTIC).
+            recon = reconstruct_iges_topology(mapping, source_id=doc_id)
+            if recon.feature_candidates:
+                return ManufacturingFeatureRecognitionResult(
+                    source_document_id=doc_id,
+                    recognition_version=_RECOGNITION_VERSION,
+                    features=tuple(recon.feature_candidates),
+                    patterns=[],
+                    accessibility={},
+                    tool_reach={},
+                    warnings=[
+                        "IGES_SURFACE_HEURISTIC: features inferred from surface groups — "
+                        "review required before use",
+                        *recon.warnings,
+                    ],
+                    face_count=recon.surface_count,
+                    body_count=max(recon.body_count, 0),
                 )
         except Exception:
             pass
@@ -212,8 +235,13 @@ def _run_feature_recognition_for_format(
             from backend.interoperability.cad_feature_recognition import (
                 recognize_dxf_features,
             )
+            from backend.interoperability.dxf_annotation_linker import (
+                link_dxf_annotations,
+            )
             entities, entity_counts = _parse_dxf_2d(content_bytes)
             feats = recognize_dxf_features(entities)
+            annotations = _parse_dxf_annotations(content_bytes)
+            annotation_link_result = link_dxf_annotations(annotations, feats)
             doc_id = hashlib.sha256(content_bytes[:256]).hexdigest()[:16]
             geom_count = sum(
                 v for k, v in entity_counts.items()
@@ -231,6 +259,7 @@ def _run_feature_recognition_for_format(
                 "geometry_entity_count": geom_count,
                 "annotation_entity_count": ann_count,
                 "block_insert_support": "DEFERRED",
+                "annotation_link_result": annotation_link_result,
             }
             return ManufacturingFeatureRecognitionResult(
                 source_document_id=doc_id,
@@ -448,6 +477,172 @@ def _parse_dxf_2d(content_bytes: bytes) -> tuple[list, dict]:
     return entities, entity_counts
 
 
+def _parse_dxf_annotations(content_bytes: bytes) -> list:
+    """Extract annotation entities with spatial coordinates from DXF bytes.
+
+    Returns list[DxfAnnotation] for DIMENSION, TEXT, MTEXT entities.
+    Only entities with at least one spatial coordinate are included.
+
+    FABRICATED_ANNOTATION=NO
+    """
+    from backend.interoperability.association import AnnotationType
+    from backend.interoperability.dxf_annotation_linker import (
+        DxfAnnotation,
+        DxfAnnotationSource,
+    )
+
+    annotations: list[DxfAnnotation] = []
+    ann_counter = 0
+
+    try:
+        text = content_bytes.decode("latin-1", errors="replace")
+        lines = text.splitlines()
+        n = len(lines)
+        i = 0
+        in_entities = False
+
+        while i < n - 1:
+            code = lines[i].strip()
+            val = lines[i + 1].strip() if i + 1 < n else ""
+            i += 2
+
+            if code == "0" and val == "SECTION":
+                if i < n - 1 and lines[i].strip() == "2":
+                    sname = lines[i + 1].strip().upper()
+                    in_entities = sname in ("ENTITIES", "BLOCKS")
+                    i += 2
+                continue
+            if code == "0" and val in ("ENDSEC", "EOF"):
+                in_entities = False
+                continue
+            if code != "0" or not in_entities:
+                continue
+
+            etype = val.upper()
+
+            if etype == "DIMENSION":
+                ann_text = ""
+                handle = None
+                layer = "0"
+                ix = iy = None     # text midpoint (code 11/21)
+                dp1x = dp1y = None  # definition point 1 (code 10/20)
+                dp2x = dp2y = None  # definition point 2 (code 13/23)
+                dim_type = 0
+                while i < n - 1:
+                    c2 = lines[i].strip()
+                    v2 = lines[i + 1].strip() if i + 1 < n else ""
+                    if c2 == "0":
+                        break
+                    i += 2
+                    if c2 == "1":
+                        ann_text = v2
+                    elif c2 == "5":
+                        handle = v2
+                    elif c2 == "8":
+                        layer = v2
+                    elif c2 == "10":
+                        try: dp1x = float(v2)
+                        except ValueError: pass
+                    elif c2 == "20":
+                        try: dp1y = float(v2)
+                        except ValueError: pass
+                    elif c2 == "11":
+                        try: ix = float(v2)
+                        except ValueError: pass
+                    elif c2 == "21":
+                        try: iy = float(v2)
+                        except ValueError: pass
+                    elif c2 == "13":
+                        try: dp2x = float(v2)
+                        except ValueError: pass
+                    elif c2 == "23":
+                        try: dp2y = float(v2)
+                        except ValueError: pass
+                    elif c2 == "70":
+                        try: dim_type = int(v2) & 0x0F
+                        except ValueError: pass
+                if dp1x is None and ix is None:
+                    continue
+                subtype = {0: "LINEAR", 1: "ALIGNED", 2: "ANGULAR", 3: "DIAMETRAL",
+                           4: "RADIAL", 5: "ANGULAR3P", 6: "ORDINATE"}.get(dim_type, "LINEAR")
+                ann_counter += 1
+                annotations.append(DxfAnnotation(
+                    annotation_id=f"ANN-{ann_counter:04d}",
+                    source=DxfAnnotationSource.DIMENSION,
+                    annotation_type=AnnotationType.DIMENSION,
+                    text=ann_text,
+                    subtype=subtype,
+                    insertion_x=ix, insertion_y=iy,
+                    defpoint1_x=dp1x, defpoint1_y=dp1y,
+                    defpoint2_x=dp2x, defpoint2_y=dp2y,
+                    layer=layer, handle=handle,
+                ))
+
+            elif etype in ("TEXT", "MTEXT"):
+                ann_text = ""
+                handle = None
+                layer = "0"
+                ix = iy = None
+                while i < n - 1:
+                    c2 = lines[i].strip()
+                    v2 = lines[i + 1].strip() if i + 1 < n else ""
+                    if c2 == "0":
+                        break
+                    i += 2
+                    if c2 == "1":
+                        ann_text = v2
+                    elif c2 == "3":
+                        ann_text = ann_text + v2  # MTEXT continuation
+                    elif c2 == "5":
+                        handle = v2
+                    elif c2 == "8":
+                        layer = v2
+                    elif c2 == "10":
+                        try: ix = float(v2)
+                        except ValueError: pass
+                    elif c2 == "20":
+                        try: iy = float(v2)
+                        except ValueError: pass
+                if not ann_text.strip() or ix is None:
+                    continue
+                src = DxfAnnotationSource.MTEXT if etype == "MTEXT" else DxfAnnotationSource.TEXT
+                ann_type = _classify_annotation_text(ann_text)
+                ann_counter += 1
+                annotations.append(DxfAnnotation(
+                    annotation_id=f"ANN-{ann_counter:04d}",
+                    source=src,
+                    annotation_type=ann_type,
+                    text=ann_text,
+                    insertion_x=ix, insertion_y=iy,
+                    layer=layer, handle=handle,
+                ))
+
+    except Exception:
+        pass
+
+    return annotations
+
+
+def _classify_annotation_text(text: str) -> "AnnotationType":
+    """Classify annotation text to AnnotationType using existing parsers."""
+    from backend.interoperability.association import AnnotationType
+    from backend.interoperability.fit_drawing import parse_fit_token, FitParseStatus
+    from backend.interoperability.thread_drawing import parse_thread_token
+    from backend.interoperability.surface_finish_drawing import parse_surface_finish_token
+
+    t = text.strip()
+    if not t:
+        return AnnotationType.GENERAL_NOTE
+    if parse_surface_finish_token(t) is not None:
+        return AnnotationType.SURFACE_FINISH
+    if parse_thread_token(t) is not None:
+        return AnnotationType.THREAD
+    status, _ = parse_fit_token(t)
+    if status == FitParseStatus.PARSED:
+        return AnnotationType.FIT
+    return AnnotationType.GENERAL_NOTE
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -483,6 +678,7 @@ async def analyze_cad(req: AnalyzeRequest) -> dict:
             session_id_for_fusion,
         )
 
+    ann_link = format_meta.get("annotation_link_result") if format_meta else None
     session_id = str(uuid.uuid4())
     sess = CadFeatureSession(
         session_id=session_id,
@@ -497,6 +693,7 @@ async def analyze_cad(req: AnalyzeRequest) -> dict:
         rejected_feature_ids=set(),
         confirmed_feature_ids=set(),
         created_at=datetime.now(UTC),
+        annotation_link_result=ann_link,
     )
     _SESSIONS[session_id] = sess
 
@@ -519,6 +716,15 @@ async def analyze_cad(req: AnalyzeRequest) -> dict:
         response["geometry_entity_count"] = format_meta.get("geometry_entity_count", 0)
         response["annotation_entity_count"] = format_meta.get("annotation_entity_count", 0)
         response["block_insert_support"] = format_meta.get("block_insert_support", "N/A")
+        if ann_link is not None:
+            response["annotation_links"] = {
+                "linked": ann_link.linked_count,
+                "ambiguous": ann_link.ambiguous_count,
+                "conflicts": ann_link.conflict_count,
+                "unresolved": ann_link.unresolved_count,
+                "total_annotations": ann_link.total_annotations,
+                "review_required": True,
+            }
     return response
 
 
