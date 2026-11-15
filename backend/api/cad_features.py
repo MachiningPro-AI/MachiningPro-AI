@@ -1061,6 +1061,175 @@ async def reject_feature(
     }
 
 
+@router.get(
+    "/{session_id}/features/{feature_id}/machine-candidates",
+    summary="Return machine candidates for a confirmed feature (P5-B)",
+)
+async def get_machine_candidates(
+    session_id: str,
+    feature_id: str,
+    operation: str | None = None,
+    stock_x_mm: float | None = None,
+    stock_y_mm: float | None = None,
+    stock_z_mm: float | None = None,
+    material_grade: str | None = None,
+    required_rpm_max: float | None = None,
+) -> dict:
+    """Find machine candidates for a confirmed feature.
+
+    Uses the machine library registry with actual capability data.
+    Unknown capability does NOT become a pass.
+
+    HARD RULES:
+      - No machine write, no NC dispatch.
+      - Selection uses actual machine library records only.
+      - CAPABILITY_UNKNOWN != PASS.
+    """
+    from backend.manufacturing.machine_selection import select_machines
+
+    sess = _get_session(session_id)
+    feature = next(
+        (f for f in sess.recognition_result.features if f.feature_id == feature_id),
+        None,
+    )
+    if feature is None:
+        raise HTTPException(status_code=404, detail=f"Feature {feature_id!r} not found")
+
+    _op = operation or "drilling"
+    result = select_machines(
+        operation=_op,
+        stock_x_mm=stock_x_mm,
+        stock_y_mm=stock_y_mm,
+        stock_z_mm=stock_z_mm,
+        required_rpm_max=required_rpm_max,
+    )
+
+    candidates_out = []
+    for c in result.passing_candidates:
+        candidates_out.append({
+            "stable_id": c.machine.stable_id,
+            "manufacturer": c.machine.manufacturer,
+            "model": c.machine.model,
+            "overall_status": c.overall_status.value,
+            "checks": [
+                {"check": ch.check_name, "status": ch.status.value, "detail": ch.detail}
+                for ch in c.checks
+            ],
+        })
+
+    return {
+        "session_id": session_id,
+        "feature_id": feature_id,
+        "operation": _op,
+        "machine_selection_ready": result.machine_selection_ready,
+        "candidate_count": len(result.passing_candidates),
+        "candidates": candidates_out,
+        "notes": result.notes,
+        "disclaimer": "OFFLINE_ONLY=YES. No machine write. No CNC dispatch.",
+    }
+
+
+@router.get(
+    "/{session_id}/features/{feature_id}/tool-candidates",
+    summary="Return tool candidates for a confirmed feature (P5-A/C)",
+)
+async def get_tool_candidates(
+    session_id: str,
+    feature_id: str,
+    operation: str | None = None,
+    material_grade: str | None = None,
+    required_cutting_length_mm: float | None = None,
+    machine_max_rpm: float | None = None,
+) -> dict:
+    """Find tool candidates for a confirmed feature.
+
+    Uses the cutting tool catalog with actual geometry data.
+    Reports EXACT / COMPATIBLE / NO_MATCH per tool.
+
+    HARD RULES:
+      - No nearest-diameter guess that violates geometry.
+      - Cutting data from manufacturer starting values only (with provenance).
+      - No automatic tool selection -- engineer must confirm.
+    """
+    from backend.cutting_tools.cutting_parameters import CuttingDataReadiness
+    from backend.manufacturing.tool_selection import select_tools
+
+    sess = _get_session(session_id)
+    feature = next(
+        (f for f in sess.recognition_result.features if f.feature_id == feature_id),
+        None,
+    )
+    if feature is None:
+        raise HTTPException(status_code=404, detail=f"Feature {feature_id!r} not found")
+
+    diameter_mm = feature.diameter_mm
+    if diameter_mm is None:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Feature {feature_id!r} has no diameter_mm — confirm with dimension first",
+        )
+
+    _op = operation or "drilling"
+    result = select_tools(
+        feature_diameter_mm=float(diameter_mm),
+        operation=_op,
+        material_grade=material_grade,
+        required_cutting_length_mm=required_cutting_length_mm,
+        machine_max_rpm=machine_max_rpm,
+    )
+
+    candidates_out = []
+    for c in result.candidates:
+        entry: dict = {
+            "stable_id": c.tool.stable_id,
+            "manufacturer": c.tool.manufacturer,
+            "product_name": c.tool.product_name,
+            "cutting_diameter_mm": c.tool.cutting_diameter_mm,
+            "match_status": c.match_status.value,
+            "diameter_delta_mm": round(c.diameter_delta_mm, 4),
+            "cutting_data_ready": c.cutting_data_ready,
+            "rejection_reason": c.rejection_reason,
+            "notes": c.notes,
+        }
+        if c.cutting_data and c.cutting_data.readiness == CuttingDataReadiness.READY:
+            cd = c.cutting_data
+            entry["cutting_data"] = {
+                "vc_min_mpm": cd.vc_min_mpm,
+                "vc_max_mpm": cd.vc_max_mpm,
+                "fn_min_mm": cd.fn_min_mm,
+                "fn_max_mm": cd.fn_max_mm,
+                "rpm_min": cd.rpm_min,
+                "rpm_max": cd.rpm_max,
+                "feed_rate_min_mm_min": cd.feed_rate_min_mm_min,
+                "feed_rate_max_mm_min": cd.feed_rate_max_mm_min,
+                "machine_limit_status": cd.machine_limit_status.value,
+                "source": cd.source,
+                "source_url": cd.source_url,
+                "status": cd.status.value,
+            }
+        candidates_out.append(entry)
+
+    best = None
+    if result.best_match:
+        best = result.best_match.tool.stable_id
+
+    return {
+        "session_id": session_id,
+        "feature_id": feature_id,
+        "feature_diameter_mm": float(diameter_mm),
+        "operation": _op,
+        "tool_selection_ready": result.tool_selection_ready,
+        "cutting_data_ready": result.cutting_data_ready,
+        "candidate_count": len(result.candidates),
+        "candidates": candidates_out,
+        "best_match_stable_id": best,
+        "disclaimer": (
+            "OFFLINE_ONLY=YES. No auto-approval. "
+            "COMPATIBLE tools create oversized holes — engineer must verify fit tolerance."
+        ),
+    }
+
+
 @router.post(
     "/{session_id}/associate-drawing",
     summary="Manually associate a drawing requirement with a CAD feature",
