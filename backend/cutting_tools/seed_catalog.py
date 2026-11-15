@@ -1262,6 +1262,297 @@ _RECORDS: list[CuttingToolCatalogRecord] = [
             "preferred for fine-detail cavities requiring lowest surface roughness (Ra < 0.4 µm)."
         ),
     ),
+
+    # ── P5-A: Small-Diameter Drill Coverage (3–6 mm) ─────────────────────────
+    #
+    # Source: Sandvik Coromant CoroDrill 860 product range (coromant.sandvik.com),
+    #         Kennametal B221A product range (kennametal.com),
+    #         Walter Titex DC150 product range (walter-tools.com).
+    # All three families publish standard solid-carbide through-coolant drills
+    # in 3.0 / 4.0 / 5.0 / 6.0 mm sizes.  Geometry follows the same pattern
+    # as the 8 mm and 12 mm entries already in this catalog.
+    # NOTE: Cutting parameters (Vc / fn) remain in cutting_parameters.py;
+    # this catalog covers geometry/compatibility only.
+
+    # ── Sandvik 860-1 — 3.0 mm ───────────────────────────────────────────────
+    _make(
+        stable_id="sandvik-860-1-0300-016a1-pm",
+        manufacturer="Sandvik Coromant",
+        product_family="CoroDrill 860",
+        product_name="860.1-0300-016A1-PM N1BU",
+        catalog_code="860.1-0300-016A1-PM N1BU",
+        tool_category="Solid Carbide Drill",
+        tool_category_code="DRILL",
+        tool_subcategory="Through-Coolant Solid Carbide Drill",
+        supported_operations=["drilling"],
+        iso_material_groups=["P", "M", "K", "N"],
+        tool_material="carbide",
+        coating="N1BU PVD TiAlN",
+        coating_type="PVD",
+        cutting_diameter_mm=3.0,
+        shank_diameter_mm=6.0,
+        overall_length_mm=55.0,
+        cutting_length_mm=16.0,
+        number_of_flutes=2,
+        point_angle_deg=140.0,
+        through_coolant=True,
+        shank_interface="Straight (DIN 6535 HA)",
+        source_note=(
+            "Sandvik Coromant CoroDrill 860-1 product range — coromant.sandvik.com. "
+            "3.0 mm diameter; 2-flute; PVD TiAlN; through-coolant; 140° point angle; "
+            "shank DIN 6535 HA (6 mm for small diameters). ISO P/M/K/N application."
+        ),
+    ),
+
+    # ── Sandvik 860-1 — 4.0 mm ───────────────────────────────────────────────
+    _make(
+        stable_id="sandvik-860-1-0400-021a1-pm",
+        manufacturer="Sandvik Coromant",
+        product_family="CoroDrill 860",
+        product_name="860.1-0400-021A1-PM N1BU",
+        catalog_code="860.1-0400-021A1-PM N1BU",
+        tool_category="Solid Carbide Drill",
+        tool_category_code="DRILL",
+        tool_subcategory="Through-Coolant Solid Carbide Drill",
+        supported_operations=["drilling"],
+        iso_material_groups=["P", "M", "K", "N"],
+        tool_material="carbide",
+        coating="N1BU PVD TiAlN",
+        coating_type="PVD",
+        cutting_diameter_mm=4.0,
+        shank_diameter_mm=6.0,
+        overall_length_mm=66.0,
+        cutting_length_mm=21.0,
+        number_of_flutes=2,
+        point_angle_deg=140.0,
+        through_coolant=True,
+        shank_interface="Straight (DIN 6535 HA)",
+        source_note=(
+            "Sandvik Coromant CoroDrill 860-1 product range — coromant.sandvik.com. "
+            "4.0 mm diameter; 2-flute; PVD TiAlN; through-coolant; 140° point angle; "
+            "shank DIN 6535 HA (6 mm). ISO P/M/K/N application."
+        ),
+    ),
+
+    # ── Sandvik 860-1 — 5.0 mm ───────────────────────────────────────────────
+    _make(
+        stable_id="sandvik-860-1-0500-026a1-pm",
+        manufacturer="Sandvik Coromant",
+        product_family="CoroDrill 860",
+        product_name="860.1-0500-026A1-PM N1BU",
+        catalog_code="860.1-0500-026A1-PM N1BU",
+        tool_category="Solid Carbide Drill",
+        tool_category_code="DRILL",
+        tool_subcategory="Through-Coolant Solid Carbide Drill",
+        supported_operations=["drilling"],
+        iso_material_groups=["P", "M", "K", "N"],
+        tool_material="carbide",
+        coating="N1BU PVD TiAlN",
+        coating_type="PVD",
+        cutting_diameter_mm=5.0,
+        shank_diameter_mm=6.0,
+        overall_length_mm=74.0,
+        cutting_length_mm=26.0,
+        number_of_flutes=2,
+        point_angle_deg=140.0,
+        through_coolant=True,
+        shank_interface="Straight (DIN 6535 HA)",
+        source_note=(
+            "Sandvik Coromant CoroDrill 860-1 product range — coromant.sandvik.com. "
+            "5.0 mm diameter; 2-flute; PVD TiAlN; through-coolant; 140° point angle; "
+            "shank DIN 6535 HA (6 mm). ISO P/M/K/N application."
+        ),
+    ),
+
+    # ── Sandvik 860-1 — 6.0 mm ───────────────────────────────────────────────
+    _make(
+        stable_id="sandvik-860-1-0600-031a1-pm",
+        manufacturer="Sandvik Coromant",
+        product_family="CoroDrill 860",
+        product_name="860.1-0600-031A1-PM N1BU",
+        catalog_code="860.1-0600-031A1-PM N1BU",
+        tool_category="Solid Carbide Drill",
+        tool_category_code="DRILL",
+        tool_subcategory="Through-Coolant Solid Carbide Drill",
+        supported_operations=["drilling"],
+        iso_material_groups=["P", "M", "K", "N"],
+        tool_material="carbide",
+        coating="N1BU PVD TiAlN",
+        coating_type="PVD",
+        cutting_diameter_mm=6.0,
+        shank_diameter_mm=6.0,
+        overall_length_mm=79.0,
+        cutting_length_mm=31.0,
+        number_of_flutes=2,
+        point_angle_deg=140.0,
+        through_coolant=True,
+        shank_interface="Straight (DIN 6535 HA)",
+        source_note=(
+            "Sandvik Coromant CoroDrill 860-1 product range — coromant.sandvik.com. "
+            "6.0 mm diameter; 2-flute; PVD TiAlN; through-coolant; 140° point angle; "
+            "shank DIN 6535 HA (6 mm). ISO P/M/K/N application."
+        ),
+    ),
+
+    # ── Kennametal B221A — 3.0 mm ────────────────────────────────────────────
+    _make(
+        stable_id="kennametal-b221a-0300-cfh",
+        manufacturer="Kennametal",
+        product_family="B221A",
+        product_name="B221A 3.000 CF H",
+        catalog_code="B221A 03.000 CF H",
+        tool_category="Solid Carbide Drill",
+        tool_category_code="DRILL",
+        tool_subcategory="Through-Coolant Solid Carbide Drill",
+        supported_operations=["drilling"],
+        iso_material_groups=["P", "M", "K", "N"],
+        tool_material="carbide",
+        cutting_diameter_mm=3.0,
+        shank_diameter_mm=6.0,
+        number_of_flutes=2,
+        point_angle_deg=140.0,
+        through_coolant=True,
+        shank_interface="Straight (DIN 6535 HA)",
+        source_note=(
+            "Kennametal B221A solid-carbide drill product range — kennametal.com. "
+            "3.0 mm cutting diameter; through-coolant; 140° point; "
+            "cylindrical shank (6 mm). ISO P/M/K/N application."
+        ),
+    ),
+
+    # ── Kennametal B221A — 4.0 mm ────────────────────────────────────────────
+    _make(
+        stable_id="kennametal-b221a-0400-cfh",
+        manufacturer="Kennametal",
+        product_family="B221A",
+        product_name="B221A 4.000 CF H",
+        catalog_code="B221A 04.000 CF H",
+        tool_category="Solid Carbide Drill",
+        tool_category_code="DRILL",
+        tool_subcategory="Through-Coolant Solid Carbide Drill",
+        supported_operations=["drilling"],
+        iso_material_groups=["P", "M", "K", "N"],
+        tool_material="carbide",
+        cutting_diameter_mm=4.0,
+        shank_diameter_mm=6.0,
+        number_of_flutes=2,
+        point_angle_deg=140.0,
+        through_coolant=True,
+        shank_interface="Straight (DIN 6535 HA)",
+        source_note=(
+            "Kennametal B221A solid-carbide drill product range — kennametal.com. "
+            "4.0 mm cutting diameter; through-coolant; 140° point; "
+            "cylindrical shank (6 mm). ISO P/M/K/N application."
+        ),
+    ),
+
+    # ── Kennametal B221A — 5.0 mm ────────────────────────────────────────────
+    _make(
+        stable_id="kennametal-b221a-0500-cfh",
+        manufacturer="Kennametal",
+        product_family="B221A",
+        product_name="B221A 5.000 CF H",
+        catalog_code="B221A 05.000 CF H",
+        tool_category="Solid Carbide Drill",
+        tool_category_code="DRILL",
+        tool_subcategory="Through-Coolant Solid Carbide Drill",
+        supported_operations=["drilling"],
+        iso_material_groups=["P", "M", "K", "N"],
+        tool_material="carbide",
+        cutting_diameter_mm=5.0,
+        shank_diameter_mm=6.0,
+        number_of_flutes=2,
+        point_angle_deg=140.0,
+        through_coolant=True,
+        shank_interface="Straight (DIN 6535 HA)",
+        source_note=(
+            "Kennametal B221A solid-carbide drill product range — kennametal.com. "
+            "5.0 mm cutting diameter; through-coolant; 140° point; "
+            "cylindrical shank (6 mm). ISO P/M/K/N application."
+        ),
+    ),
+
+    # ── Kennametal B221A — 6.0 mm ────────────────────────────────────────────
+    _make(
+        stable_id="kennametal-b221a-0600-cfh",
+        manufacturer="Kennametal",
+        product_family="B221A",
+        product_name="B221A 6.000 CF H",
+        catalog_code="B221A 06.000 CF H",
+        tool_category="Solid Carbide Drill",
+        tool_category_code="DRILL",
+        tool_subcategory="Through-Coolant Solid Carbide Drill",
+        supported_operations=["drilling"],
+        iso_material_groups=["P", "M", "K", "N"],
+        tool_material="carbide",
+        cutting_diameter_mm=6.0,
+        shank_diameter_mm=6.0,
+        number_of_flutes=2,
+        point_angle_deg=140.0,
+        through_coolant=True,
+        shank_interface="Straight (DIN 6535 HA)",
+        source_note=(
+            "Kennametal B221A solid-carbide drill product range — kennametal.com. "
+            "6.0 mm cutting diameter; through-coolant; 140° point; "
+            "cylindrical shank (6 mm). ISO P/M/K/N application."
+        ),
+    ),
+
+    # ── Walter Titex DC150 — 5.0 mm ──────────────────────────────────────────
+    _make(
+        stable_id="walter-titex-dc150-05-05000a1-wj30et",
+        manufacturer="Walter Tools",
+        product_family="Titex DC150-05",
+        product_name="DC150-05-05.000A1-WJ30ET",
+        catalog_code="DC150-05-05.000A1-WJ30ET",
+        tool_category="Solid Carbide Drill",
+        tool_category_code="DRILL",
+        tool_subcategory="Through-Coolant Solid Carbide Drill",
+        supported_operations=["drilling"],
+        iso_material_groups=["P", "M", "K", "N"],
+        tool_material="carbide",
+        coating="WJ30ET PVD AlTiN",
+        coating_type="PVD",
+        cutting_diameter_mm=5.0,
+        shank_diameter_mm=6.0,
+        number_of_flutes=2,
+        point_angle_deg=140.0,
+        through_coolant=True,
+        shank_interface="Straight (DIN 6535 HA)",
+        source_note=(
+            "Walter Titex DC150 solid-carbide drill range — walter-tools.com. "
+            "5.0 mm cutting diameter; PVD AlTiN; through-coolant; 140° point; "
+            "shank DIN 6535 HA (6 mm). ISO P/M/K/N application."
+        ),
+    ),
+
+    # ── Walter Titex DC150 — 6.0 mm ──────────────────────────────────────────
+    _make(
+        stable_id="walter-titex-dc150-06-06000a1-wj30et",
+        manufacturer="Walter Tools",
+        product_family="Titex DC150-06",
+        product_name="DC150-06-06.000A1-WJ30ET",
+        catalog_code="DC150-06-06.000A1-WJ30ET",
+        tool_category="Solid Carbide Drill",
+        tool_category_code="DRILL",
+        tool_subcategory="Through-Coolant Solid Carbide Drill",
+        supported_operations=["drilling"],
+        iso_material_groups=["P", "M", "K", "N"],
+        tool_material="carbide",
+        coating="WJ30ET PVD AlTiN",
+        coating_type="PVD",
+        cutting_diameter_mm=6.0,
+        shank_diameter_mm=6.0,
+        number_of_flutes=2,
+        point_angle_deg=140.0,
+        through_coolant=True,
+        shank_interface="Straight (DIN 6535 HA)",
+        source_note=(
+            "Walter Titex DC150 solid-carbide drill range — walter-tools.com. "
+            "6.0 mm cutting diameter; PVD AlTiN; through-coolant; 140° point; "
+            "shank DIN 6535 HA (6 mm). ISO P/M/K/N application."
+        ),
+    ),
 ]
 
 
