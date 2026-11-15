@@ -26,7 +26,7 @@ import base64
 import hashlib
 import pathlib
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException
@@ -73,6 +73,12 @@ class CadFeatureSession:
     confirmed_feature_ids: set[str]
     created_at: datetime
     annotation_link_result: object | None = None  # DxfAnnotationLinkResult | None
+    # P6 state — per-feature confirmed cutting params, clearance, NC candidates
+    # P6 per-feature state maps (feature_id → result object)
+    p6_confirmed_params: dict = field(default_factory=dict)
+    p6_clearance_state: dict = field(default_factory=dict)
+    p6_toolpath_cache: dict = field(default_factory=dict)
+    p6_nc_candidates: dict = field(default_factory=dict)
 
 
 _SESSIONS: dict[str, CadFeatureSession] = {}
@@ -1275,4 +1281,376 @@ async def associate_drawing(
         "feature_id": body.feature_id,
         "status": "USER_MATCHED",
         "user_id": body.user_id,
+    }
+
+
+# ---------------------------------------------------------------------------
+# P6 endpoints: cutting parameter confirmation, toolpath candidate, readiness
+# ---------------------------------------------------------------------------
+
+
+class ConfirmCuttingParametersRequest(BaseModel):
+    """Engineer-confirmed cutting parameter selection (P6-C)."""
+
+    tool_id: str
+    tool_family: str
+    material_grade: str
+    diameter_mm: float
+    operation: str = "drilling"
+    vc_mpm: float
+    fn_mm: float
+    vc_min_mpm: float
+    vc_max_mpm: float
+    fn_min_mm: float
+    fn_max_mm: float
+    source: str
+    source_url: str
+    machine_max_rpm: float | None = None
+    machine_max_feed_mm_min: float | None = None
+
+
+class BuildToolpathCandidateRequest(BaseModel):
+    """Inputs to build a drilling toolpath candidate (P6-D)."""
+
+    tool_id: str
+    tool_match_status: str
+    tool_diameter_mm: float
+    machine_id: str | None = None
+    route_id: str | None = None
+    clearance_z: float
+    clearance_source: str = "USER_DEFINED"
+    wcs_ref: str
+    hole_x: float | None = None
+    hole_y: float | None = None
+    hole_top_z: float | None = None
+    stock_top_z: float | None = None
+
+
+@router.post(
+    "/{session_id}/features/{feature_id}/confirm-cutting-parameters",
+    summary="Engineer confirms cutting parameters from manufacturer range (P6-C)",
+)
+async def confirm_cutting_parameters_endpoint(
+    session_id: str,
+    feature_id: str,
+    body: ConfirmCuttingParametersRequest,
+) -> dict:
+    """Transition cutting data from MANUFACTURER_STARTING_VALUE to USER_CONFIRMED.
+
+    NC_CANDIDATE_REVIEW_READY=NO until this gate is passed.
+
+    HARD RULES:
+      - No auto-confirmation.
+      - Values must be within the manufacturer starting-value range.
+      - Machine limits are re-checked after confirmation.
+      - is_dispatchable is never set to True.
+    """
+    from backend.manufacturing.parameter_confirmation import (
+        ParameterConfirmationStatus,
+        confirm_cutting_parameters,
+    )
+
+    sess = _get_session(session_id)
+    feature = next(
+        (f for f in sess.recognition_result.features if f.feature_id == feature_id),
+        None,
+    )
+    if feature is None:
+        raise HTTPException(status_code=404, detail=f"Feature {feature_id!r} not found")
+
+    result = confirm_cutting_parameters(
+        session_id=session_id,
+        tool_family=body.tool_family,
+        material_grade=body.material_grade,
+        diameter_mm=body.diameter_mm,
+        operation=body.operation,
+        vc_mpm=body.vc_mpm,
+        fn_mm=body.fn_mm,
+        vc_min_mpm=body.vc_min_mpm,
+        vc_max_mpm=body.vc_max_mpm,
+        fn_min_mm=body.fn_min_mm,
+        fn_max_mm=body.fn_max_mm,
+        source=body.source,
+        source_url=body.source_url,
+        machine_max_rpm=body.machine_max_rpm,
+        machine_max_feed_mm_min=body.machine_max_feed_mm_min,
+    )
+
+    if result.confirmed_params is not None:
+        sess.p6_confirmed_params[feature_id] = result.confirmed_params
+
+    confirmed_out: dict | None = None
+    if result.confirmed_params is not None:
+        cp = result.confirmed_params
+        confirmed_out = {
+            "tool_family": cp.tool_family,
+            "material_grade": cp.material_grade,
+            "diameter_mm": cp.diameter_mm,
+            "operation": cp.operation,
+            "vc_mpm": cp.vc_mpm,
+            "fn_mm": cp.fn_mm,
+            "rpm_calculated": cp.rpm_calculated,
+            "feed_rate_mm_min": cp.feed_rate_mm_min,
+            "status": cp.status.value,
+            "source": cp.source,
+            "source_url": cp.source_url,
+            "confirmed_at": cp.confirmed_at,
+            "machine_check": {
+                "rpm_within_limit": cp.machine_check.rpm_within_limit,
+                "feed_within_limit": cp.machine_check.feed_within_limit,
+                "actual_rpm": cp.machine_check.actual_rpm,
+                "actual_feed_mm_min": cp.machine_check.actual_feed_mm_min,
+                "warnings": cp.machine_check.warnings,
+            },
+        }
+
+    return {
+        "session_id": session_id,
+        "feature_id": feature_id,
+        "status": result.status.value,
+        "nc_candidate_review_ready": (
+            result.status == ParameterConfirmationStatus.ENGINEER_CONFIRMED
+        ),
+        "confirmed_params": confirmed_out,
+        "blockers": result.blockers,
+        "warnings": result.warnings,
+        "disclaimer": (
+            "OFFLINE_ONLY=YES. ENGINEER_CONFIRMED means the engineer selected "
+            "these values from the manufacturer range — NOT production-tested or "
+            "certified. Engineer sign-off required before production use."
+        ),
+        "is_dispatchable": False,
+    }
+
+
+@router.post(
+    "/{session_id}/features/{feature_id}/build-toolpath-candidate",
+    summary="Build a drilling toolpath candidate and offline NC candidate (P6-D)",
+)
+async def build_toolpath_candidate_endpoint(
+    session_id: str,
+    feature_id: str,
+    body: BuildToolpathCandidateRequest,
+) -> dict:
+    """Build a drilling toolpath candidate and an offline NC candidate.
+
+    Uses the confirmed feature's location, depth, and engineer-confirmed cutting
+    parameters.  The NC candidate is OFFLINE ONLY and NOT dispatchable.
+
+    HARD RULES:
+      - is_dispatchable=False always.
+      - production_released=False always.
+      - COMPATIBLE match risk preserved in every output.
+      - NC_CANDIDATE_REVIEW_READY=NO if cutting parameters not ENGINEER_CONFIRMED.
+    """
+    from backend.api.setup_stock import _SESSIONS as _SETUP_SESSIONS  # noqa: PLC0415
+    from backend.manufacturing.clearance_policy import evaluate_clearance
+    from backend.manufacturing.nc_candidate import build_offline_nc_candidate
+    from backend.toolpath.enums import ClearanceSource
+
+    sess = _get_session(session_id)
+    feature = next(
+        (f for f in sess.recognition_result.features if f.feature_id == feature_id),
+        None,
+    )
+    if feature is None:
+        raise HTTPException(status_code=404, detail=f"Feature {feature_id!r} not found")
+
+    # Hole location: use feature.location if not overridden
+    loc = getattr(feature, "location", None)
+    hole_x = body.hole_x if body.hole_x is not None else (
+        (loc["x_mm"] if isinstance(loc, dict) else getattr(loc, "x_mm", 0.0))
+        if loc is not None else 0.0
+    )
+    hole_y = body.hole_y if body.hole_y is not None else (
+        (loc["y_mm"] if isinstance(loc, dict) else getattr(loc, "y_mm", 0.0))
+        if loc is not None else 0.0
+    )
+    hole_top_z = body.hole_top_z if body.hole_top_z is not None else (
+        (loc["z_mm"] if isinstance(loc, dict) else getattr(loc, "z_mm", 0.0))
+        if loc is not None else 0.0
+    )
+
+    depth_mm = float(feature.depth_mm) if feature.depth_mm is not None else None
+    if depth_mm is None:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Feature {feature_id!r} has no depth_mm — confirm with dimension first",
+        )
+
+    diameter_mm = float(feature.diameter_mm) if feature.diameter_mm is not None else None
+    if diameter_mm is None:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Feature {feature_id!r} has no diameter_mm — confirm with dimension first",
+        )
+
+    # Clearance source
+    try:
+        cs = ClearanceSource(body.clearance_source)
+    except ValueError:
+        cs = ClearanceSource.USER_DEFINED
+
+    clearance_eval = evaluate_clearance(
+        clearance_z=body.clearance_z,
+        clearance_source=cs,
+        stock_top_z=body.stock_top_z,
+        feature_top_z=hole_top_z,
+        wcs_ref=body.wcs_ref,
+    )
+    sess.p6_clearance_state[feature_id] = clearance_eval
+
+    # Retrieve confirmed cutting params (may be None)
+    confirmed_params = sess.p6_confirmed_params.get(feature_id)
+    cutting_confirmed = (
+        confirmed_params is not None
+        and confirmed_params.status.value == "USER_CONFIRMED"
+    )
+
+    # Build NC candidate
+    material = "UNKNOWN"
+    # Try to find material from setup session (best-effort)
+    setup_sess = _SETUP_SESSIONS.get(session_id)
+    if setup_sess is not None and setup_sess.stock is not None:
+        material = setup_sess.stock.material_grade or "UNKNOWN"
+
+    nc = build_offline_nc_candidate(
+        sample_id=sess.file_name,
+        feature_id=feature_id,
+        hole_x=hole_x,
+        hole_y=hole_y,
+        hole_top_z=hole_top_z,
+        hole_depth_mm=depth_mm,
+        feature_diameter_mm=diameter_mm,
+        material=material,
+        operation="drilling",
+        tool_id=body.tool_id,
+        tool_match_status=body.tool_match_status,
+        tool_diameter_mm=body.tool_diameter_mm,
+        clearance_eval=clearance_eval,
+        wcs_ref=body.wcs_ref,
+        confirmed_params=confirmed_params,
+        route_id=body.route_id,
+        machine_id=body.machine_id,
+    )
+    sess.p6_nc_candidates[feature_id] = nc
+
+    return {
+        "session_id": session_id,
+        "feature_id": feature_id,
+        "sample_id": nc.sample_id,
+        "toolpath_status": nc.toolpath_status,
+        "toolpath_summary": nc.toolpath_summary,
+        "nc_candidate_ready": bool(nc.nc_segments),
+        "nc_candidate_review_ready": nc.nc_candidate_review_ready,
+        "segment_count": len(nc.nc_segments),
+        "tool_id": nc.tool_id,
+        "tool_match_status": nc.tool_match_status,
+        "tool_risk_warning": nc.tool_risk_warning,
+        "dimensional_conformance": nc.dimensional_conformance,
+        "cutting_params_confirmed": cutting_confirmed,
+        "clearance_z_mm": nc.clearance_z_mm,
+        "wcs_ref": nc.wcs_ref,
+        "review_status": nc.review_status,
+        "warnings": nc.warnings,
+        "provenance": nc.provenance,
+        "offline_only": nc.offline_only,
+        "is_dispatchable": nc.is_dispatchable,
+        "production_released": nc.production_released,
+        "engineer_review_required": nc.engineer_review_required,
+        "postprocessor_status": nc.postprocessor_status,
+        "production_controller_compatibility": nc.production_controller_compatibility,
+        "label_en": nc.label_en,
+        "label_tr": nc.label_tr,
+    }
+
+
+@router.get(
+    "/{session_id}/features/{feature_id}/p6-readiness",
+    summary="Return P6 five-level CAM→NC readiness for a feature",
+)
+async def get_p6_readiness(
+    session_id: str,
+    feature_id: str,
+    machine_id: str | None = None,
+    tool_id: str | None = None,
+    tool_match_status: str | None = None,
+) -> dict:
+    """Return the full five-level P6 readiness for a confirmed feature.
+
+    Levels:
+      CAM_READY                 ← cam_gate.py (unchanged semantics)
+      PARAMETERIZED_CAM_READY   ← machine + tool + ENGINEER_CONFIRMED params + WCS
+      TOOLPATH_READY            ← parameterized + clearance + toolpath generated
+      NC_CANDIDATE_READY        ← segments translated
+      NC_CANDIDATE_REVIEW_READY ← all engineer gates complete
+
+    None of these levels imply DISPATCHABLE or PRODUCTION_RELEASED.
+    """
+    from backend.api.setup_stock import _SESSIONS as _SETUP_SESSIONS  # noqa: PLC0415
+    from backend.manufacturing.cam_gate import check_cam_prerequisites
+    from backend.manufacturing.nc_candidate import evaluate_p6_readiness
+    from backend.manufacturing.parameter_confirmation import ParameterConfirmationStatus
+
+    sess = _get_session(session_id)
+    feature = next(
+        (f for f in sess.recognition_result.features if f.feature_id == feature_id),
+        None,
+    )
+    if feature is None:
+        raise HTTPException(status_code=404, detail=f"Feature {feature_id!r} not found")
+
+    # CAM prerequisite check
+    setup_sess = _SETUP_SESSIONS.get(session_id)
+    cam_state = check_cam_prerequisites(feature, setup_sess)
+
+    confirmed_params = sess.p6_confirmed_params.get(feature_id)
+    clearance_eval = sess.p6_clearance_state.get(feature_id)
+    nc_candidate = sess.p6_nc_candidates.get(feature_id)
+
+    param_status: ParameterConfirmationStatus | None = None
+    if confirmed_params is not None:
+        param_status = ParameterConfirmationStatus.ENGINEER_CONFIRMED
+
+    wcs_ref = nc_candidate.wcs_ref if nc_candidate is not None else None
+
+    report = evaluate_p6_readiness(
+        feature_id=feature_id,
+        cam_ready=cam_state.cam_ready,
+        cam_ready_blocker=cam_state.first_blocker,
+        machine_id=machine_id,
+        tool_id=tool_id,
+        tool_match_status=tool_match_status,
+        confirmed_params=confirmed_params,
+        param_confirmation_status=param_status,
+        wcs_ref=wcs_ref,
+        clearance_eval=clearance_eval,
+        nc_candidate=nc_candidate,
+    )
+
+    return {
+        "session_id": session_id,
+        "feature_id": feature_id,
+        "cam_ready": report.cam_ready,
+        "parameterized_cam_ready": report.parameterized_cam_ready,
+        "toolpath_ready": report.toolpath_ready,
+        "nc_candidate_ready": report.nc_candidate_ready,
+        "nc_candidate_review_ready": report.nc_candidate_review_ready,
+        "blockers": {
+            "cam": report.cam_ready_blocker,
+            "parameterized_cam": report.parameterized_cam_ready_blocker,
+            "toolpath": report.toolpath_ready_blocker,
+            "nc_candidate": report.nc_candidate_ready_blocker,
+            "nc_review": report.nc_candidate_review_ready_blocker,
+        },
+        "tool_match_status": report.tool_match_status,
+        "cutting_params_status": report.cutting_params_status,
+        "clearance_status": report.clearance_status,
+        "is_dispatchable": report.is_dispatchable,
+        "production_released": report.production_released,
+        "machine_ready_to_run": report.machine_ready_to_run,
+        "disclaimer": (
+            "OFFLINE_ONLY=YES. No level implies DISPATCHABLE or PRODUCTION_RELEASED. "
+            "Engineer sign-off required before production use."
+        ),
     }

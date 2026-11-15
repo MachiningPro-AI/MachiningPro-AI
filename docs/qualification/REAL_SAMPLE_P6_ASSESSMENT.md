@@ -287,3 +287,31 @@ P6_ASSESSMENT=GO_WITH_CONDITIONS
 
 **Primary P6 workstream sequence:**  
 P6-A (clearance policy) → P6-B (segment adapter) → P6-C (confirmation gate) → P6-D (NC candidate builder) → P6-E (8.5mm catalog) → P6-F (DXF-02 strategy, separate workstream)
+
+---
+
+## P6 Implementation Evidence (2026-11-15)
+
+**Result:** PASS_P6_OFFLINE_TOOLPATH_NC_CANDIDATE
+
+**Files added:**
+- `backend/manufacturing/clearance_policy.py` (P6-A)
+- `backend/manufacturing/nc_bridge.py` (P6-B)
+- `backend/manufacturing/parameter_confirmation.py` (P6-C)
+- `backend/manufacturing/nc_candidate.py` (P6-D)
+- `backend/api/cad_features.py` — 3 new P6 endpoints added
+
+**Endpoints:**
+- `POST /{session_id}/features/{feature_id}/confirm-cutting-parameters`
+- `POST /{session_id}/features/{feature_id}/build-toolpath-candidate`
+- `GET  /{session_id}/features/{feature_id}/p6-readiness`
+
+**Condition satisfaction:**
+1. ✅ P6-C gate: `confirmed_params.status=USER_CONFIRMED` required; without it `nc_candidate_review_ready=False`
+2. ✅ P6-F DXF-02: No DXF-02 endpoint, no boring strategy added
+3. ✅ COMPATIBLE risk: `TOOL_DIAMETER_MATCH=COMPATIBLE_REVIEW` in every DXF-01 candidate warnings + provenance
+4. ✅ `is_dispatchable=True` absent from all P6 files (grep-verified + test-verified)
+
+**New tests:** 98 (all pass) — see `REAL_SAMPLE_P6_IMPLEMENTATION_COMPARISON.md`
+
+**Verdict:** PASS_P6_OFFLINE_TOOLPATH_NC_CANDIDATE — all assessment conditions met
