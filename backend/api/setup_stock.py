@@ -1,9 +1,10 @@
-"""Setup & Stock Definition API (P3-B).
+"""Setup & Stock Definition API (P3-B / P4-B).
 
 Endpoints:
-  POST /api/setup-stock/              — create session
-  GET  /api/setup-stock/{session_id}  — retrieve session
-  PUT  /api/setup-stock/{session_id}  — update stock or setup (or both)
+  POST /api/setup-stock/                            — create session
+  GET  /api/setup-stock/{session_id}                — retrieve session
+  PUT  /api/setup-stock/{session_id}                — update stock or setup (or both)
+  GET  /api/setup-stock/{session_id}/cam-status     — CAM prerequisite gate (P4-B)
 
 Design invariants:
   - All dimension values come from the engineer — never inferred or defaulted.
@@ -21,9 +22,10 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
 
+from backend.manufacturing.cam_gate import check_cam_prerequisites_for_features
 from backend.manufacturing.setup_stock import (
     SetupDefinition,
     SetupStockSession,
@@ -211,4 +213,79 @@ async def update_session(session_id: str, req: UpdateSessionRequest) -> dict:
         "status": "UPDATED",
         **sess.as_dict(),
         "disclaimer": "USER_CONFIRMED: all setup/stock values supplied by engineer",
+    }
+
+
+@router.get(
+    "/{session_id}/cam-status",
+    summary="CAM prerequisite gate — check readiness for offline CAM preparation (P4-B)",
+)
+async def get_cam_status(
+    session_id: str,
+    cad_session_id: str | None = Query(
+        default=None,
+        description="CAD feature session ID to retrieve confirmed features for gate check",
+    ),
+) -> dict:
+    """Return per-requirement CAM readiness for all confirmed features in a session.
+
+    CAM_READY=YES means offline CAM preparation may proceed.
+    It does NOT mean: auto-dispatch, machine-start, or auto-approval.
+
+    OFFLINE_ONLY=YES
+    AUTO_APPROVE=NO
+    CNC_DISPATCH=NO
+    """
+    sess = _get_session(session_id)
+
+    confirmed_features = []
+    if cad_session_id:
+        from backend.api.cad_features import _SESSIONS as _CAD_SESSIONS
+        cad_sess = _CAD_SESSIONS.get(cad_session_id)
+        if cad_sess is None:
+            raise HTTPException(status_code=404, detail=f"CAD session {cad_session_id!r} not found")
+        confirmed_features = [
+            f for f in cad_sess.recognition_result.features
+            if f.feature_id in cad_sess.confirmed_feature_ids
+        ]
+
+    if not confirmed_features:
+        return {
+            "session_id": session_id,
+            "cad_session_id": cad_session_id,
+            "cam_ready_count": 0,
+            "total_confirmed_features": 0,
+            "feature_states": [],
+            "overall_cam_ready": False,
+            "first_blocker": "no_confirmed_features",
+            "offline_only": True,
+            "disclaimer": (
+                "No confirmed features found. "
+                "Engineer must confirm features via POST /confirm-with-dimension "
+                "before CAM prerequisite gate can be evaluated."
+            ),
+        }
+
+    states = check_cam_prerequisites_for_features(confirmed_features, sess)
+    cam_ready_count = sum(1 for s in states.values() if s.cam_ready)
+    first_blocker: str | None = None
+    for s in states.values():
+        if not s.cam_ready and s.first_blocker:
+            first_blocker = s.first_blocker
+            break
+
+    return {
+        "session_id": session_id,
+        "cad_session_id": cad_session_id,
+        "cam_ready_count": cam_ready_count,
+        "total_confirmed_features": len(confirmed_features),
+        "feature_states": [s.as_dict() for s in states.values()],
+        "overall_cam_ready": cam_ready_count == len(confirmed_features),
+        "first_blocker": first_blocker,
+        "offline_only": True,
+        "disclaimer": (
+            "CAM_READY=YES authorises OFFLINE preparation only. "
+            "AUTO_APPROVED=NO. CNC_DISPATCH=NO. "
+            "Engineer sign-off required before production use."
+        ),
     }
