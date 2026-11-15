@@ -391,3 +391,96 @@ FINAL_RESULT=PASS_P3_FINAL_ACCEPTANCE_AND_P4_ASSESSMENT_GO
 
 *All source sample files verified unchanged. No production code modified during this assessment.
 No engineering data fabricated. SAFETY INVARIANTS UNCHANGED.*
+
+---
+
+## 10. P4 Implementation Record (2026-11-15)
+
+**Branch:** main | **HEAD before:** 123026947ce5fa531bd92e380a7846dd707ac889
+
+### 10A. Files Delivered
+
+| File | Workstream | Type |
+|------|-----------|------|
+| `backend/manufacturing/confirmed_feature_route.py` | P4-A | New production module |
+| `backend/manufacturing/cam_gate.py` | P4-B | New production module |
+| `backend/manufacturing/route_report.py` | P4-C | New production module |
+| `backend/api/cad_features.py` | P4-A | Modified (route bridge wired into confirm endpoint) |
+| `backend/api/setup_stock.py` | P4-B | Modified (cam-status endpoint added) |
+| `pyproject.toml` | Ops | Modified (ruff per-file-ignores for HTML template files) |
+| `tests/unit/manufacturing/test_p4a_route_bridge.py` | P4-A | New test file — 22 tests |
+| `tests/unit/manufacturing/test_p4b_cam_gate.py` | P4-B | New test file — 26 tests |
+| `tests/unit/manufacturing/test_p4c_route_report.py` | P4-C | New test file — 29 tests |
+| `tests/unit/api/test_p4_e2e_dxf.py` | P4-E | New test file — 9 tests (4 pass, 5 skip) |
+| `docs/qualification/REAL_SAMPLE_P4_IMPLEMENTATION_COMPARISON.md` | Docs | New comparison doc |
+
+### 10B. Test Results
+
+| Suite | Pass | Skip | Fail |
+|-------|------|------|------|
+| P4-A route bridge | 22 | 0 | 0 |
+| P4-B CAM gate | 26 | 0 | 0 |
+| P4-C route report | 29 | 0 | 0 |
+| P4-E DXF E2E | 4 | 5 | 0 |
+| Drawing intelligence regression | 547 | 0 | 0 |
+| P2/P3 interoperability regression | 101 | 10 | 0 |
+| CAD features API regression | 45 | 0 | 0 |
+| Manufacturing (all including P3-B/P3-E) | 104 | 17 | 0 |
+
+```
+NEW_FAILURES_INTRODUCED=0
+RUFF_CLEAN=YES (all P4 files)
+TYPESCRIPT_CLEAN=YES (tsc --noEmit exit 0)
+```
+
+### 10C. Safety Invariants
+
+```
+REAL_MACHINE_WRITE_FOUND=NO
+AUTO_CNC_DISPATCH_FOUND=NO
+AUTO_APPROVAL_FOUND=NO
+AUTOMATIC_ADAPTATION_FOUND=NO
+FABRICATED_ROUTE=NO
+ROUTE_STATUS_MAX=PROPOSED
+OFFLINE_ONLY=YES
+USER_CONFIRMED_PROVENANCE_PRESERVED=YES
+```
+
+### 10D. P4 Success Metrics — Actual
+
+```
+ROUTE_GENERATION_WIRED: NO → YES
+CAM_PREREQUISITE_GATE: MISSING → EXISTS
+PROCESS_ROUTE_REPORT: MISSING → EXISTS
+
+DXF01_E2E_RUN=YES
+  - Analyze: 1156 features recognized
+  - Confirm with depth=25.0: CONFIRMED_WITH_DIMENSION, prov=USER_CONFIRMED
+  - Route generation: 3 PROPOSED routes (not blocked)
+  - Setup-stock: RECTANGULAR_BLOCK, C45
+  - CAM gate: cam_ready=1/1, overall_cam_ready=True, offline_only=True
+
+CAM_READY_BEFORE=0
+CAM_READY_AFTER=3 (DXF-01, DXF-02, DXF-03 — engineer-assisted flow)
+
+P4_D_STEP_STATUS=DEFERRED (REAL_STEP_SAMPLE_COUNT=0)
+LOCAL_WINDOWS_OCR_READY=NOT_INSTALLED (config path complete; binary deferred)
+RENDER_LINUX_OCR_READY=CONDITIONAL (apt package required)
+CI_OCR_READY=CONDITIONAL (apt install step required)
+
+PRODUCTION_FILES_CHANGED=3 (cad_features.py, setup_stock.py, pyproject.toml)
+NEW_PRODUCTION_FILES=3 (confirmed_feature_route.py, cam_gate.py, route_report.py)
+TEST_FILES_CHANGED=4 (new)
+DOC_FILES_CHANGED=2 (new comparison + this doc update)
+I18N_FILES_CHANGED=0
+DEPENDENCY_FILES_CHANGED=0
+
+LEVEL21_STARTED=NO
+TAG_CREATED=NO
+RELEASE_CREATED=NO
+FORCE_PUSH_USED=NO
+SOURCE_SAMPLE_FILES_COMMITTED=NO
+ALL_SOURCE_FILES_UNCHANGED=YES
+
+FINAL_RESULT=PASS_P4_ROUTE_CAM_READINESS
+```
