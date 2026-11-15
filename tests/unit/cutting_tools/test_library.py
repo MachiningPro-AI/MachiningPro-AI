@@ -93,11 +93,11 @@ class TestToolFamily:
 
 
 class TestToolLibrary:
-    def test_all_returns_47_records(self, lib):
-        assert len(lib.all()) == 47
+    def test_all_returns_57_records(self, lib):
+        assert len(lib.all()) == 57
 
     def test_summary_tool_count(self, lib):
-        assert lib.summary().tool_count == 47
+        assert lib.summary().tool_count == 57
 
     def test_summary_manufacturer_count(self, lib):
         assert lib.summary().manufacturer_count == 9
@@ -127,7 +127,7 @@ class TestToolLibrary:
 
     def test_family_coverage_counts(self, lib):
         cov = lib.family_coverage()
-        assert cov["DRILLING"] == 5
+        assert cov["DRILLING"] == 15
         assert cov["MILLING"] == 12
         assert cov["TURNING"] == 11
         assert cov["BORING"] == 1
@@ -167,7 +167,7 @@ class TestToolLibrary:
 class TestFilterByFamily:
     def test_drilling_count_and_category_code(self, lib):
         r = lib.query().by_family(ToolFamily.DRILLING).results()
-        assert len(r) == 5
+        assert len(r) == 15
         assert all(rec.tool_category_code == "DRILL" for rec in r)
 
     def test_milling_includes_face_mill_insert(self, lib):
@@ -262,7 +262,7 @@ class TestFilterByDiameter:
         assert len(r) >= 3
 
     def test_no_bounds_returns_all(self, lib):
-        assert lib.query().by_diameter().count() == 47
+        assert lib.query().by_diameter().count() == 57
 
     def test_excludes_records_without_diameter(self, lib):
         ids = {rec.stable_id for rec in lib.query().by_diameter(min_mm=1.0).results()}
@@ -300,7 +300,7 @@ class TestFilterByOverallLength:
         assert all(rec.overall_length_mm is not None for rec in r)
 
     def test_no_bounds_returns_all(self, lib):
-        assert lib.query().by_overall_length().count() == 47
+        assert lib.query().by_overall_length().count() == 57
 
 
 class TestFilterByCuttingLength:
@@ -373,7 +373,7 @@ class TestFilterByCoatingType:
 class TestFilterByThroughCoolant:
     def test_true_count(self, lib):
         r = lib.query().by_through_coolant(True).results()
-        assert len(r) == 9
+        assert len(r) == 19
         assert all(rec.through_coolant is True for rec in r)
 
     def test_false_excludes_none(self, lib):
@@ -387,7 +387,7 @@ class TestFilterByThroughCoolant:
         tc_true = lib.query().by_through_coolant(True).count()
         tc_false = lib.query().by_through_coolant(False).count()
         none_count = sum(1 for r in lib.all() if r.through_coolant is None)
-        assert tc_true + tc_false + none_count == 47
+        assert tc_true + tc_false + none_count == 57
 
     def test_taps_are_explicitly_false(self, lib):
         """OSG taps have through_coolant=False."""
@@ -428,7 +428,7 @@ class TestFilterByShankInterface:
 class TestFilterByEvidenceStatus:
     def test_manufacturer_catalog_count(self, lib):
         r = lib.query().by_evidence_status("MANUFACTURER_CATALOG").results()
-        assert len(r) == 44
+        assert len(r) == 54
 
     def test_unverified_count(self, lib):
         r = lib.query().by_evidence_status("UNVERIFIED").results()
@@ -437,7 +437,7 @@ class TestFilterByEvidenceStatus:
     def test_manufacturer_catalog_plus_unverified_equals_total(self, lib):
         mc = lib.query().by_evidence_status("MANUFACTURER_CATALOG").count()
         uv = lib.query().by_evidence_status("UNVERIFIED").count()
-        assert mc + uv == 47
+        assert mc + uv == 57
 
     def test_nonexistent_status_returns_empty(self, lib):
         assert lib.query().by_evidence_status("DRAFT").count() == 0

@@ -6,7 +6,7 @@ from backend.api.app import app
 
 client = TestClient(app)
 
-EXPECTED_TOOL_COUNT = 47
+EXPECTED_TOOL_COUNT = 57
 EXPECTED_MANUFACTURER_COUNT = 9  # Sandvik, Kennametal, Iscar, Walter, OSG, Norton, 3M, Bedra, Poco
 EXPECTED_CATEGORY_COUNT = 12  # prev 9 + Grinding Wheel, EDM Wire, EDM Electrode
 
