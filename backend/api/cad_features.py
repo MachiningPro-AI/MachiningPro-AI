@@ -1009,6 +1009,10 @@ async def confirm_feature_with_dimension(
     sess.recognition_result.features[idx] = confirmed
     sess.confirmed_feature_ids.add(feature_id)
 
+    # P4-A: bridge confirmed feature to route generator
+    from backend.manufacturing.confirmed_feature_route import bridge_confirmed_feature_to_route
+    route_bridge = bridge_confirmed_feature_to_route(confirmed)
+
     return {
         "session_id": session_id,
         "feature_id": feature_id,
@@ -1024,6 +1028,7 @@ async def confirm_feature_with_dimension(
         "dimension_provenance": "USER_CONFIRMED",
         "review_notes": body.review_notes,
         "feature": confirmed.as_dict(),
+        "route_generation": route_bridge.as_dict(),
         "disclaimer": "USER_CONFIRMED: dimension values supplied by engineer — not inferred",
     }
 
