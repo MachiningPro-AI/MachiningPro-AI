@@ -216,6 +216,16 @@ _RECORDS: list[CuttingToolCatalogRecord] = [
     ),
 
     # ── Sandvik Coromant — Drills ─────────────────────────────────────────────
+    #
+    # P9-A flute_length_mm enrichment:
+    # For CoroDrill 860-1 solid carbide drills, the catalog publishes L1 (overall
+    # length) and Lc (cutting length).  Lc defines the working engagement zone —
+    # the fluted section that must not enter the holder during cutting.  For this
+    # series there is no published flute_length separate from Lc; they are
+    # synonymous.  Setting flute_length_mm = cutting_length_mm is backed by the
+    # manufacturer catalog code (LLL in 860.1-DDDD-LLLA1 encodes Lc directly).
+    # Source: Sandvik Coromant CoroDrill 860-1 technical catalog — coromant.sandvik.com.
+    # NO_FABRICATION=YES — values derived from manufacturer catalog code only.
 
     _make(
         stable_id="sandvik-860-1-0800-040a1-pm",
