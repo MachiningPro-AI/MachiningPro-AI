@@ -819,3 +819,108 @@ GO_NO_GO=GO
 
 FINAL_RESULT=PASS_P7_FINAL_ACCEPTANCE_AND_P8_ASSESSMENT_GO
 ```
+
+---
+
+## Phase C: P8 Implementation Results
+
+**Updated:** 2026-11-16  
+**HEAD:** See current git log  
+**Status:** PASS_P8_A_B_C_D_E
+
+### Implementation Summary
+
+```
+P8_A_IMPLEMENTED=YES
+  File: backend/manufacturing/verification_adapter.py (new)
+  nc_segments_to_verification_segments() — RAPID_LINEAR→RAPID, FEED_LINEAR/HELIX→CUT
+  build_verification_input() — assembles geometry with provenance labels
+  run_p8_verification() — calls run_simulation(), extracts per-check statuses
+  P8VerificationInput, P8VerificationResult, GeometryFieldProvenance, FixtureInput
+
+P8_B_IMPLEMENTED=YES
+  Tool reach: flute_length_mm=None → INSUFFICIENT_DATA (not NOT_VERIFIABLE)
+  Overall length does NOT substitute for flute length (hard rule maintained)
+  cutting_length_mm available 8/18 drills (not used as flute substitute)
+  flute_length_mm still 0/18 drills — data gap, not code gap
+
+P8_C_IMPLEMENTED=YES
+  FixtureInput: frozen dataclass with provenance tracking
+  is_trustworthy: True only if provenance ∈ {USER_CONFIRMED, KNOWN}
+  UNKNOWN-provenance fixtures filtered before collision check
+  Holder geometry: always UNKNOWN → holder_collision=NOT_VERIFIABLE
+
+P8_D_IMPLEMENTED=YES
+  GEOMETRY_CHECK_PASS ≠ COLLISION_VALIDATED (separate fields)
+  NOT_VERIFIABLE returned when geometry absent (part/stock/fixture/holder)
+  NOT_PERFORMED only when segments empty
+
+P8_E_IMPLEMENTED=YES
+  Machine travel extracted from machine_record dict (travel_x/y/z_mm)
+  Missing travel → INSUFFICIENT_DATA (not FAIL)
+  Haas VF-2SS: 762×406×508mm wired and tested
+
+P8_F_DOCUMENT_WRITTEN=YES
+  docs/qualification/STEP_CAM_VERIFICATION_SAMPLE_REQUIREMENTS.md
+  Minimum viable P8 set: 3 STEP files (2× Class A prismatic, 1× Class B pocket)
+  P8_STEP_QUALIFICATION_STATUS=DEFERRED_REAL_SAMPLE_REQUIRED (unchanged)
+
+P8_H_IMPLEMENTED=NO (HARD RULE 16 — deferred indefinitely)
+```
+
+### Safety Invariants — Confirmed After Implementation
+
+```
+IS_DISPATCHABLE_TRUE_FOUND=NO
+  P8VerificationResult.__post_init__ enforces is_dispatchable=False
+  Source check in test_p8_safety.py confirmed
+
+PRODUCTION_RELEASE_TRUE_FOUND=NO
+  P8VerificationResult.__post_init__ enforces production_released=False
+
+REAL_MACHINE_WRITE_FOUND=NO
+AUTO_CNC_DISPATCH_FOUND=NO
+AUTO_APPROVAL_FOUND=NO
+GEOMETRY_CHECK_PASS_IMPLIES_COLLISION_VALIDATED=NO (separate field, separate logic)
+UNKNOWN_PROMOTED_WITHOUT_EVIDENCE=NO
+```
+
+### Test Results
+
+```
+P8_NEW_TESTS=90
+  test_p8a_verification_adapter.py: 42 PASS
+  test_p8b_tool_reach.py:           10 PASS
+  test_p8c_fixture.py:               8 PASS
+  test_p8d_collision_status.py:      7 PASS
+  test_p8e_machine_envelope.py:      9 PASS
+  test_p8_safety.py:                14 PASS
+
+MANUFACTURING_SUITE=538 PASS, 12 SKIP (pre-existing skips only)
+QUALIFICATION_SUITE=436 PASS, 1 xpassed
+NEW_FAILURES_INTRODUCED=0
+RUFF=CLEAN (all P8 source + test files)
+```
+
+### Verification Engine — Unchanged
+
+```
+backend/verification/simulation.py  — UNCHANGED
+backend/verification/checks.py      — UNCHANGED
+backend/verification/models.py      — UNCHANGED
+backend/verification/stock.py       — UNCHANGED
+```
+
+### P8 Final Result
+
+```
+P8_A_STATUS=PASS
+P8_B_STATUS=PASS (data gap 0/18 flute noted; code correct)
+P8_C_STATUS=PASS
+P8_D_STATUS=PASS
+P8_E_STATUS=PASS
+P8_F_STATUS=DOCUMENT_WRITTEN (samples deferred)
+P8_H_STATUS=DEFERRED (HARD RULE 16)
+
+P8_IMPLEMENTATION_RESULT=PASS_P8_A_B_C_D_E
+```
