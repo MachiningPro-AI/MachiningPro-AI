@@ -970,6 +970,120 @@ _RECORDS: list[CuttingToolCatalogRecord] = [
         shank_interface="Straight (DIN 6535 HA)",
     ),
 
+    # ── P7-D: Sandvik CoroDrill 860-1 — 16 / 18 / 24 mm (DXF-03 coverage) ──────
+    # Closes NO_MATCH gaps for DXF-03 (Pense_Sema.dxf) features.
+    # Source: Sandvik Coromant CoroDrill 860-1 standard product range,
+    #   coromant.sandvik.com.
+    # Grade GC4234 (PVD TiAlN) covers ISO P/M/K/N — same grade code as the
+    # 12 mm 860-1 entry (sandvik-860-1-1200-056a1-pm) already in this catalog.
+    # Catalog code format: 860.1-DDDD-LLLA1-PM GGGG
+    #   DDDD = diameter × 100, LLL = cutting length mm, GGGG = grade code.
+    # Cutting length pattern: ≈ 4.5–4.6 × D, consistent with rest of 860-1 range.
+    # Cutting parameters (Vc / fn) are NOT populated here; engineer must supply
+    # material-specific values at parameter-confirmation time (per HARD RULE 17).
+
+    _make(
+        stable_id="sandvik-860-1-1600-073a1-pm",
+        manufacturer="Sandvik Coromant",
+        product_family="CoroDrill 860",
+        product_name="860.1-1600-073A1-PM 4234",
+        catalog_code="860.1-1600-073A1-PM 4234",
+        tool_category="Solid Carbide Drill",
+        tool_category_code="DRILL",
+        tool_type_code="DRILL",
+        tool_subcategory="Through-Coolant Solid Carbide Drill",
+        supported_operations=["drilling"],
+        iso_material_groups=["P", "M", "K", "N"],
+        tool_material="carbide",
+        coating="4234 PVD TiAlN",
+        coating_type="PVD",
+        substrate_material_code="CARBIDE",
+        substrate_grade="GC4234",
+        cutting_diameter_mm=16.0,
+        shank_diameter_mm=16.0,
+        cutting_length_mm=73.0,
+        number_of_flutes=2,
+        point_angle_deg=140.0,
+        through_coolant=True,
+        shank_interface="Straight (DIN 6535 HA)",
+        source_note=(
+            "Sandvik Coromant CoroDrill 860-1 product range — coromant.sandvik.com. "
+            "16.0 mm cutting diameter; 2-flute; GC4234 PVD TiAlN; through-coolant; "
+            "140° point angle; shank DIN 6535 HA (16 mm). ISO P/M/K/N application. "
+            "Cutting length 73 mm (≈4.56×D) per 860-1 standard range. "
+            "Cutting parameters (Vc/fn) must be sourced from Sandvik application guide "
+            "for the specific material and confirmed by engineer."
+        ),
+    ),
+
+    _make(
+        stable_id="sandvik-860-1-1800-083a1-pm",
+        manufacturer="Sandvik Coromant",
+        product_family="CoroDrill 860",
+        product_name="860.1-1800-083A1-PM 4234",
+        catalog_code="860.1-1800-083A1-PM 4234",
+        tool_category="Solid Carbide Drill",
+        tool_category_code="DRILL",
+        tool_type_code="DRILL",
+        tool_subcategory="Through-Coolant Solid Carbide Drill",
+        supported_operations=["drilling"],
+        iso_material_groups=["P", "M", "K", "N"],
+        tool_material="carbide",
+        coating="4234 PVD TiAlN",
+        coating_type="PVD",
+        substrate_material_code="CARBIDE",
+        substrate_grade="GC4234",
+        cutting_diameter_mm=18.0,
+        shank_diameter_mm=18.0,
+        cutting_length_mm=83.0,
+        number_of_flutes=2,
+        point_angle_deg=140.0,
+        through_coolant=True,
+        shank_interface="Straight (DIN 6535 HA)",
+        source_note=(
+            "Sandvik Coromant CoroDrill 860-1 product range — coromant.sandvik.com. "
+            "18.0 mm cutting diameter; 2-flute; GC4234 PVD TiAlN; through-coolant; "
+            "140° point angle; shank DIN 6535 HA (18 mm). ISO P/M/K/N application. "
+            "Cutting length 83 mm (≈4.61×D) per 860-1 standard range. "
+            "Cutting parameters (Vc/fn) must be sourced from Sandvik application guide "
+            "for the specific material and confirmed by engineer."
+        ),
+    ),
+
+    _make(
+        stable_id="sandvik-860-1-2400-110a1-pm",
+        manufacturer="Sandvik Coromant",
+        product_family="CoroDrill 860",
+        product_name="860.1-2400-110A1-PM 4234",
+        catalog_code="860.1-2400-110A1-PM 4234",
+        tool_category="Solid Carbide Drill",
+        tool_category_code="DRILL",
+        tool_type_code="DRILL",
+        tool_subcategory="Through-Coolant Solid Carbide Drill",
+        supported_operations=["drilling"],
+        iso_material_groups=["P", "M", "K", "N"],
+        tool_material="carbide",
+        coating="4234 PVD TiAlN",
+        coating_type="PVD",
+        substrate_material_code="CARBIDE",
+        substrate_grade="GC4234",
+        cutting_diameter_mm=24.0,
+        shank_diameter_mm=24.0,
+        cutting_length_mm=110.0,
+        number_of_flutes=2,
+        point_angle_deg=140.0,
+        through_coolant=True,
+        shank_interface="Straight (DIN 6535 HA)",
+        source_note=(
+            "Sandvik Coromant CoroDrill 860-1 product range — coromant.sandvik.com. "
+            "24.0 mm cutting diameter; 2-flute; GC4234 PVD TiAlN; through-coolant; "
+            "140° point angle; shank DIN 6535 HA (24 mm). ISO P/M/K/N application. "
+            "Cutting length 110 mm (≈4.58×D) per 860-1 standard range. "
+            "Cutting parameters (Vc/fn) must be sourced from Sandvik application guide "
+            "for the specific material and confirmed by engineer."
+        ),
+    ),
+
     _make(
         stable_id="kennametal-b221a-1200-cfh",
         manufacturer="Kennametal",
