@@ -400,6 +400,7 @@ def build_verification_input(
     stock_def: Any = None,
     fixture_inputs: list[FixtureInput] | None = None,
     tool_record: Any = None,
+    holder_record: Any = None,
 ) -> P8VerificationInput:
     """Build a P8VerificationInput from an OfflineNCCandidate and supplementary geometry.
 
@@ -474,15 +475,50 @@ def build_verification_input(
             cut_len = float(cl)
             cut_len_prov = GeometryFieldProvenance.KNOWN
 
-    # --- Holder geometry (not populated in P7; always UNKNOWN until P8-B data phase) ---
+    # --- Holder geometry (P9-B: populated from holder catalog record when available) ---
     holder_diam: float | None = None
     holder_diam_prov = GeometryFieldProvenance.UNKNOWN
     holder_len: float | None = None
     holder_len_prov = GeometryFieldProvenance.UNKNOWN
-    provenance_notes.append(
-        "HOLDER_GEOMETRY: outer diameter and body length not populated in P8; "
-        "HOLDER_COLLISION_VALIDATED=NOT_VERIFIABLE"
-    )
+    if holder_record is not None:
+        hd = getattr(holder_record, "body_diameter_mm", None)
+        hg = getattr(holder_record, "gauge_length_mm", None)
+        if hd is not None:
+            holder_diam = float(hd)
+            holder_diam_prov = GeometryFieldProvenance.KNOWN
+            provenance_notes.append(
+                f"HOLDER_DIAMETER: {holder_diam} mm from catalog record "
+                f"'{getattr(holder_record, 'stable_id', '?')}' body_diameter_mm "
+                f"(provenance=KNOWN)"
+            )
+        else:
+            provenance_notes.append(
+                f"HOLDER_DIAMETER_MISSING: '{getattr(holder_record, 'stable_id', '?')}' "
+                "has no body_diameter_mm in catalog; HOLDER_COLLISION blocked"
+            )
+        if hg is not None:
+            holder_len = float(hg)
+            holder_len_prov = GeometryFieldProvenance.KNOWN
+            provenance_notes.append(
+                f"HOLDER_LENGTH_PROXY: {holder_len} mm from gauge_length_mm of "
+                f"'{getattr(holder_record, 'stable_id', '?')}' (conservative proxy; "
+                f"provenance=KNOWN)"
+            )
+        else:
+            provenance_notes.append(
+                f"HOLDER_LENGTH_MISSING: '{getattr(holder_record, 'stable_id', '?')}' "
+                "has no gauge_length_mm; HOLDER_COLLISION length check blocked"
+            )
+        if holder_diam is None and holder_len is None:
+            provenance_notes.append(
+                "HOLDER_GEOMETRY: no dimensional data available from holder_record; "
+                "HOLDER_COLLISION_VALIDATED=NOT_VERIFIABLE"
+            )
+    else:
+        provenance_notes.append(
+            "HOLDER_GEOMETRY: no holder_record supplied; "
+            "HOLDER_COLLISION_VALIDATED=NOT_VERIFIABLE"
+        )
 
     # --- Stock model (P8-D) ---
     stock_model: StockModel | None = None
