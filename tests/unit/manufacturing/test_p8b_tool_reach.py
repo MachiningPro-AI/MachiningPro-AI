@@ -117,15 +117,18 @@ class TestToolReach:
         result = run_p8_verification(vi)
         assert result.tool_reach_validated == "INSUFFICIENT_DATA"
 
-    def test_p8b_audit_18_drills_zero_flute_length(self):
-        """MUST 8 audit: confirm 0/18 drills have flute_length in catalog."""
+    def test_p8b_audit_18_drills_flute_length_p9a(self):
+        """P9-A update: 9/18 drills now have flute_length_mm (all Sandvik 860-1)."""
         from backend.cutting_tools.seed_catalog import get_catalog
         drills = [t for t in get_catalog() if t.tool_category_code == "DRILL"]
         drills_with_flute = [d for d in drills if d.flute_length_mm is not None]
-        # Assessment finding: 0/18 populated
-        assert len(drills_with_flute) == 0, (
-            f"Expected 0 drills with flute_length_mm, got {len(drills_with_flute)}: "
-            + str([d.stable_id for d in drills_with_flute])
+        sandvik_860_with_flute = [
+            d for d in drills_with_flute if d.stable_id.startswith("sandvik-860-1-")
+        ]
+        # P9-A: all 9 Sandvik 860-1 drills now have flute_length_mm populated
+        assert len(sandvik_860_with_flute) == 9, (
+            f"Expected 9 Sandvik 860-1 drills with flute_length_mm, "
+            f"got {len(sandvik_860_with_flute)}"
         )
 
     def test_p8b_audit_cutting_length_partial(self):
