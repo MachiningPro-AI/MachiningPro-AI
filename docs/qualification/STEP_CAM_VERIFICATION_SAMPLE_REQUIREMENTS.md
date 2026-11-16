@@ -183,5 +183,39 @@ Recommended sources (in order of preference):
 
 ---
 
+---
+
+## 10. P9-F Update (2026-11-16)
+
+```
+P9_F_STATUS            = DEFERRED
+REAL_STEP_SAMPLE_COUNT = 0   (unchanged from P8-F)
+```
+
+P9 adds fixture geometry (P9-C), holder geometry wiring (P9-B), flute-length
+enrichment (P9-A), and voxel stock wiring (P9-D) for the existing DXF-based
+pathway.  None of these change the STEP qualification gate.
+
+P9-F (STEP-based solid verification) remains DEFERRED for the same reason as
+P8-F: no real STEP samples are available.
+
+The following checks added or made more visible in P9 remain `NOT_VERIFIABLE`
+until real STEP samples satisfy the gate above:
+
+| Check | P9 State | STEP Required? |
+|-------|----------|----------------|
+| `gouge_validated` | NOT_VERIFIABLE | YES |
+| `part_bbox_provenance` | UNKNOWN | YES |
+| Solid 3D tool reach | NOT_VERIFIABLE | YES |
+| Full 3D collision (STEP fixture) | NOT_PERFORMED | YES |
+
+P9-F will be executed as a separate qualification cycle once Class A + Class B
+STEP samples (defined in §3 above) are provided.
+
+**STEP_CAM_VERIFICATION_QUALIFIED = NO**  
+**Next action: Provide at least 3 STEP samples (2× Class A + 1× Class B).**
+
+---
+
 *This document does not change any hard rule. UNKNOWN remains UNKNOWN until actual
 geometric evidence is present and tested.*
