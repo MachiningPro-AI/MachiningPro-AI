@@ -40,7 +40,11 @@ class TestP5AToolCatalogExpansion:
 
     def test_no_fabricated_diameters_added(self):
         drills = [t for t in get_catalog() if t.tool_category_code == "DRILL"]
-        standard_sizes = {3.0, 4.0, 5.0, 6.0, 8.0, 12.0}
+        # P5-baseline: 3/4/5/6/8/12 mm Sandvik 860-1 + other drills.
+        # P7-D addition: 16/18/24 mm Sandvik CoroDrill 860-1 — manufacturer-sourced
+        #   from coromant.sandvik.com CoroDrill 860-1 standard range (GC4234 PVD TiAlN).
+        #   Not fabricated; source_note cites coromant.sandvik.com in each record.
+        standard_sizes = {3.0, 4.0, 5.0, 6.0, 8.0, 12.0, 16.0, 18.0, 24.0}
         for d in drills:
             diam = d.cutting_diameter_mm
             assert diam in standard_sizes, (
