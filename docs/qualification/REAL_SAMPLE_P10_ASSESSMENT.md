@@ -1255,5 +1255,185 @@ FINAL_RESULT=PASS_P9_FINAL_ACCEPTANCE_AND_P10_ASSESSMENT_CONDITIONAL_GO
 *HARD_RULES_STATUS: ALL_ACTIVE — no rule relaxed or bypassed.*  
 *P10_PRODUCTION_CODE_MODIFIED=NO*  
 *P10_GEOMETRY_FABRICATED=NO*  
-*P10_DISPATCHABLE=ALWAYS_FALSE*  
+*P10_DISPATCHABLE=ALWAYS_FALSE*
+
+---
+
+## Phase C: P10 Phase 1 Pre-STEP Implementation Evidence
+
+**Updated:** 2026-11-17  
+**HEAD_BEFORE:** 979d8c7  
+**Task:** MACHININGPRO_AI_P10_PHASE1_PRE_STEP_IMPLEMENTATION
+
+---
+
+### MUST 28 (P10 Phase 1) — Targeted Tests Added
+
+```
+NEW_TESTS_ADDED=145
+
+  test_p10c_fixture_workflow.py:    28 PASS  (P10-C: fixture workflow wiring)
+  test_p10g_stock_workflow.py:      21 PASS  (P10-G: stock workflow wiring)
+  test_p10a_tool_geometry.py:       15 PASS  (P10-A: tool geometry status + fail-closed)
+  test_p10e_holemaking.py:          13 PASS  (P10-E: DXF-02 gap documentation)
+  test_p10_step_intake.py:          28 PASS  (P10-B: STEP intake gate)
+  test_p10b_step_intake.py:         22 PASS  (P10-B: pipeline readiness)
+  test_p10g_simulation_workflow.py: 18 PASS  (P10-G: simulation workflow detail)
+```
+
+---
+
+### MUST 29 (P10 Phase 1) — Full Test Suite Regression
+
+```
+Full manufacturing + cutting_tools + qualification suite: EXIT_CODE=0
+
+NEW_FAILURES_INTRODUCED=0
+RUFF=CLEAN  (all P10 source and test files)
+```
+
+---
+
+### MUST 30 (P10 Phase 1) — Implementation Comparison Doc
+
+```
+COMPARISON_DOC=docs/qualification/REAL_SAMPLE_P10_PHASE1_IMPLEMENTATION_COMPARISON.md
+STATUS=CREATED
+```
+
+---
+
+### MUST 31 (P10 Phase 1) — Implementation Evidence
+
+```
+P10-C FIXTURE WORKFLOW:  WIRED
+  workflow_orchestrator.py + production_workholding.py
+  FixtureSelection → _resolve_fixture_selection() → FixtureInput → build_verification_input
+  TOOL_FIXTURE_COLLISION exits NOT_VERIFIABLE when trustworthy fixture supplied + WCS confirmed
+  SCOPED_PASS requires all three checks (tool/holder/fixture) to run — fail-closed
+
+P10-G STOCK WORKFLOW:  WIRED
+  workflow_orchestrator.py + production_simulation.py
+  StockDefinition → stock_definition_to_stock_model → VoxelGrid → WorkflowVerificationResult
+  STOCK_REMOVAL_VALIDATED exits NOT_VERIFIABLE when rect/round stock supplied
+  SIMULATION_METHOD=VOXEL_APPROXIMATION (never EXACT_BOOLEAN)
+  GOUGE_VALIDATED=NOT_VERIFIABLE (unchanged — requires STEP part_bbox)
+
+P10-A TOOL GEOMETRY:  DOCUMENTED (no change to catalog)
+  TOOLS_WITH_FLUTE_LENGTH_BEFORE=9  (P9-A Sandvik 860-1)
+  TOOLS_WITH_FLUTE_LENGTH_AFTER=9   (no change — no source data for Kennametal/Walter)
+  UNSUPPORTED_TOOL_GEOMETRY_COUNT=9 (Kennametal B221A×6 + Walter Titex DC150×3)
+  Fail-closed: tool_reach_validated=INSUFFICIENT_DATA for tools without flute_length_mm
+
+P10-E ADVANCED HOLEMAKING:  DOCUMENTED
+  DXF02_STATUS=DEFERRED_CAPABILITY_GAP
+  Max drill=24mm < 60mm required; boring bar exists (turning-type, not milling);
+  no generate_boring_toolpath(); no generate_helical_toolpath()
+
+P10-B STEP INTAKE:  PREPARED (fail-closed gate; no parser installed)
+  STEP_IMPORT_READY=False; BREP_TOPOLOGY_READY=False; REAL_STEP_SAMPLE_COUNT=0
+  accept_step_file(): 4-stage gate; DEFERRED_NO_PARSER for valid STEP files (correct state)
+  part_bbox_min/max always None (no fabricated geometry)
+  _3d_pipeline_readiness(): all 11 stages; MACHINE_SELECTION_3D=PARTIAL; none IMPLEMENTED
+```
+
+---
+
+### MUST 32 (P10 Phase 1) — Change Control
+
+```
+PRODUCTION_FILES_CHANGED=YES  (6 new backend modules)
+LIBRARY_FILES_CHANGED=NO      (seed_catalog.py unchanged; fixture_seed.py unchanged)
+TEST_FILES_CHANGED=YES        (7 new test files, 145 new tests)
+DOC_FILES_CHANGED=YES         (this update + comparison doc)
+I18N_FILES_CHANGED=NO
+DEPENDENCY_FILES_CHANGED=NO   (cadquery not installed)
+FRONTEND_FILES_CHANGED=NO
+API_FILES_CHANGED=NO
+```
+
+---
+
+### MUST 33 (P10 Phase 1) — Commits Planned
+
+```
+1. feat(workholding): wire fixture geometry into verification workflow
+   Files: backend/manufacturing/workflow_orchestrator.py
+          backend/manufacturing/production_workholding.py
+
+2. feat(simulation): wire production stock workflow to voxel verification
+   Files: backend/manufacturing/production_simulation.py
+          backend/manufacturing/advanced_holemaking.py
+          backend/cad_import/__init__.py
+          backend/cad_import/step_intake.py
+
+3. test(qualification): validate P10 phase 1 pre-STEP readiness
+   Files: tests/unit/manufacturing/test_p10c_fixture_workflow.py
+          tests/unit/manufacturing/test_p10g_stock_workflow.py
+          tests/unit/manufacturing/test_p10a_tool_geometry.py
+          tests/unit/manufacturing/test_p10e_holemaking.py
+          tests/unit/manufacturing/test_p10_step_intake.py
+          tests/unit/manufacturing/test_p10b_step_intake.py
+          tests/unit/manufacturing/test_p10g_simulation_workflow.py
+
+4. docs(qualification): P10 phase 1 implementation comparison and evidence
+   Files: docs/qualification/REAL_SAMPLE_P10_PHASE1_IMPLEMENTATION_COMPARISON.md
+          docs/qualification/REAL_SAMPLE_P10_ASSESSMENT.md
+```
+
+---
+
+### MUST 25 (P10 Phase 1) — Safety Search (Updated)
+
+```
+IS_DISPATCHABLE_TRUE_FOUND=NO
+  WorkflowVerificationResult.is_dispatchable property always returns False
+  P8VerificationResult.__post_init__ enforces False via object.__setattr__
+
+PRODUCTION_RELEASE_TRUE_FOUND=NO
+REAL_MACHINE_WRITE_FOUND=NO
+AUTO_CNC_DISPATCH_FOUND=NO
+SAFETY_INVARIANTS_INTACT=YES
+```
+
+---
+
+### P10 Phase 1 Final Report
+
+```
+HEAD_BEFORE=979d8c7
+
+P10_C_WIRED=YES     (fixture geometry → verification workflow)
+P10_G_WIRED=YES     (stock/voxel → verification workflow)
+P10_A_STATUS=DOCUMENTED_NO_CHANGE  (9 tools remain flute=UNKNOWN; no fabrication)
+P10_E_STATUS=DEFERRED_CAPABILITY_GAP  (DXF-02 boring not implemented; documented)
+P10_B_STATUS=PREPARED_FAIL_CLOSED  (STEP intake gate; STEP_IMPORT_READY=False)
+
+TOOLS_WITH_FLUTE_LENGTH=9/18   (unchanged from P9-A — no Kennametal/Walter source data)
+TOOLS_WITHOUT_FLUTE_LENGTH=9/18
+UNSUPPORTED_TOOL_GEOMETRY_COUNT=9
+
+FIXTURE_WORKFLOW_WIRED=YES
+STOCK_WORKFLOW_WIRED=YES
+SIMULATION_METHOD=VOXEL_APPROXIMATION
+GOUGE_VALIDATED=NOT_VERIFIABLE  (unchanged; requires STEP)
+IS_DISPATCHABLE=ALWAYS_FALSE
+PRODUCTION_RELEASED=ALWAYS_FALSE
+
+NEW_TESTS_ADDED=145
+NEW_FAILURES_INTRODUCED=0
+RUFF=CLEAN
+
+HARD_RULES_VIOLATED=NONE
+FABRICATED_GEOMETRY=NO
+FABRICATED_STEP_FILES=NO
+
+FINAL_RESULT=PASS_P10_PHASE1_PRE_STEP_READINESS
+```
+
+---
+
+*HARD_RULES_STATUS: ALL_ACTIVE — no rule relaxed or bypassed.*  
+*P10_PHASE1_DISPATCHABLE=ALWAYS_FALSE*  
+*P10_PHASE1_GEOMETRY_FABRICATED=NO*  
 *P10_PRODUCTION_RELEASED=ALWAYS_FALSE*
