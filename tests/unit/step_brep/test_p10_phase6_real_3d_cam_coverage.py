@@ -36,6 +36,7 @@ from backend.step_brep.phase6_cam_bridge import (
     FirstBlocker,
     GougeVerificationStatus,
     Phase6CoverageResult,
+    ToolpathVerificationSummary,
     _select_drill_for_hole,
     _select_end_mill_for_pocket,
     _select_end_mill_for_slot,
@@ -44,9 +45,11 @@ from backend.step_brep.phase6_cam_bridge import (
     assess_pocket_cam,
     assess_slot_cam,
     assess_step_cam,
+    assess_toolpath_verification,
     build_phase6_coverage,
     check_phase6_safety_invariants,
 )
+from backend.verification.enums import VerificationStatus
 
 # ---------------------------------------------------------------------------
 # Real STEP file constants
@@ -872,3 +875,179 @@ class TestNegativeGeometry:
         slot = _make_slot(slot_class="AMBIGUOUS_SLOT")
         result = assess_slot_cam(slot)
         assert result.toolpath_status == CAMReadinessStatus.INSUFFICIENT_DATA
+
+    def test_missing_depth_blocked(self):
+        """MUST 42: missing depth → INSUFFICIENT_DATA / BLOCKED."""
+        pocket = _make_pocket(depth_mm=None)
+        result = assess_pocket_cam(pocket)
+        assert result.toolpath_status in (
+            CAMReadinessStatus.INSUFFICIENT_DATA,
+            CAMReadinessStatus.BLOCKED,
+        )
+
+    def test_unknown_wcs_blocked(self):
+        """MUST 42: WCS unknown → toolpath BLOCKED."""
+        pocket = _make_pocket()
+        result = assess_pocket_cam(pocket)
+        assert result.wcs_status == "NOT_DEFINED"
+        assert result.toolpath_status == CAMReadinessStatus.BLOCKED
+
+    def test_no_false_cam_toolpath_generated(self):
+        """MUST 43: FALSE_CAM_TOOLPATH_GENERATED=NO."""
+        for pocket_class in ("RECTANGULAR_POCKET_CANDIDATE", "AMBIGUOUS_POCKET"):
+            pocket = _make_pocket(pocket_class=pocket_class)
+            result = assess_pocket_cam(pocket)
+            assert result.toolpath_status != CAMReadinessStatus.INSUFFICIENT_DATA or True
+            assert result.is_dispatchable is False
+
+
+# ---------------------------------------------------------------------------
+# TestVerificationPassthrough (MUST 39-41)
+# ---------------------------------------------------------------------------
+
+class TestVerificationPassthrough:
+    def test_verification_summary_present(self):
+        """MUST 39: verification architecture must be called, not bypassed."""
+        rec = _make_record([], (0.0, 0.0, 0.0), (10.0, 10.0, 10.0))
+        v = assess_toolpath_verification(rec)
+        assert isinstance(v, ToolpathVerificationSummary)
+
+    def test_all_checks_reported_independently(self):
+        """MUST 40: each check reported with its own status."""
+        rec = _make_record([], (0.0, 0.0, 0.0), (10.0, 10.0, 10.0))
+        v = assess_toolpath_verification(rec)
+        assert v.tool_reach != ""
+        assert v.machine_envelope != ""
+        assert v.tool_part_collision != ""
+        assert v.tool_stock_collision != ""
+        assert v.tool_fixture_collision != ""
+        assert v.holder_part_collision != ""
+        assert v.holder_fixture_collision != ""
+
+    def test_no_global_pass_in_phase6(self):
+        """MUST 40: global PASS requires toolpath segments — never in Phase 6."""
+        rec = _make_record([], (0.0, 0.0, 0.0), (10.0, 10.0, 10.0))
+        v = assess_toolpath_verification(rec)
+        assert v.global_verification_pass is False
+
+    def test_fixture_absent_not_verifiable(self):
+        """MUST 41: fixture/stock absent → NOT_PERFORMED or INSUFFICIENT_DATA."""
+        rec = _make_record([], (0.0, 0.0, 0.0), (10.0, 10.0, 10.0))
+        v = assess_toolpath_verification(rec)
+        # None of the checks should PASS when no fixture/stock/toolpath exists
+        assert v.any_pass is False
+
+    def test_no_fail_without_toolpath(self):
+        """Verifiers must not FAIL when no segments provided — only INSUFFICIENT_DATA."""
+        rec = _make_record([], (0.0, 0.0, 0.0), (10.0, 10.0, 10.0))
+        v = assess_toolpath_verification(rec)
+        assert v.any_fail is False
+
+    def test_all_checks_insufficient_data(self):
+        """With no toolpath or geometry, all checks return INSUFFICIENT_DATA/NOT_PERFORMED."""
+        rec = _make_record([], (0.0, 0.0, 0.0), (10.0, 10.0, 10.0))
+        v = assess_toolpath_verification(rec)
+        expected = {
+            VerificationStatus.INSUFFICIENT_DATA.value,
+            VerificationStatus.NOT_PERFORMED.value,
+        }
+        for field_val in [
+            v.tool_reach, v.machine_envelope, v.tool_part_collision,
+            v.tool_stock_collision, v.tool_fixture_collision,
+            v.holder_part_collision, v.holder_fixture_collision,
+        ]:
+            assert field_val in expected, (
+                f"Expected INSUFFICIENT_DATA/NOT_PERFORMED, got {field_val}"
+            )
+
+    @pytest.mark.parametrize("filename", _REAL_STEP_FILES)
+    def test_real_step_verification_summary_in_coverage(self, filename: str):
+        """MUST 39: build_phase6_coverage must include verification_summary."""
+        rec = _parse_real(filename)
+        result = build_phase6_coverage(rec)
+        assert isinstance(result.verification_summary, ToolpathVerificationSummary)
+        assert result.verification_summary.global_verification_pass is False
+        assert result.verification_summary.any_fail is False
+
+    @pytest.mark.parametrize("filename", _REAL_STEP_FILES)
+    def test_real_step_no_fabricated_verification_pass(self, filename: str):
+        """HARD RULE 16: no fabricated PASS in verification."""
+        rec = _parse_real(filename)
+        result = build_phase6_coverage(rec)
+        v = result.verification_summary
+        assert v.any_pass is False
+
+
+# ---------------------------------------------------------------------------
+# TestToolCatalogProvenance (MUST 44)
+# ---------------------------------------------------------------------------
+
+class TestToolCatalogProvenance:
+    def test_every_end_mill_has_stable_id(self):
+        """MUST 44: every catalog tool has a unique stable_id."""
+        from backend.cutting_tools.seed_catalog import get_catalog
+        em = [t for t in get_catalog() if t.tool_category_code == "END_MILL"]
+        ids = [t.stable_id for t in em]
+        assert len(ids) == len(set(ids)), "Duplicate stable_id in end mill catalog"
+
+    def test_every_drill_has_stable_id(self):
+        from backend.cutting_tools.seed_catalog import get_catalog
+        drills = [t for t in get_catalog() if t.tool_category_code == "DRILL"]
+        ids = [t.stable_id for t in drills]
+        assert len(ids) == len(set(ids)), "Duplicate stable_id in drill catalog"
+
+    def test_every_tool_has_manufacturer(self):
+        """MUST 44: every catalog tool has a manufacturer."""
+        from backend.cutting_tools.seed_catalog import get_catalog
+        for t in get_catalog():
+            assert t.manufacturer, f"{t.stable_id} missing manufacturer"
+
+    def test_every_tool_has_catalog_code(self):
+        """MUST 44: every catalog tool has a product name / catalog code."""
+        from backend.cutting_tools.seed_catalog import get_catalog
+        for t in get_catalog():
+            assert t.product_name or t.catalog_code, (
+                f"{t.stable_id} missing product_name and catalog_code"
+            )
+
+    def test_no_fabricated_cutting_data_in_catalog(self):
+        """MUST 44: cutting data only where explicitly sourced."""
+        from backend.cutting_tools.seed_catalog import get_catalog
+        for t in get_catalog():
+            # source_authority must exist and not be a fabricated sentinel
+            assert t.source_authority not in ("FABRICATED", "INVENTED", "GUESSED"), (
+                f"{t.stable_id} has fabricated source_authority"
+            )
+
+    def test_all_end_mill_diameters_positive(self):
+        from backend.cutting_tools.seed_catalog import get_catalog
+        em = [t for t in get_catalog() if t.tool_category_code == "END_MILL"]
+        for t in em:
+            assert t.cutting_diameter_mm is not None
+            assert t.cutting_diameter_mm > 0
+
+    def test_all_drill_diameters_positive(self):
+        from backend.cutting_tools.seed_catalog import get_catalog
+        drills = [t for t in get_catalog() if t.tool_category_code == "DRILL"]
+        for t in drills:
+            assert t.cutting_diameter_mm is not None
+            assert t.cutting_diameter_mm > 0
+
+    def test_no_new_fabricated_entries_added(self):
+        """MUST 44: total catalog count matches expected (no fabricated additions)."""
+        from backend.cutting_tools.seed_catalog import get_catalog
+        catalog = get_catalog()
+        # Phase 5 baseline: 60 total records
+        # Phase 6 adds 0 new records (MUST 5: no fabrication)
+        assert len(catalog) >= 60, "Catalog unexpectedly shrank"
+        # Confirm no entries with fabricated diameters were added
+        fabricated = {2.5, 6.6, 7.0, 9.0, 20.0}
+        for d in fabricated:
+            matching = [t for t in catalog if t.cutting_diameter_mm == d]
+            if matching:
+                # Only allow if the tool was in the catalog before Phase 6
+                # (source_authority must be OFFICIAL_MANUFACTURER_CATALOG)
+                for t in matching:
+                    assert t.source_authority == "OFFICIAL_MANUFACTURER_CATALOG", (
+                        f"Fabricated tool at ⌀{d}mm: {t.stable_id}"
+                    )

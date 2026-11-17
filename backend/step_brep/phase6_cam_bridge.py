@@ -35,6 +35,16 @@ from backend.step_brep.phase5_feature_detector import (
     detect_step_shoulder_candidates,
     filter_internal_cylinders,
 )
+from backend.step_brep.verification_adapter import build_step_verification_input
+from backend.verification.checks import (
+    check_fixture_collision,
+    check_holder_collision,
+    check_machine_envelope,
+    check_part_gouge,
+    check_tool_collision,
+    check_tool_reach,
+)
+from backend.verification.enums import VerificationStatus
 
 __all__ = [
     "FirstBlocker",
@@ -46,6 +56,7 @@ __all__ = [
     "StepCAMAssessment",
     "HoleCAMAssessment",
     "GougeVerificationAssessment",
+    "ToolpathVerificationSummary",
     "Phase6SafetyInvariants",
     "Phase6CoverageResult",
     "assess_pocket_cam",
@@ -53,6 +64,7 @@ __all__ = [
     "assess_step_cam",
     "assess_hole_cam",
     "assess_gouge_verification",
+    "assess_toolpath_verification",
     "build_phase6_coverage",
     "check_phase6_safety_invariants",
 ]
@@ -279,6 +291,7 @@ class Phase6CoverageResult:
     step_assessments: list[StepCAMAssessment]
     hole_assessments: list[HoleCAMAssessment]
     gouge_assessment: GougeVerificationAssessment
+    verification_summary: ToolpathVerificationSummary
     pocket_tool_found_count: int
     slot_tool_found_count: int
     slot_tool_fits_count: int
@@ -731,6 +744,97 @@ def assess_gouge_verification(record: StepImportRecord) -> GougeVerificationAsse
 
 
 # ---------------------------------------------------------------------------
+# Verification pass-through (MUST 39-41)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class ToolpathVerificationSummary:
+    """Results of passing a Phase 6 assessment through existing P8/P9/P10 verifiers.
+
+    All checks are fail-closed (MUST 39).  Missing geometry/tool data returns
+    INSUFFICIENT_DATA, not PASS (MUST 41).  No global PASS unless each defined
+    check passes (MUST 40).
+    """
+
+    source_path: str
+    tool_reach: str
+    machine_envelope: str
+    tool_part_collision: str
+    tool_stock_collision: str
+    tool_fixture_collision: str
+    holder_part_collision: str
+    holder_fixture_collision: str
+    any_pass: bool
+    any_fail: bool
+    any_insufficient: bool
+    global_verification_pass: bool
+    notes: str
+
+
+def assess_toolpath_verification(record: StepImportRecord) -> ToolpathVerificationSummary:
+    """Pass Phase 6 STEP geometry through existing P8/P9/P10 verification checks.
+
+    All checks receive no toolpath segments (blocked in Phase 6) and use the
+    STEP B-Rep bounding box from the verification adapter.  Every check returns
+    INSUFFICIENT_DATA because no toolpath segments, flute length, machine travel,
+    or fixture geometry are available at this phase.
+
+    MUST 39: does NOT bypass existing verifiers.
+    MUST 40: each check reported independently.
+    MUST 41: absent fixture/holder/stock → NOT_VERIFIABLE or INSUFFICIENT_DATA.
+    HARD RULE 16: no fabricated PASS.
+    """
+    vi = build_step_verification_input(record)
+    bbox_min = vi.part_bbox_min
+    bbox_max = vi.part_bbox_max
+
+    # All checks with empty segment list — no toolpath generated in Phase 6
+    r_reach = check_tool_reach([], flute_length_mm=None, holder_clearance_mm=None)
+    r_env = check_machine_envelope([], travel_x_mm=None, travel_y_mm=None, travel_z_mm=None)
+    r_gouge = check_part_gouge([], bbox_min, bbox_max, tool_diameter_mm=None)
+    r_stock = check_part_gouge([], None, None, tool_diameter_mm=None)  # stock not defined
+    r_fix = check_fixture_collision(
+        [], fixtures=[], tool_diameter_mm=None,
+        holder_diameter_mm=None, tool_length_mm=None, holder_length_mm=None,
+    )
+    r_hold = check_holder_collision(
+        [], fixtures=[], tool_length_mm=None,
+        holder_diameter_mm=None, holder_length_mm=None,
+    )
+    r_fix2 = check_tool_collision([], fixtures=[], tool_diameter_mm=None)
+
+    statuses = [r_reach, r_env, r_gouge, r_stock, r_fix, r_hold, r_fix2]
+    any_pass = any(r.status == VerificationStatus.PASS for r in statuses)
+    any_fail = any(r.status == VerificationStatus.FAIL for r in statuses)
+    any_insuff = any(
+        r.status in (VerificationStatus.INSUFFICIENT_DATA, VerificationStatus.NOT_PERFORMED)
+        for r in statuses
+    )
+
+    return ToolpathVerificationSummary(
+        source_path=record.source_path,
+        tool_reach=r_reach.status.value,
+        machine_envelope=r_env.status.value,
+        tool_part_collision=r_gouge.status.value,
+        tool_stock_collision=r_stock.status.value,
+        tool_fixture_collision=r_fix.status.value,
+        holder_part_collision=r_hold.status.value,
+        holder_fixture_collision=r_fix2.status.value,
+        any_pass=any_pass,
+        any_fail=any_fail,
+        any_insufficient=any_insuff,
+        global_verification_pass=False,  # Phase 6: toolpath blocked, no global PASS
+        notes=(
+            "Phase 6: all verifiers called with empty segment list (toolpath blocked). "
+            "TOOL_REACH/MACHINE_ENVELOPE/COLLISION checks return INSUFFICIENT_DATA. "
+            "Fixture/stock absent → NOT_VERIFIABLE per MUST 41. "
+            "Global PASS requires toolpath segments, tool geometry, and machine envelope. "
+            "HARD RULE 16: no fabricated PASS."
+        ),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Master assessment
 # ---------------------------------------------------------------------------
 
@@ -747,6 +851,7 @@ def build_phase6_coverage(record: StepImportRecord) -> Phase6CoverageResult:
     step_assessments = [assess_step_cam(st) for st in steps]
     hole_assessments = [assess_hole_cam(c) for c in internal_cyls]
     gouge_assessment = assess_gouge_verification(record)
+    verification_summary = assess_toolpath_verification(record)
 
     pocket_tool_found = sum(
         1 for p in pocket_assessments if p.tool_stable_id is not None
@@ -793,6 +898,7 @@ def build_phase6_coverage(record: StepImportRecord) -> Phase6CoverageResult:
         step_assessments=step_assessments,
         hole_assessments=hole_assessments,
         gouge_assessment=gouge_assessment,
+        verification_summary=verification_summary,
         pocket_tool_found_count=pocket_tool_found,
         slot_tool_found_count=slot_tool_found,
         slot_tool_fits_count=slot_tool_fits,
