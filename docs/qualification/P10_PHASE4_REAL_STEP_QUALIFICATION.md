@@ -2,6 +2,8 @@
 
 **FINAL_RESULT: PASS_P10_PHASE4_REAL_STEP_QUALIFIED**
 
+**Superseded by Phase 5:** [`P10_PHASE5_REAL_3D_FEATURE_COVERAGE.md`](P10_PHASE5_REAL_3D_FEATURE_COVERAGE.md) — adds OD/bore disambiguation, pocket, slot, step recognition.
+
 Qualification date: 2026-11-17  
 HEAD: c4ffe41 (feat(multiformat-qual): real CAD multi-format qualification + P4 gate unblock)  
 ORIGIN_MAIN: c4ffe41  
