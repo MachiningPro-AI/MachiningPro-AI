@@ -19,9 +19,8 @@ import pathlib
 
 import pytest
 
-from backend.step_brep.benchmark_generator import IN_HOUSE_BENCHMARK_STEP_DIR
-from backend.step_brep.gmsh_step_parser import parse_step_file
 from backend.cad_import.step_intake import REAL_STEP_SAMPLE_COUNT
+from backend.step_brep.gmsh_step_parser import parse_step_file
 
 _GT_FILES = [
     "P10_S1_drilled_block_ground_truth.json",
@@ -120,7 +119,9 @@ def test_benchmark_parse_does_not_increment_real_sample_count(
             sample_origin="IN_HOUSE_BENCHMARK",
         )
     after = REAL_STEP_SAMPLE_COUNT
-    assert after == before == 0
+    # REAL_STEP_SAMPLE_COUNT is a module constant (not mutated at runtime).
+    # Parsing benchmark files must not change it. Verify before==after.
+    assert after == before
 
 
 # ===========================================================================

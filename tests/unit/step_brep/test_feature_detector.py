@@ -19,7 +19,6 @@ from backend.step_brep.feature_detector import (
 )
 from backend.step_brep.gmsh_step_parser import StepImportRecord, parse_step_file
 
-
 # ===========================================================================
 # A — detect_hole_candidates on failed record
 # ===========================================================================

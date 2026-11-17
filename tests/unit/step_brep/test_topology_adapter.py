@@ -11,12 +11,12 @@ import pathlib
 import gmsh  # type: ignore[import]
 import pytest
 
-from backend.step_brep.topology_adapter import build_canonical_topology
 from backend.interoperability.topology import (
     BodyType,
     CanonicalTopology,
     ShellClosure,
 )
+from backend.step_brep.topology_adapter import build_canonical_topology
 
 
 # Single module-level gmsh session. Individual fixtures use gmsh.model.add()
@@ -125,7 +125,10 @@ def test_drilled_block_has_cylindrical_face(drilled_block_topology: CanonicalTop
 def test_drilled_block_has_inner_loops(drilled_block_topology: CanonicalTopology) -> None:
     """Top and bottom planar faces should have inner loops (the hole boundary)."""
     from backend.interoperability.topology import LoopType
-    inner_loops = [loop for loop in drilled_block_topology.loops if loop.loop_type == LoopType.INNER]
+    inner_loops = [
+        loop for loop in drilled_block_topology.loops
+        if loop.loop_type == LoopType.INNER
+    ]
     assert len(inner_loops) >= 2  # top hole + bottom hole
 
 
@@ -135,7 +138,9 @@ def test_drilled_block_reference_integrity(drilled_block_topology: CanonicalTopo
     assert drilled_block_topology.topology_id == "topo-drilled-test"
 
 
-def test_drilled_block_synthetic_vertices_created(drilled_block_topology: CanonicalTopology) -> None:
+def test_drilled_block_synthetic_vertices_created(
+    drilled_block_topology: CanonicalTopology,
+) -> None:
     """Circular curves require synthetic vertices (SV-C{tag}-Q{i} pattern)."""
     syn_verts = [v for v in drilled_block_topology.vertices if v.vertex_id.startswith("SV-")]
     # Ø10 hole has 2 circles → 8 synthetic vertices (4 per circle)

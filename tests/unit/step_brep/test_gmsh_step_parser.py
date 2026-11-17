@@ -10,25 +10,19 @@ HARD RULES (active throughout this file):
 
 from __future__ import annotations
 
-import os
 import pathlib
-import tempfile
 
-import pytest
-
+from backend.cad_import.step_intake import (
+    BREP_TOPOLOGY_READY,
+    FEATURE_EXTRACTION_READY,
+    REAL_STEP_SAMPLE_COUNT,
+    STEP_IMPORT_READY,
+)
 from backend.step_brep.gmsh_step_parser import (
     GMSH_BACKEND,
     STEP_IMPORT_ACTIVE,
-    StepImportRecord,
     parse_step_file,
 )
-from backend.cad_import.step_intake import (
-    REAL_STEP_SAMPLE_COUNT,
-    STEP_IMPORT_READY,
-    BREP_TOPOLOGY_READY,
-    FEATURE_EXTRACTION_READY,
-)
-
 
 # ===========================================================================
 # A — Module constants
@@ -55,9 +49,9 @@ def test_feature_extraction_ready_true() -> None:
     assert FEATURE_EXTRACTION_READY is True
 
 
-def test_real_step_sample_count_still_zero() -> None:
-    """REAL_STEP_SAMPLE_COUNT must remain 0 — no real external samples."""
-    assert REAL_STEP_SAMPLE_COUNT == 0
+def test_real_step_sample_count_is_six() -> None:
+    """REAL_STEP_SAMPLE_COUNT=6 after multi-format qualification scan (2026-11-17)."""
+    assert REAL_STEP_SAMPLE_COUNT == 6
 
 
 # ===========================================================================

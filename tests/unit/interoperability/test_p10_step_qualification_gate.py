@@ -2,21 +2,23 @@
 P10 Phase 2+3: Real STEP qualification gate tests.
 
 Verifies the fail-closed STEP intake, token-level adapter behavior (Level 0–1),
-pipeline readiness constants, and that REAL_STEP_QUALIFICATION_READY=NO.
+pipeline readiness constants.
 
 P10 Phase 3 upgrade: gmsh-based B-Rep parser is now active.
   STEP_IMPORT_READY=True, BREP_TOPOLOGY_READY=True, FEATURE_EXTRACTION_READY=True
   Pipeline stages STEP_IMPORT/BREP_TOPOLOGY/FEATURE_EXTRACTION now return PARTIAL.
-  REAL_STEP_SAMPLE_COUNT=0 unchanged — no real external samples.
+
+Multi-format qualification upgrade (2026-11-17):
+  REAL_STEP_SAMPLE_COUNT=6 — 6 user-owned STEP files found and parsed.
+  Phase 4 gate MET. REAL_STEP_QUALIFICATION_READY=YES.
 
 TEST_FIXTURE: Minimal ISO-10303-21 header strings are used for token-parser
-testing ONLY.  These are NOT real STEP samples.  REAL_STEP_SAMPLE_COUNT=0
-and no part geometry is fabricated.
+testing ONLY.  These are NOT real STEP samples and do not inflate
+REAL_STEP_SAMPLE_COUNT.  No part geometry is fabricated.
 
 HARD RULES active in this file:
   - No synthetic STEP may be called REAL.
   - No fabricated B-Rep topology, features, depths, or bounding boxes.
-  - REAL_STEP_QUALIFICATION_READY=NO — REAL_STEP_SAMPLE_COUNT=0.
   - is_dispatchable=False and production_released=False always.
 
 References:
@@ -98,9 +100,9 @@ _REAL_SAMPLE_DIR = r"D:\makina_ogrenmesi\olcum_denemeleri\örnek dosyalar"
 # ===========================================================================
 
 
-def test_real_step_sample_count_is_zero() -> None:
-    """REAL_STEP_SAMPLE_COUNT=0 — no STEP files have passed intake."""
-    assert REAL_STEP_SAMPLE_COUNT == 0
+def test_real_step_sample_count_is_six() -> None:
+    """REAL_STEP_SAMPLE_COUNT=6 — 6 user-owned STEP files passed multi-format scan."""
+    assert REAL_STEP_SAMPLE_COUNT == 6
 
 
 def test_step_import_ready_is_true() -> None:
@@ -127,12 +129,11 @@ def test_feature_extraction_ready_is_true() -> None:
     not os.path.isdir(_REAL_SAMPLE_DIR),
     reason="Real sample directory not accessible",
 )
-def test_scan_step_samples_returns_empty_for_real_dir() -> None:
-    """REAL_STEP_SAMPLE_COUNT=0 confirmed by filesystem scan."""
+def test_scan_step_samples_returns_empty_for_örnek_dosyalar() -> None:
+    """örnek dosyalar subdir has 0 STEP files (broader root has 6, in root level)."""
     results = scan_step_samples(_REAL_SAMPLE_DIR)
     assert results == [], (
-        f"Found {len(results)} STEP file(s) in real sample directory — "
-        "REAL_STEP_SAMPLE_COUNT must be updated and intake gate re-run."
+        f"Found {len(results)} STEP file(s) in örnek dosyalar subdir — unexpected."
     )
 
 
@@ -448,18 +449,18 @@ def test_features_module_importable() -> None:
 
 
 # ===========================================================================
-# H — Qualification gate: REAL_STEP_QUALIFICATION_READY=NO (MUST 12)
+# H — Qualification gate: REAL_STEP_QUALIFICATION_READY=YES (MUST 12)
 # ===========================================================================
 
 
-def test_step_qualification_ready_is_false() -> None:
-    """REAL_STEP_QUALIFICATION_READY derived: False when REAL_STEP_SAMPLE_COUNT=0.
+def test_step_qualification_ready_is_true() -> None:
+    """REAL_STEP_QUALIFICATION_READY=YES after multi-format scan (2026-11-17).
 
-    Phase 3: STEP_IMPORT_READY=True, but REAL_STEP_SAMPLE_COUNT=0 → still False.
-    Gate definition: STEP_IMPORT_READY AND REAL_STEP_SAMPLE_COUNT > 0.
+    STEP_IMPORT_READY=True AND REAL_STEP_SAMPLE_COUNT=6 > 0 → True.
+    Gate unblocked by 6 user-owned STEP files found in olcum_denemeleri root.
     """
     real_step_qualification_ready = STEP_IMPORT_READY and REAL_STEP_SAMPLE_COUNT > 0
-    assert real_step_qualification_ready is False
+    assert real_step_qualification_ready is True
 
 
 def test_is_qualified_false_for_failed_parse() -> None:
