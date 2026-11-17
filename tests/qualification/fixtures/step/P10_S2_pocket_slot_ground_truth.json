@@ -1,0 +1,77 @@
+{
+  "sample_origin": "IN_HOUSE_BENCHMARK",
+  "qualification_class": "SOFTWARE_BENCHMARK",
+  "is_real_external_sample": false,
+  "is_dispatchable": false,
+  "production_released": false,
+  "parser_backend": "gmsh-4.15.2+occ",
+  "sample_id": "P10-S2",
+  "description": "Pocket+slot prismatic block \u2014 pocket 40\u00d720\u00d715, slot 80\u00d710\u00d78, 2 through holes \u00d88",
+  "stock_dimensions_mm": [
+    80,
+    60,
+    30
+  ],
+  "entity_counts": {
+    "volumes": 1,
+    "surfaces": 20,
+    "curves": 54,
+    "vertices": 36
+  },
+  "surface_classes": {
+    "planar": 18,
+    "cylindrical": 2,
+    "unknown": 0
+  },
+  "bbox_mm": {
+    "x": [
+      0.0,
+      80.0
+    ],
+    "y": [
+      0.0,
+      60.0
+    ],
+    "z": [
+      0.0,
+      30.0
+    ]
+  },
+  "features": {
+    "pockets": [
+      {
+        "x_mm": 40,
+        "y_mm": 20,
+        "depth_mm": 15,
+        "corner_xy_mm": [
+          20,
+          20
+        ]
+      }
+    ],
+    "slots": [
+      {
+        "length_mm": 80,
+        "width_mm": 10,
+        "depth_mm": 8,
+        "open_sides": 2
+      }
+    ],
+    "through_holes": [
+      {
+        "diameter_mm": 8.0,
+        "center_xy_mm": [
+          10,
+          10
+        ]
+      },
+      {
+        "diameter_mm": 8.0,
+        "center_xy_mm": [
+          70,
+          50
+        ]
+      }
+    ]
+  }
+}

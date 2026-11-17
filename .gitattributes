@@ -1,0 +1,4 @@
+# STEP/STP files are binary — disable text diffing and EOL normalization
+*.step binary
+*.stp  binary
+*.p21  binary

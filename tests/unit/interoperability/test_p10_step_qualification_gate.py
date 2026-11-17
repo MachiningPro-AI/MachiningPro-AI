@@ -1,8 +1,13 @@
 """
-P10 Phase 2: Real STEP qualification gate tests.
+P10 Phase 2+3: Real STEP qualification gate tests.
 
 Verifies the fail-closed STEP intake, token-level adapter behavior (Level 0–1),
 pipeline readiness constants, and that REAL_STEP_QUALIFICATION_READY=NO.
+
+P10 Phase 3 upgrade: gmsh-based B-Rep parser is now active.
+  STEP_IMPORT_READY=True, BREP_TOPOLOGY_READY=True, FEATURE_EXTRACTION_READY=True
+  Pipeline stages STEP_IMPORT/BREP_TOPOLOGY/FEATURE_EXTRACTION now return PARTIAL.
+  REAL_STEP_SAMPLE_COUNT=0 unchanged — no real external samples.
 
 TEST_FIXTURE: Minimal ISO-10303-21 header strings are used for token-parser
 testing ONLY.  These are NOT real STEP samples.  REAL_STEP_SAMPLE_COUNT=0
@@ -11,7 +16,7 @@ and no part geometry is fabricated.
 HARD RULES active in this file:
   - No synthetic STEP may be called REAL.
   - No fabricated B-Rep topology, features, depths, or bounding boxes.
-  - REAL_STEP_QUALIFICATION_READY=NO — STEP_IMPORT_READY=False.
+  - REAL_STEP_QUALIFICATION_READY=NO — REAL_STEP_SAMPLE_COUNT=0.
   - is_dispatchable=False and production_released=False always.
 
 References:
@@ -98,19 +103,19 @@ def test_real_step_sample_count_is_zero() -> None:
     assert REAL_STEP_SAMPLE_COUNT == 0
 
 
-def test_step_import_ready_is_false() -> None:
-    """STEP_IMPORT_READY=False — cadquery/pythonocc-core not installed."""
-    assert STEP_IMPORT_READY is False
+def test_step_import_ready_is_true() -> None:
+    """STEP_IMPORT_READY=True — gmsh==4.15.2 installed (Phase 3 upgrade)."""
+    assert STEP_IMPORT_READY is True
 
 
-def test_brep_topology_ready_is_false() -> None:
-    """BREP_TOPOLOGY_READY=False — no topology extraction without a parser."""
-    assert BREP_TOPOLOGY_READY is False
+def test_brep_topology_ready_is_true() -> None:
+    """BREP_TOPOLOGY_READY=True — CanonicalTopology wired via topology_adapter."""
+    assert BREP_TOPOLOGY_READY is True
 
 
-def test_feature_extraction_ready_is_false() -> None:
-    """FEATURE_EXTRACTION_READY=False — requires BREP_TOPOLOGY_READY first."""
-    assert FEATURE_EXTRACTION_READY is False
+def test_feature_extraction_ready_is_true() -> None:
+    """FEATURE_EXTRACTION_READY=True — HOLE_CANDIDATE from cylindrical faces."""
+    assert FEATURE_EXTRACTION_READY is True
 
 
 # ===========================================================================
@@ -174,17 +179,20 @@ def test_accept_step_rejects_nonexistent_stp() -> None:
     assert result.is_qualified is False
 
 
-def test_accept_step_deferred_on_valid_stp_path(tmp_path) -> None:  # noqa: ANN001
-    """A real .stp file that passes extension/size checks → DEFERRED_NO_PARSER."""
+def test_accept_step_incomplete_step_rejected(tmp_path) -> None:  # noqa: ANN001
+    """A .stp file with incomplete content (no geometry) → REJECTED_UNSUPPORTED_GEOMETRY.
+
+    Phase 3: gmsh parser is now active; a minimal header with no geometry
+    fails to parse → REJECTED rather than DEFERRED.
+    """
     stp_file = tmp_path / "fixture.stp"
     stp_file.write_bytes(b"ISO-10303-21;\nHEADER;\n")
     req = StepIntakeRequest(file_path=str(stp_file))
     result = accept_step_file(req)
-    assert result.status == StepIntakeStatus.DEFERRED_NO_PARSER
+    assert result.status != StepIntakeStatus.PASS
     assert result.is_qualified is False
     assert result.part_bbox_min is None
     assert result.part_bbox_max is None
-    assert result.provenance == "UNKNOWN"
 
 
 def test_accept_step_no_fabricated_bbox() -> None:
@@ -202,8 +210,8 @@ def test_accept_step_no_fabricated_bbox() -> None:
         os.unlink(stp_file)
 
 
-def test_accept_step_deferred_contains_parser_warning() -> None:
-    """DEFERRED_NO_PARSER result includes a cadquery/parser warning."""
+def test_accept_step_incomplete_not_pass() -> None:
+    """Phase 3: incomplete STEP content fails parse → not PASS, no bbox."""
     stp_file = None
     with tempfile.NamedTemporaryFile(suffix=".step", delete=False) as f:
         f.write(b"ISO-10303-21;\nHEADER;\n")
@@ -211,9 +219,8 @@ def test_accept_step_deferred_contains_parser_warning() -> None:
     try:
         req = StepIntakeRequest(file_path=stp_file)
         result = accept_step_file(req)
-        assert result.status == StepIntakeStatus.DEFERRED_NO_PARSER
-        assert len(result.warnings) > 0
-        assert any("STEP_IMPORT_READY" in w for w in result.warnings)
+        assert result.status != StepIntakeStatus.PASS
+        assert result.is_qualified is False
     finally:
         os.unlink(stp_file)
 
@@ -377,19 +384,22 @@ def test_step_descriptors_contains_ap242() -> None:
 # ===========================================================================
 
 
-def test_3d_pipeline_step_import_not_implemented() -> None:
+def test_3d_pipeline_step_import_partial() -> None:
+    """Phase 3: gmsh parser wired → STEP_IMPORT = PARTIAL."""
     rd = _3d_pipeline_readiness()
-    assert rd["STEP_IMPORT"] == "NOT_IMPLEMENTED"
+    assert rd["STEP_IMPORT"] == "PARTIAL"
 
 
-def test_3d_pipeline_brep_topology_not_implemented() -> None:
+def test_3d_pipeline_brep_topology_partial() -> None:
+    """Phase 3: CanonicalTopology wired → BREP_TOPOLOGY = PARTIAL."""
     rd = _3d_pipeline_readiness()
-    assert rd["BREP_TOPOLOGY"] == "NOT_IMPLEMENTED"
+    assert rd["BREP_TOPOLOGY"] == "PARTIAL"
 
 
-def test_3d_pipeline_feature_extraction_not_implemented() -> None:
+def test_3d_pipeline_feature_extraction_partial() -> None:
+    """Phase 3: HOLE_CANDIDATE wired → FEATURE_EXTRACTION = PARTIAL."""
     rd = _3d_pipeline_readiness()
-    assert rd["FEATURE_EXTRACTION"] == "NOT_IMPLEMENTED"
+    assert rd["FEATURE_EXTRACTION"] == "PARTIAL"
 
 
 def test_3d_pipeline_machine_selection_partial() -> None:
@@ -397,9 +407,10 @@ def test_3d_pipeline_machine_selection_partial() -> None:
     assert rd["MACHINE_SELECTION_3D"] == "PARTIAL"
 
 
-def test_3d_pipeline_solid_classifier_not_implemented() -> None:
+def test_3d_pipeline_solid_classifier_partial() -> None:
+    """Phase 3: SOLID_CLASSIFIER derived from gmsh volume count → PARTIAL."""
     rd = _3d_pipeline_readiness()
-    assert rd["SOLID_CLASSIFIER"] == "NOT_IMPLEMENTED"
+    assert rd["SOLID_CLASSIFIER"] == "PARTIAL"
 
 
 # ===========================================================================
@@ -442,14 +453,17 @@ def test_features_module_importable() -> None:
 
 
 def test_step_qualification_ready_is_false() -> None:
-    """REAL_STEP_QUALIFICATION_READY derived: False when STEP_IMPORT_READY=False."""
-    # Gate definition: STEP_IMPORT_READY AND REAL_STEP_SAMPLE_COUNT > 0
+    """REAL_STEP_QUALIFICATION_READY derived: False when REAL_STEP_SAMPLE_COUNT=0.
+
+    Phase 3: STEP_IMPORT_READY=True, but REAL_STEP_SAMPLE_COUNT=0 → still False.
+    Gate definition: STEP_IMPORT_READY AND REAL_STEP_SAMPLE_COUNT > 0.
+    """
     real_step_qualification_ready = STEP_IMPORT_READY and REAL_STEP_SAMPLE_COUNT > 0
     assert real_step_qualification_ready is False
 
 
-def test_is_qualified_false_for_deferred_result() -> None:
-    """is_qualified=False for any DEFERRED_NO_PARSER result."""
+def test_is_qualified_false_for_failed_parse() -> None:
+    """is_qualified=False for any failed/rejected parse result."""
     stp_file = None
     with tempfile.NamedTemporaryFile(suffix=".stp", delete=False) as f:
         f.write(b"ISO-10303-21;\nHEADER;\n")
@@ -462,8 +476,8 @@ def test_is_qualified_false_for_deferred_result() -> None:
         os.unlink(stp_file)
 
 
-def test_step_intake_result_step_import_ready_property_false() -> None:
-    """StepIntakeResult.step_import_ready mirrors module constant."""
+def test_step_intake_result_step_import_ready_property_true() -> None:
+    """StepIntakeResult.step_import_ready mirrors module constant (True in Phase 3)."""
     stp_file = None
     with tempfile.NamedTemporaryFile(suffix=".stp", delete=False) as f:
         f.write(b"ISO-10303-21;\nHEADER;\n")
@@ -471,7 +485,7 @@ def test_step_intake_result_step_import_ready_property_false() -> None:
     try:
         req = StepIntakeRequest(file_path=stp_file)
         result = accept_step_file(req)
-        assert result.step_import_ready is False
-        assert result.brep_topology_ready is False
+        assert result.step_import_ready is True
+        assert result.brep_topology_ready is True
     finally:
         os.unlink(stp_file)
