@@ -7,6 +7,7 @@
 **HEAD after:** `484a34f` (Phase 6 complete)
 **Origin/main:** `484a34f`
 **Worktree:** CLEAN
+**Next:** [`P10_PHASE7_REAL_STEP_CAM_READINESS.md`](P10_PHASE7_REAL_STEP_CAM_READINESS.md)
 
 See also: [P10\_PHASE6\_REAL\_3D\_CAM\_AND\_TOOL\_COVERAGE.md](P10_PHASE6_REAL_3D_CAM_AND_TOOL_COVERAGE.md)
 
