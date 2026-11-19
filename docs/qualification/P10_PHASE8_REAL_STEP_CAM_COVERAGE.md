@@ -6,7 +6,7 @@
 **HEAD before:** `1c64909` (Phase 7 final)  
 **HEAD after:** committed below  
 **Previous:** [`P10_PHASE7_REAL_STEP_CAM_READINESS.md`](P10_PHASE7_REAL_STEP_CAM_READINESS.md)  
-**Next:** Phase 9 assessment pending
+**Next:** [`P10_PHASE9_REAL_STEP_TOOLPATH_COVERAGE.md`](P10_PHASE9_REAL_STEP_TOOLPATH_COVERAGE.md)
 
 ---
 
