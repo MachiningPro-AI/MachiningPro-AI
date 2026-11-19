@@ -3,7 +3,7 @@ import {
   CheckSquare, TrendingUp, Settings2,
   Search, ClipboardList, Puzzle, SearchCode,
   Archive, FileText, Ruler, ShieldCheck, GitBranch, Workflow,
-  BarChart2, ClipboardCheck,
+  BarChart2, ClipboardCheck, FileDown,
 } from 'lucide-react'
 import type { NavGroup } from '../types/navigation'
 import type { TranslationDictionary } from '../i18n/types'
@@ -86,6 +86,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: 'dfm', path: '/app/planning-quality/dfm', labelKey: 'nav_dfm', icon: Puzzle, badge: 'preview' },
       { id: 'machine-capability', path: '/app/planning-quality/machine-capability', labelKey: 'nav_machineCapability', icon: TrendingUp, badge: 'preview' },
       { id: 'validation', path: '/app/planning-quality/validation', labelKey: 'nav_validationPage', icon: ShieldCheck, badge: 'preview' },
+      { id: 'reports', path: '/app/planning-quality/reports', labelKey: 'nav_reports', icon: FileDown },
     ],
   },
 ]

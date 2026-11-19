@@ -24,6 +24,7 @@ import ManufacturingPlanPage from './pages/ManufacturingPlanPage'
 import ProcessCapabilityPage from './pages/ProcessCapabilityPage'
 import ProcessRoutesPage from './pages/ProcessRoutesPage'
 import WorkflowPage from './pages/WorkflowPage'
+import ReportsPage from './pages/ReportsPage'
 
 function CapabilityPendingPage({ title }: { title: string }) {
   const { t } = useLocale()
@@ -105,6 +106,7 @@ function ProtectedRoutes() {
         <Route path="app/planning-quality/process-capability" element={<ProcessCapabilityPage />} />
         <Route path="app/planning-quality/manufacturing-plan" element={<ManufacturingPlanPage />} />
         <Route path="app/planning-quality/validation" element={capability('Validation')} />
+        <Route path="app/planning-quality/reports" element={<ReportsPage />} />
 
         <Route index element={<Navigate to="/app" replace />} />
         <Route path="*" element={<Navigate to="/app" replace />} />

@@ -1867,6 +1867,7 @@ export interface TranslationDictionary {
   nav_dfm: string
   nav_machineCapability: string
   nav_validationPage: string
+  nav_reports: string
   // Dashboard capability grid
   dbCapMachines: string
   dbCapCuttingTools: string
@@ -2112,4 +2113,37 @@ export interface TranslationDictionary {
   p2Unsupported_modelTitle: string
   p2Unsupported_modelBody: string
   p2Unsupported_contactSupport: string
+
+  // Reports & Export Module
+  reports_pageTitle: string
+  reports_pageSubtitle: string
+  reports_selectType: string
+  reports_language: string
+  reports_units: string
+  reports_formats: string
+  reports_generate: string
+  reports_generating: string
+  reports_download: string
+  reports_downloadAll: string
+  reports_exportAll: string
+  reports_noWorkflow: string
+  reports_selectWorkflow: string
+  reports_draftWarning: string
+  reports_reviewRequired: string
+  reports_dispatchable: string
+  reports_productionReleased: string
+  reports_autoApproved: string
+  reports_engineeringStateChanged: string
+  reports_generatedAt: string
+  reports_reportId: string
+  reports_format_pdf: string
+  reports_format_docx: string
+  reports_format_xlsx: string
+  reports_format_csv: string
+  reports_format_json: string
+  reports_format_zip: string
+  reports_type_manufacturingPlan: string
+  reports_type_manufacturingPlanDesc: string
+  reports_safetyNote: string
+  reports_provenance: string
 }
