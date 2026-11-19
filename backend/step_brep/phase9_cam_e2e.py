@@ -176,8 +176,16 @@ def run_phase9_e2e(
     # Phase 9C
     drill_cycle = _run_drill_cycle(record)
 
-    # Aggregate
-    total_tp = p8.total_toolpath_count + drill_cycle.toolpath_count
+    # Aggregate: Phase 9C is the authoritative drill source.
+    # Exclude p8.drill_toolpath_count to avoid double-counting:
+    # Phase 8 also runs _assess_drill_p8 and may generate drill TPs for the
+    # same holes that Phase 9C processes.  Total = p8 non-drill + p9c drill.
+    p8_non_drill_tp = (
+        p8.pocket_toolpath_count
+        + p8.slot_toolpath_count
+        + p8.step_toolpath_count
+    )
+    total_tp = p8_non_drill_tp + drill_cycle.toolpath_count
     # (shoulder toolpath always 0)
 
     return Phase9E2EResult(

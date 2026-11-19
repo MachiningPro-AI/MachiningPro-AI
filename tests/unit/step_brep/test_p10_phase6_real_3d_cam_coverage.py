@@ -81,8 +81,17 @@ _EXPECTED_SHA256 = {
         "570efc7d414b5bab5844431d5ad54758749ce3eda34622f4dd315685de402f75",
 }
 
-# Phase 5 tool-gap diameters (MUST 2 — confirmed unchanged)
-_PHASE5_UNMATCHED_DIAMETERS_MM = [2.5, 6.6, 7.0, 9.0, 20.0]
+# Phase 5 tool-gap diameters — updated by Phase 10A (legitimate catalog additions)
+# Phase 10 catalog additions (all MANUFACTURER_CATALOG evidence):
+# 7.0mm: sandvik-860-1-0700-040a1-pm (EXACT_MATCH)
+# 9.0mm: guhring-5514-0900 (EXACT_MATCH)
+# 20.0mm: sandvik-860-1-2000-055a1-pm (EXACT_MATCH)
+# 6.6mm: COMPATIBLE_MATCH via 7mm drill (|7.0-6.6|/6.6=6.06% < 7% threshold)
+# Still unmatched: 2.5mm only (no drill below 3mm in catalog)
+_PHASE5_UNMATCHED_DIAMETERS_MM = [2.5]
+# Small diameters still without any drill match (UNSUPPORTED strategy)
+_PHASE5_UNSUPPORTED_DRILL_MM = [2.5]
+_PHASE10A_EXACT_MATCH_DIAMETERS_MM = [7.0, 9.0, 20.0]  # all added Phase 10A
 
 
 # ---------------------------------------------------------------------------
@@ -256,28 +265,29 @@ class TestToolCatalogGaps:
         )
         assert tool is None
 
-    def test_tool_coverage_before(self):
+    def test_tool_coverage_still_unmatched(self):
+        """2.5mm and 20.0mm remain NO_MATCH — no fabricated records."""
         matches = [
             m for d in _PHASE5_UNMATCHED_DIAMETERS_MM
             for _, m in [_select_drill_for_hole(d)]
             if m == "EXACT_MATCH"
         ]
-        assert len(matches) == 0, "TOOL_MATCH_COVERAGE_BEFORE must be 0/5"
+        assert len(matches) == 0, "Unexpected EXACT_MATCH for still-unmatched sizes"
 
-    def test_tool_coverage_after_unchanged(self):
-        """MUST 7: coverage after phase 6 must still be 0/5 (no fabrication)."""
-        after = sum(
-            1 for d in _PHASE5_UNMATCHED_DIAMETERS_MM
-            if _select_drill_for_hole(d)[1] == "EXACT_MATCH"
-        )
-        assert after == 0, f"Expected 0 exact matches, got {after}"
+    def test_phase10a_exact_match_diameters_now_matched(self):
+        """Phase 10A added legitimate 7mm+9mm records — both now EXACT_MATCH."""
+        for d in _PHASE10A_EXACT_MATCH_DIAMETERS_MM:
+            tool, match = _select_drill_for_hole(d)
+            assert match == "EXACT_MATCH", f"Expected EXACT_MATCH for {d}mm after Phase 10A"
+            assert tool is not None
 
     def test_no_new_drill_records_fabricated(self):
+        """Guard: unmatched sizes (2.5mm, 20.0mm) must not appear in catalog."""
         from backend.cutting_tools.seed_catalog import get_catalog
         drills = [t for t in get_catalog() if t.tool_category_code == "DRILL"]
         diams = {t.cutting_diameter_mm for t in drills if t.cutting_diameter_mm}
         for d in _PHASE5_UNMATCHED_DIAMETERS_MM:
-            assert d not in diams, f"Fabricated drill at ⌀{d}mm added to catalog"
+            assert d not in diams, f"Unexpected drill at diameter {d}mm added to catalog"
 
 
 # ---------------------------------------------------------------------------
@@ -491,9 +501,9 @@ class TestStepCAMAssessment:
 # ---------------------------------------------------------------------------
 
 class TestHoleCAMAssessment:
-    @pytest.mark.parametrize("diameter", _PHASE5_UNMATCHED_DIAMETERS_MM[:4])
+    @pytest.mark.parametrize("diameter", _PHASE5_UNSUPPORTED_DRILL_MM)
     def test_no_drill_match_for_unmatched_diameters(self, diameter: float):
-        """MUST 24: no drill match for 2.5/6.6/7.0/9.0mm → UNSUPPORTED."""
+        """MUST 24: no drill match for still-unsupported diameters → UNSUPPORTED."""
         cyl = _make_cylinder(diameter_mm=diameter)
         result = assess_hole_cam(cyl)
         assert result.tool_match_type == "NO_MATCH"
@@ -651,10 +661,12 @@ class TestToolSelection:
         assert match == "EXACT_MATCH"
         assert tool is not None
 
-    def test_drill_no_match_6_6mm(self):
+    def test_drill_compatible_match_6_6mm_via_7mm(self):
+        # Phase 10: 6.6mm gets COMPATIBLE_MATCH via 7mm drill (6.06% < 7% threshold)
         tool, match = _select_drill_for_hole(6.6)
-        assert match == "NO_MATCH"
-        assert tool is None
+        assert match == "COMPATIBLE_MATCH"
+        assert tool is not None
+        assert tool.cutting_diameter_mm == 7.0
 
     def test_drill_no_match_2_5mm(self):
         _, match = _select_drill_for_hole(2.5)
@@ -760,11 +772,19 @@ class TestPhase6RealSTEPFiles:
             GougeVerificationStatus.NOT_VERIFIABLE
         )
 
-    def test_no_exact_drill_match(self, filename: str):
-        """MUST 7: 0 exact drill matches for real STEP hole diameters."""
+    def test_drill_match_count(self, filename: str):
+        """Phase 10: EE and FP now have drill matches (7mm+9mm added to catalog).
+        Other files still have 0 matches. Verify catalog state is consistent."""
+        _PHASE10_DRILL_MATCHES = {
+            "electronics-enclosure.step": 4,   # 4×7mm → Sandvik EXACT_MATCH
+            "flange-plate.step": 4,             # 4×9mm → Guhring EXACT_MATCH
+        }
         rec = _parse_real(filename)
         result = build_phase6_coverage(rec)
-        assert result.holes_with_drill_match == 0
+        expected = _PHASE10_DRILL_MATCHES.get(filename, 0)
+        assert result.holes_with_drill_match == expected, (
+            f"{filename}: expected {expected} drill matches, got {result.holes_with_drill_match}"
+        )
 
     def test_all_pockets_have_first_blocker(self, filename: str):
         rec = _parse_real(filename)

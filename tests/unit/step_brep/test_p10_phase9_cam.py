@@ -555,8 +555,8 @@ class TestDrillCycleAssessment:
         assert result.geometric_toolpath_ready is False
 
     def test_catalog_gap_no_match(self):
-        """7mm not in catalog → TOOL_CATALOG_GAP=True."""
-        cyl = _make_cyl(diameter_mm=7.0)
+        """2.5mm not in catalog → TOOL_CATALOG_GAP=True (7mm+9mm+20mm added in Phase 10)."""
+        cyl = _make_cyl(diameter_mm=2.5)
         result = assess_drill_cycle(cyl, _make_wcs())
         assert result.tool_catalog_gap is True
         assert result.tool_id is None
@@ -600,7 +600,8 @@ class TestDrillCycleAssessment:
         assert result.geometric_toolpath_ready is False
 
     def test_unmatched_diameter_recorded_as_gap(self):
-        for dia in [2.5, 6.6, 7.0, 9.0, 20.0]:
+        # Phase 10: 7mm+9mm+20mm all matched. Remaining genuine gaps: 2.5mm, 10mm, 11mm.
+        for dia in [2.5, 10.0, 11.0]:
             cyl = _make_cyl(diameter_mm=dia)
             result = assess_drill_cycle(cyl, _make_wcs())
             assert result.tool_catalog_gap is True, f"Expected gap for {dia}mm"
@@ -629,14 +630,15 @@ class TestDrillCycleResult:
         assert r.is_dispatchable is False
 
     def test_unique_unmatched_diameters_sorted(self):
+        # Phase 10: 7mm+9mm+20mm all matched. Using 10mm and 11mm (both NO_MATCH).
         r = DrillCycleResult()
-        for dia in [9.0, 7.0, 7.0, 2.5]:
+        for dia in [10.0, 11.0, 11.0, 2.5]:
             cyl = _make_cyl(diameter_mm=dia)
             r.assessments.append(assess_drill_cycle(cyl, _make_wcs()))
         gaps = r.unique_unmatched_diameters_mm
         assert gaps == sorted(gaps)
-        assert 9.0 in gaps and 7.0 in gaps and 2.5 in gaps
-        assert gaps.count(7.0) == 1  # deduped
+        assert 10.0 in gaps and 11.0 in gaps and 2.5 in gaps
+        assert gaps.count(11.0) == 1  # deduped
 
 
 # ===========================================================================
@@ -729,8 +731,9 @@ class TestPhase9FalsePositive:
         assert result.geometric_toolpath_ready is False
 
     def test_unmatched_diameter_never_fabricates_toolpath(self):
-        """Catalog gap must never produce a toolpath via fabrication."""
-        cyl = _make_cyl(diameter_mm=7.0, axis_direction="Z", depth_mm=16.0)
+        """Catalog gap must never produce a toolpath via fabrication.
+        Phase 10: 7mm+9mm+20mm all added; use 2.5mm (still a genuine gap)."""
+        cyl = _make_cyl(diameter_mm=2.5, axis_direction="Z", depth_mm=16.0)
         result = assess_drill_cycle(cyl, _make_wcs())
         assert result.tool_catalog_gap is True
         assert result.toolpath is None

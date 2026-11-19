@@ -1528,6 +1528,136 @@ _RECORDS: list[CuttingToolCatalogRecord] = [
         ),
     ),
 
+    # ── Sandvik 860-1 — 7.0 mm ───────────────────────────────────────────────
+    # Source: Sandvik Coromant official product page, confirmed 2026-11-19.
+    # coromant.sandvik.com/zh-cn/product-details?c=860.1-0700-040A1-PM+P1BM
+    # Notes:
+    #   - Grade P1BM (PVD TiAlSiN+TiSiN) — newer than N1BU used for 3-6 mm range.
+    #   - Shank 8 mm (H6 cylindrical) — NOT 7 mm; Sandvik uses larger shank for
+    #     drill rigidity at this diameter. Requires 8 mm collet/toolholder seat.
+    #   - Point angle 147° (not 140° used in 3-6 mm range).
+    #   - L2 (usable/cutting length) = 40 mm; LLL = "040" in catalog code.
+    #   - flute_length_mm = cutting_length_mm per CoroDrill 860 convention.
+    _make(
+        stable_id="sandvik-860-1-0700-040a1-pm",
+        manufacturer="Sandvik Coromant",
+        product_family="CoroDrill 860",
+        product_name="860.1-0700-040A1-PM P1BM",
+        catalog_code="860.1-0700-040A1-PM P1BM",
+        tool_category="Solid Carbide Drill",
+        tool_category_code="DRILL",
+        tool_type_code="DRILL",
+        tool_subcategory="Through-Coolant Solid Carbide Drill",
+        supported_operations=["drilling"],
+        iso_material_groups=["P", "M", "K", "N"],
+        tool_material="carbide",
+        coating="P1BM PVD TiAlSiN+TiSiN",
+        coating_type="PVD",
+        substrate_material_code="CARBIDE",
+        cutting_diameter_mm=7.0,
+        shank_diameter_mm=8.0,
+        overall_length_mm=91.0,
+        cutting_length_mm=40.0,
+        flute_length_mm=40.0,
+        number_of_flutes=2,
+        point_angle_deg=147.0,
+        through_coolant=True,
+        shank_interface="Straight (DIN 6535 HA)",
+        source_note=(
+            "Sandvik Coromant official product page — "
+            "coromant.sandvik.com/zh-cn/product-details?c=860.1-0700-040A1-PM+P1BM. "
+            "7.0 mm cutting diameter; 2-flute; P1BM PVD TiAlSiN+TiSiN; through-coolant; "
+            "147° point angle; shank DIN 6535 HA 8 mm (H6 — oversized shank for rigidity). "
+            "L2 usable length 40 mm; overall length 91 mm. ISO P/M/K/N application. "
+            "Cutting parameters (Vc/fn) must be sourced from Sandvik application guide."
+        ),
+    ),
+
+    # ── Gühring RT 100 U — 9.0 mm ────────────────────────────────────────────
+    # Source: Gühring KG official website (EDP 9055140090000) + MSC Direct UK
+    # listing GUR-14600J (retrieved 2026-11-19).
+    # Confirmed dimensions: flute 47 mm, OAL 89 mm, 140° point, 3×D depth ratio,
+    # nano-FIREX PVD coating, DIN 6537 K shank form, NO through coolant.
+    # Shank diameter NOT confirmed from an exact-9.000 mm product page;
+    # field left None — do NOT infer from neighboring sizes (HARD RULE 4).
+    _make(
+        stable_id="guhring-5514-0900",
+        manufacturer="Gühring KG",
+        product_family="RT 100 U",
+        product_name="RT 100 No. 5514 3XD 9.000",
+        catalog_code="9055140090000",
+        tool_category="Solid Carbide Drill",
+        tool_category_code="DRILL",
+        tool_type_code="DRILL",
+        tool_subcategory="Solid Carbide Ratio Drill Without Through Coolant",
+        supported_operations=["drilling"],
+        iso_material_groups=["P", "M", "K", "N", "S"],
+        tool_material="carbide",
+        coating="nano-FIREX",
+        coating_type="PVD",
+        cutting_diameter_mm=9.0,
+        shank_diameter_mm=None,
+        overall_length_mm=89.0,
+        cutting_length_mm=47.0,
+        flute_length_mm=47.0,
+        number_of_flutes=2,
+        point_angle_deg=140.0,
+        through_coolant=False,
+        shank_interface="Straight Cylindrical (DIN 6537 K)",
+        source_note=(
+            "Gühring KG RT 100 U series No. 5514, EDP 9055140090000, 3×D solid carbide. "
+            "9.000 mm cutting diameter; flute 47 mm; OAL 89 mm; 140° point; nano-FIREX PVD; "
+            "DIN 6537 K shank form; NO through coolant. "
+            "Confirmed: guhring.com product page (EDP 9055140090000) + "
+            "MSC Direct UK listing GUR-14600J. "
+            "Shank diameter not confirmed for exact 9.000 mm size — not inferred."
+        ),
+    ),
+
+    # ── Sandvik 860-1 — 20.0 mm ──────────────────────────────────────────────
+    # Source: Sandvik C-2900 2022.1 Supplement (official catalog supplement PDF).
+    # 860.1-2000-055A1-PM confirmed in supplement product table (retrieved 2026-11-19).
+    # Notes:
+    #   - Grade P1BM (PVD TiAlSiN+TiSiN) — same grade family as 7mm/9mm P1BM.
+    #   - Shank 20 mm (column "20" appears in supplement table adjacent to 20mm codes).
+    #   - Point angle 147° (P1BM grade pattern).
+    #   - Cutting length 55 mm per "055" suffix in catalog code.
+    #   - Overall length not confirmed from product page; field left None per HARD RULE 4.
+    _make(
+        stable_id="sandvik-860-1-2000-055a1-pm",
+        manufacturer="Sandvik Coromant",
+        product_family="CoroDrill 860",
+        product_name="860.1-2000-055A1-PM P1BM",
+        catalog_code="860.1-2000-055A1-PM P1BM",
+        tool_category="Solid Carbide Drill",
+        tool_category_code="DRILL",
+        tool_type_code="DRILL",
+        tool_subcategory="Through-Coolant Solid Carbide Drill",
+        supported_operations=["drilling"],
+        iso_material_groups=["P", "M", "K", "N"],
+        tool_material="carbide",
+        coating="P1BM PVD TiAlSiN+TiSiN",
+        coating_type="PVD",
+        substrate_material_code="CARBIDE",
+        cutting_diameter_mm=20.0,
+        shank_diameter_mm=20.0,
+        overall_length_mm=None,
+        cutting_length_mm=55.0,
+        flute_length_mm=55.0,
+        number_of_flutes=2,
+        point_angle_deg=147.0,
+        through_coolant=True,
+        shank_interface="Straight (DIN 6535 HA)",
+        source_note=(
+            "Sandvik Coromant C-2900 2022.1 Catalog Supplement (official Sandvik PDF). "
+            "860.1-2000-055A1-PM confirmed in supplement product table. "
+            "20.0 mm cutting diameter; P1BM PVD TiAlSiN+TiSiN; through-coolant; "
+            "147° point angle (P1BM grade); shank 20 mm (DIN 6535 HA). "
+            "Cutting length 55 mm per '055' suffix. Overall length not confirmed — not inferred. "
+            "Cutting parameters (Vc/fn) must be sourced from Sandvik application guide."
+        ),
+    ),
+
     # ── Kennametal B221A — 3.0 mm ────────────────────────────────────────────
     _make(
         stable_id="kennametal-b221a-0300-cfh",

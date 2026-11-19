@@ -148,11 +148,15 @@ class TestPhase7E2EWithoutTopology:
         assert result.wcs_ready is True
 
     @_skip_no_real
-    def test_no_toolpaths_without_topology(self):
+    def test_no_pocket_slot_toolpaths_without_topology(self):
+        """Without topology pocket/slot boundaries are not ready → 0 pocket/slot TPs.
+        Phase 10: drills match without topology, so drill TPs may be non-zero."""
         from backend.step_brep.gmsh_step_parser import parse_step_file
         rec = parse_step_file(str(_EE_STEP), sample_origin="REAL_EXTERNAL_STEP")
         result = run_phase7_e2e(rec, None)
-        assert result.total_toolpath_count == 0
+        assert result.pocket_toolpath_count == 0
+        assert result.slot_toolpath_count == 0
+        assert result.step_toolpath_count == 0
 
     @_skip_no_real
     def test_is_dispatchable_false_always(self):
@@ -307,11 +311,15 @@ class TestPhase7HRealSTEPAggregates:
 
 @_skip_no_real
 class TestPhase7NegativeCases:
-    def test_no_topology_means_no_toolpath(self):
+    def test_no_topology_means_no_pocket_or_slot_toolpath(self):
+        """Without topology, pocket/slot boundaries are not ready → 0 pocket/slot TPs.
+        Phase 10: drills no longer need topology, so drill TPs may be non-zero."""
         from backend.step_brep.gmsh_step_parser import parse_step_file
         rec = parse_step_file(str(_EE_STEP), sample_origin="REAL_EXTERNAL_STEP")
         result = run_phase7_e2e(rec, topo=None)
-        assert result.total_toolpath_count == 0
+        assert result.pocket_toolpath_count == 0
+        assert result.slot_toolpath_count == 0
+        assert result.step_toolpath_count == 0
 
     def test_shaft_slot_non_horizontal_blocked(self):
         """Stepped-shaft-keyway has a Z-axis keyway with non-horizontal floor → blocked."""
@@ -322,14 +330,14 @@ class TestPhase7NegativeCases:
         for slot in result.slot_results:
             assert slot.toolpath_ready == ReadinessStatus.NO
 
-    def test_flange_plate_holes_no_matching_drill(self):
-        """flange-plate.step has 9mm holes — no matching drill in catalog."""
+    def test_flange_plate_9mm_drill_now_matched(self):
+        """Phase 10: flange-plate.step 9mm holes now have Guhring 5514 EXACT_MATCH.
+        P7 drill assessment does not require topology, so FP gets drill toolpaths."""
         from backend.step_brep.gmsh_step_parser import parse_step_file
         rec = parse_step_file(str(_FP_STEP), sample_origin="REAL_EXTERNAL_STEP")
         result = run_phase7_e2e(rec, None)
-        for drill in result.drill_results:
-            assert drill.toolpath_ready == ReadinessStatus.NO
-            assert drill.tool_ready == ReadinessStatus.NO
+        matched = [d for d in result.drill_results if d.tool_ready == ReadinessStatus.YES]
+        assert len(matched) >= 1
 
     def test_pump_manifold_pockets_no_tool_or_no_contour(self):
         """Pump Manifold has no matching tools for available pockets."""

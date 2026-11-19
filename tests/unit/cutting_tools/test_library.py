@@ -94,13 +94,13 @@ class TestToolFamily:
 
 class TestToolLibrary:
     def test_all_returns_60_records(self, lib):
-        assert len(lib.all()) == 60
+        assert len(lib.all()) == 63  # Phase 10: +3 drills (7mm Sandvik, 9mm Guhring, 20mm Sandvik)
 
     def test_summary_tool_count(self, lib):
-        assert lib.summary().tool_count == 60
+        assert lib.summary().tool_count == 63
 
     def test_summary_manufacturer_count(self, lib):
-        assert lib.summary().manufacturer_count == 9
+        assert lib.summary().manufacturer_count == 10  # Phase 10: +1 (Guhring KG via 9mm drill)
 
     def test_summary_category_count(self, lib):
         assert lib.summary().category_count == 12
@@ -127,7 +127,7 @@ class TestToolLibrary:
 
     def test_family_coverage_counts(self, lib):
         cov = lib.family_coverage()
-        assert cov["DRILLING"] == 18
+        assert cov["DRILLING"] == 21  # Phase 10: +3 (7mm Sandvik, 9mm Guhring, 20mm Sandvik)
         assert cov["MILLING"] == 12
         assert cov["TURNING"] == 11
         assert cov["BORING"] == 1
@@ -167,7 +167,7 @@ class TestToolLibrary:
 class TestFilterByFamily:
     def test_drilling_count_and_category_code(self, lib):
         r = lib.query().by_family(ToolFamily.DRILLING).results()
-        assert len(r) == 18
+        assert len(r) == 21  # Phase 10: +3 (7mm Sandvik, 9mm Guhring, 20mm Sandvik)
         assert all(rec.tool_category_code == "DRILL" for rec in r)
 
     def test_milling_includes_face_mill_insert(self, lib):
@@ -262,7 +262,7 @@ class TestFilterByDiameter:
         assert len(r) >= 3
 
     def test_no_bounds_returns_all(self, lib):
-        assert lib.query().by_diameter().count() == 60
+        assert lib.query().by_diameter().count() == 63  # Phase 10: +3 drills
 
     def test_excludes_records_without_diameter(self, lib):
         ids = {rec.stable_id for rec in lib.query().by_diameter(min_mm=1.0).results()}
@@ -300,7 +300,8 @@ class TestFilterByOverallLength:
         assert all(rec.overall_length_mm is not None for rec in r)
 
     def test_no_bounds_returns_all(self, lib):
-        assert lib.query().by_overall_length().count() == 60
+        # Phase 10: +3 drills (20mm Sandvik OAL=None still counts in unbounded query)
+        assert lib.query().by_overall_length().count() == 63
 
 
 class TestFilterByCuttingLength:
@@ -373,13 +374,13 @@ class TestFilterByCoatingType:
 class TestFilterByThroughCoolant:
     def test_true_count(self, lib):
         r = lib.query().by_through_coolant(True).results()
-        assert len(r) == 22
+        assert len(r) == 24  # Phase 10: +2 (7mm Sandvik + 20mm Sandvik, both through_coolant=True)
         assert all(rec.through_coolant is True for rec in r)
 
     def test_false_excludes_none(self, lib):
         """through_coolant=False must NOT include records where it is None."""
         r = lib.query().by_through_coolant(False).results()
-        assert len(r) == 4
+        assert len(r) == 5  # Phase 10: +1 (9mm Guhring has through_coolant=False)
         assert all(rec.through_coolant is False for rec in r)
 
     def test_none_records_excluded_from_both_sides(self, lib):
@@ -387,7 +388,7 @@ class TestFilterByThroughCoolant:
         tc_true = lib.query().by_through_coolant(True).count()
         tc_false = lib.query().by_through_coolant(False).count()
         none_count = sum(1 for r in lib.all() if r.through_coolant is None)
-        assert tc_true + tc_false + none_count == 60
+        assert tc_true + tc_false + none_count == 63  # Phase 10: total now 63
 
     def test_taps_are_explicitly_false(self, lib):
         """OSG taps have through_coolant=False."""
@@ -428,7 +429,7 @@ class TestFilterByShankInterface:
 class TestFilterByEvidenceStatus:
     def test_manufacturer_catalog_count(self, lib):
         r = lib.query().by_evidence_status("MANUFACTURER_CATALOG").results()
-        assert len(r) == 57
+        assert len(r) == 60  # Phase 10: +3 (7mm Sandvik, 9mm Guhring, 20mm Sandvik)
 
     def test_unverified_count(self, lib):
         r = lib.query().by_evidence_status("UNVERIFIED").results()
@@ -437,7 +438,7 @@ class TestFilterByEvidenceStatus:
     def test_manufacturer_catalog_plus_unverified_equals_total(self, lib):
         mc = lib.query().by_evidence_status("MANUFACTURER_CATALOG").count()
         uv = lib.query().by_evidence_status("UNVERIFIED").count()
-        assert mc + uv == 60
+        assert mc + uv == 63  # Phase 10: total now 63
 
     def test_nonexistent_status_returns_empty(self, lib):
         assert lib.query().by_evidence_status("DRAFT").count() == 0
