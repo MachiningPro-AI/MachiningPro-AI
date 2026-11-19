@@ -224,20 +224,43 @@ def build_canonical_topology(
                 all_loops.append(loop)
                 loop_ids.append(loop_id)
 
-        # Circular boundary loops
-        circ_loop_type = LoopType.INNER if line_ctags else LoopType.UNKNOWN
-        for ct in circ_ctags:
-            arc_eids = curve_to_edge_ids[ct]
-            if len(arc_eids) >= 3:
-                loop_id = f"LOOP-S{stag}-C{ct}"
-                loop = CanonicalLoop(
-                    loop_id=loop_id,
-                    edge_ids=tuple(arc_eids),
-                    loop_type=circ_loop_type,
-                    source_entity_ref=f"gmsh:s:{stag}:c{ct}",
-                )
-                all_loops.append(loop)
-                loop_ids.append(loop_id)
+        # Circular boundary loops — classify OUTER vs INNER for planar circular faces.
+        # For PLANAR faces with no linear edges (e.g. circular disk or annular face),
+        # the largest circle is the OUTER boundary; smaller ones are inner holes.
+        # For non-planar faces or faces with linear edges, circles are INNER (default).
+        if surf_class == SurfaceClass.PLANAR and not line_ctags and circ_ctags:
+            # Sort circles by bounding-box area descending; largest = outer
+            def _circ_bb_area(ct: int) -> float:
+                x0, y0, z0, x1, y1, z1 = gmsh.model.getBoundingBox(1, ct)
+                return (x1 - x0) * (y1 - y0)
+            sorted_circ = sorted(circ_ctags, key=_circ_bb_area, reverse=True)
+            for i, ct in enumerate(sorted_circ):
+                arc_eids = curve_to_edge_ids[ct]
+                if len(arc_eids) >= 3:
+                    ctype = LoopType.OUTER if i == 0 else LoopType.INNER
+                    loop_id = f"LOOP-S{stag}-C{ct}"
+                    loop = CanonicalLoop(
+                        loop_id=loop_id,
+                        edge_ids=tuple(arc_eids),
+                        loop_type=ctype,
+                        source_entity_ref=f"gmsh:s:{stag}:c{ct}",
+                    )
+                    all_loops.append(loop)
+                    loop_ids.append(loop_id)
+        else:
+            circ_loop_type = LoopType.INNER if line_ctags else LoopType.UNKNOWN
+            for ct in circ_ctags:
+                arc_eids = curve_to_edge_ids[ct]
+                if len(arc_eids) >= 3:
+                    loop_id = f"LOOP-S{stag}-C{ct}"
+                    loop = CanonicalLoop(
+                        loop_id=loop_id,
+                        edge_ids=tuple(arc_eids),
+                        loop_type=circ_loop_type,
+                        source_entity_ref=f"gmsh:s:{stag}:c{ct}",
+                    )
+                    all_loops.append(loop)
+                    loop_ids.append(loop_id)
 
         if not loop_ids:
             # No valid loops could be built — skip this face

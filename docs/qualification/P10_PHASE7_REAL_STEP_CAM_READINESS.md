@@ -6,7 +6,7 @@
 **HEAD before:** `348d8c7` (Phase 6 final)  
 **HEAD after:** committed below  
 **Previous:** [`P10_PHASE6_REAL_3D_CAM_IMPLEMENTATION.md`](P10_PHASE6_REAL_3D_CAM_IMPLEMENTATION.md)  
-**Next:** Phase 8 — Step/Shoulder + Drill Gap Closure
+**Next:** [`P10_PHASE8_REAL_STEP_CAM_COVERAGE.md`](P10_PHASE8_REAL_STEP_CAM_COVERAGE.md)
 
 ---
 
