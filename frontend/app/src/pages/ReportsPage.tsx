@@ -7,7 +7,7 @@
  *   AUTO_APPROVED=NO
  *   ENGINEERING_STATE_CHANGED=NO
  */
-import React, { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useLocale } from '../i18n'
 import { PipelineBreadcrumb } from '../components/PipelineBreadcrumb'
 import { usePipeline } from '../context/PipelineContext'
@@ -45,7 +45,7 @@ const FORMAT_ORDER = ['PDF', 'DOCX', 'XLSX', 'CSV', 'JSON', 'ZIP']
 
 export default function ReportsPage() {
   const { t } = useLocale()
-  const { state: pipeline } = usePipeline()
+  const pipeline = usePipeline()
 
   const [reportTypes, setReportTypes] = useState<ReportTypeInfo[]>([])
   const [selectedType, setSelectedType] = useState('FULL_MANUFACTURING_REPORT')
@@ -65,7 +65,7 @@ export default function ReportsPage() {
   const [error, setError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState<string | null>(null)
 
-  const workflowId = pipeline?.workflowId ?? null
+  const workflowId = pipeline?.manufacturingPlanId ?? null
 
   useEffect(() => {
     listReportTypes()
@@ -171,8 +171,6 @@ export default function ReportsPage() {
       setDownloading(null)
     }
   }, [workflowId, language, units, selectedType, effectiveSectionIds])
-
-  const selectedTypeInfo = reportTypes.find(r => r.id === selectedType)
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
