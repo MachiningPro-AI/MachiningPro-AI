@@ -3,7 +3,8 @@
 **Classification:** SYNTHETIC_TEST_FIXTURE — PRODUCTION_USE=PROHIBITED  
 **Date:** 2026-11-20  
 **Verdict:** PASS  
-**Commit (pre-commit):** 4a3bfd9 (main branch)
+**Commits:** 209b0fa (backend+tests), 3bc60af (UI TypeScript fix + rebuild)  
+**Final HEAD:** 3bc60af (main=origin)
 
 ---
 
@@ -216,7 +217,89 @@ acceptance covers Module M02 only.
 
 ---
 
-## 15. Unit Test Suite Status
+## 15. Live Application Acceptance (PHASE 3–6, 23–24)
+
+### 15.1 Application Startup
+
+| Component | Status |
+|---|---|
+| Backend (uvicorn on port 8766, PID 13428) | RUNNING |
+| Frontend (served by backend from `frontend/dist/`) | RUNNING |
+| `GET /api/health` | 200 OK |
+| Auth (admin / machiningpro) | 200 OK — token_len=148 |
+
+### 15.2 Frontend Bundle Verification
+
+Frontend production bundle rebuilt 2026-11-20 (1508KB, `index-CC5wt3VX.js`).  
+TypeScript errors fixed:
+
+| Fix | File | Detail |
+|---|---|---|
+| Remove unused `React` import | `ReportsPage.tsx` | TS6133 |
+| Fix `usePipeline()` destructure (`state: pipeline` → direct) | `ReportsPage.tsx` | TS2339 |
+| Remove unused `selectedTypeInfo` | `ReportsPage.tsx` | TS6133 |
+| Remove unused `MissingFieldsPanel` import | `CadImportPage.tsx` | TS6133 |
+
+Bundle includes: `FULL_MANUFACTURING_REPORT` route ✓, `nav_reports` ✓,
+`planning-quality/reports` ✓, `IS_DISPATCHABLE` safety banner ✓,
+EN/TR i18n ✓, section selector ✓, Export All (ZIP) ✓, preview button ✓.
+
+### 15.3 Reports Page UI Controls (MUST 6–7, source-verified)
+
+| Control | Present | Source |
+|---|---|---|
+| Report Type selector (17 types including all 12 required) | ✓ | `ReportsPage.tsx:224`, API `/types` |
+| Language selector (EN / TR) | ✓ | `ReportsPage.tsx:318` |
+| Units selector (Metric / Imperial) | ✓ | `ReportsPage.tsx:331` |
+| Section selector (expand/collapse, select-all, clear) | ✓ | `ReportsPage.tsx:255` |
+| Format checkboxes (PDF/DOCX/XLSX/CSV/JSON/ZIP) | ✓ | `ReportsPage.tsx:347` |
+| Preview button | ✓ | `ReportsPage.tsx:378` |
+| Generate button | ✓ | `ReportsPage.tsx:391` |
+| Download per format | ✓ | `ReportsPage.tsx:487` |
+| Export All (ZIP) button | ✓ | `ReportsPage.tsx:504` |
+| Safety banner (IS_DISPATCHABLE:NO, PRODUCTION_RELEASED:NO, etc.) | ✓ | `ReportsPage.tsx:198-204` |
+| Navigation entry EN: "Reports & Export" / TR: "Raporlar ve Dışa Aktarma" | ✓ | `navigation.ts:89` |
+
+### 15.4 Live Server Export Tests (SYNTHETIC_QUALIFICATION_REPORT)
+
+All 6 formats tested against the live server on port 8766:
+
+| Format | HTTP | Size | Time | PASS |
+|---|---|---|---|---|
+| PDF | 200 | 3,802 B | 0.051 s | **PASS** |
+| DOCX | 200 | 2,846 B | 0.152 s | **PASS** |
+| XLSX | 200 | 5,543 B | 0.167 s | **PASS** |
+| CSV | 200 | 253 B | 0.009 s | **PASS** |
+| JSON | 200 | 3,025 B | 0.015 s | **PASS** |
+| ZIP | 200 | 12,159 B | 0.196 s | **PASS** |
+
+ZIP contains 5 files: `.pdf`, `.docx`, `.xlsx`, `.csv`, `.json` ✓
+
+TR language: `PREVIEW_STATUS=200  language=TR` ✓  
+Imperial units: `PREVIEW_STATUS=200  units=IMPERIAL` ✓
+
+**Note on FULL_MANUFACTURING_REPORT on live server:** The
+`ManufacturingPlanStore` is process-scoped (in-memory). There is no API
+endpoint to seed a plan from outside the server process. Full
+manufacturing report tests require `TestClient` (same-process) or the
+complete manufacturing workflow run via the browser UI. The 38/38 E2E
+acceptance tests (using `TestClient`) cover this path exhaustively.
+
+### 15.5 UI Quality (MUST 27, source review)
+
+- `max-w-4xl` with `px-4` gutters → no horizontal overflow at phone width ✓
+- Section selector uses `max-h-48 overflow-y-auto` → no overflow ✓
+- Format checkboxes `flex flex-wrap gap-2` → no overlap ✓
+- All i18n keys present in EN + TR → no untranslated text ✓
+- Safety banner `flex-shrink-0` on icon → no clipping ✓
+- Error states handled via `setError` state → no unhandled API errors ✓
+- Loading states: `previewing`, `generating`, `downloading` tracked ✓
+
+REPORTS_UI_BLOCKERS=0  
+REPORTS_UI_MAJOR=0  
+REPORTS_UI_MINOR=0
+
+## 16. Unit Test Suite Status
 
 | Suite | Tests | Result |
 |---|---|---|
@@ -286,8 +369,8 @@ MP_SYN_001_full_report_EN_IMPERIAL.json
 | 32 | Unit test suite passes | **PASS** (466/466) |
 | 33 | Ruff clean | **PASS** |
 | 34 | Acceptance document created | **PASS** (this document) |
-| 35 | TypeScript check clean | **PASS** |
-| 36 | Commit and push | Pending |
+| 35 | TypeScript check clean | **PASS** (tsc -b after TS fix) |
+| 36 | Commit and push | **PASS** (209b0fa + 3bc60af → origin/main) |
 
 ---
 
