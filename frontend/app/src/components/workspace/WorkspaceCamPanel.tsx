@@ -1,19 +1,27 @@
 /**
  * WorkspaceCamPanel — bottom panel: CAM operations, toolpath summary,
- * simulation state, and verification display.
+ * simulation controls + results, and verification display.
  *
  * Safety contract:
- *   SIMULATION_STATE=NOT_PERFORMED — no fabricated sim results shown
- *   VERIFICATION_STATE=NOT_PERFORMED — all checks NOT_PERFORMED
- *   NO_TOOLPATH_FABRICATION=YES — only shows real toolpath data from API
- *   NO_DISPATCH_CONTROLS=YES — no machine dispatch UI
+ *   SIMULATION_STATE=NOT_PERFORMED until real API result received
+ *   NO_FAKE_SIMULATION_PASS=YES     — results come from /api/verification/simulate only
+ *   NO_TOOLPATH_FABRICATION=YES     — only shows real toolpath data from API
+ *   NO_DISPATCH_CONTROLS=YES        — no machine dispatch UI
+ *   VIEWER_ENGINEERING_STATE_CHANGED=NO — animation/sim do not alter engineering state
  */
 
 import { useState } from 'react'
-import { ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react'
+import {
+  ChevronDown, ChevronUp, AlertTriangle,
+  Play, Pause, Square, SkipBack, SkipForward,
+  StepBack, StepForward, Loader2,
+} from 'lucide-react'
 import { useLocale } from '../../i18n'
-import { SAFETY } from './WorkspaceTypes'
-import type { ConnectedWorkflow, OperationSummary } from './WorkspaceTypes'
+import { SAFETY, ANIM_SPEEDS } from './WorkspaceTypes'
+import type {
+  ConnectedWorkflow, OperationSummary,
+  SimulationState, AnimSpeed,
+} from './WorkspaceTypes'
 
 // ---------------------------------------------------------------------------
 // Tab definitions
@@ -32,7 +40,11 @@ const TABS: Array<{ id: CamTab; labelKey: string }> = [
 // Operations tab
 // ---------------------------------------------------------------------------
 
-function OperationsTab({ workflow }: { workflow: ConnectedWorkflow | null }) {
+function OperationsTab({ workflow, selectedId, onSelect }: {
+  workflow: ConnectedWorkflow | null
+  selectedId: string | null
+  onSelect: (id: string) => void
+}) {
   const { t } = useLocale()
 
   if (!workflow || workflow.operations.length === 0) {
@@ -60,8 +72,12 @@ function OperationsTab({ workflow }: { workflow: ConnectedWorkflow | null }) {
           {workflow.operations.map((op: OperationSummary, i: number) => (
             <tr
               key={op.operationId}
-              className={`border-b border-tp-border/40 hover:bg-tp-surface-2 cursor-pointer
-                         ${i % 2 === 0 ? '' : 'bg-tp-surface/50'}`}
+              onClick={() => onSelect(op.operationId)}
+              className={`border-b border-tp-border/40 cursor-pointer
+                         ${selectedId === op.operationId
+                           ? 'bg-tp-accent/10'
+                           : i % 2 === 0 ? 'hover:bg-tp-surface-2' : 'bg-tp-surface/50 hover:bg-tp-surface-2'
+                         }`}
             >
               <td className="px-3 py-1 text-tp-text-3">{op.sequenceNumber}</td>
               <td className="px-2 py-1 text-tp-text font-medium truncate max-w-[200px]">{op.name}</td>
@@ -105,7 +121,7 @@ function ToolpathsTab({ workflow }: { workflow: ConnectedWorkflow | null }) {
         <Stat label={t('ws_toolpathCount')} value={totalPoints.toFixed(0)} />
         <Stat label="Groups" value={workflow.toolpathGroups.length} />
         <Stat label={t('ws_simRequired')} value={SAFETY.SIMULATION_REQUIRED ? 'YES' : 'NO'} />
-        <Stat label={t('ws_simNotVerified')} value={String(!SAFETY.IS_VERIFIED)} />
+        <Stat label={t('ws_simNotVerified')} value={String(!SAFETY.IS_VERIFIED).toUpperCase()} />
       </div>
 
       <table className="w-full text-[11px]">
@@ -137,61 +153,261 @@ function ToolpathsTab({ workflow }: { workflow: ConnectedWorkflow | null }) {
 
 function motionBg(type: string): string {
   const map: Record<string, string> = {
-    RAPID:   'rgba(255,179,0,0.15)',
-    FEED:    'rgba(0,229,255,0.15)',
-    PLUNGE:  'rgba(255,87,34,0.15)',
-    RETRACT: 'rgba(255,152,0,0.15)',
-    LINK:    'rgba(96,125,139,0.15)',
+    RAPID:   'rgba(255,179,0,0.18)',
+    FEED:    'rgba(0,229,255,0.18)',
+    PLUNGE:  'rgba(255,87,34,0.18)',
+    RETRACT: 'rgba(255,152,0,0.18)',
+    LINK:    'rgba(96,125,139,0.18)',
   }
   return map[type] ?? 'rgba(100,100,100,0.1)'
 }
 
 // ---------------------------------------------------------------------------
-// Simulation tab
+// Simulation tab (animation controls + real results)
 // ---------------------------------------------------------------------------
 
-function SimulationTab() {
+interface SimulationTabProps {
+  workflow:    ConnectedWorkflow | null
+  animFrames:  number
+  animFrame:   number
+  animPlaying: boolean
+  animSpeed:   AnimSpeed
+  simState:    SimulationState
+  simRunning:  boolean
+  onPlay:      () => void
+  onPause:     () => void
+  onStop:      () => void
+  onStepFwd:   () => void
+  onStepBack:  () => void
+  onSeek:      (frame: number) => void
+  onSpeed:     (s: AnimSpeed) => void
+  onRunSim:    () => void
+}
+
+function SimulationTab({
+  workflow, animFrames, animFrame, animPlaying, animSpeed,
+  simState, simRunning,
+  onPlay, onPause, onStop, onStepFwd, onStepBack, onSeek, onSpeed, onRunSim,
+}: SimulationTabProps) {
   const { t } = useLocale()
+  const hasFrames = animFrames > 0
+  const pct = hasFrames ? (animFrame / (animFrames - 1)) * 100 : 0
+
   return (
-    <div className="p-4 h-full overflow-y-auto">
-      <div className="flex items-start gap-3 p-3 rounded border border-tp-border bg-tp-surface-3 mb-3">
-        <AlertTriangle size={16} className="text-tp-text-3 mt-0.5 shrink-0" aria-hidden="true" />
-        <div>
-          <div className="text-[11px] font-semibold text-tp-text mb-1">{t('ws_simRequired')}</div>
-          <div className="text-[11px] text-tp-text-2">{t('ws_safetyNote')}</div>
-        </div>
+    <div className="p-3 h-full overflow-y-auto space-y-3">
+      {/* Safety banner */}
+      <div className="flex items-start gap-2 px-2.5 py-2 rounded border border-tp-border bg-tp-surface-3">
+        <AlertTriangle size={12} className="text-tp-text-3 mt-0.5 shrink-0" aria-hidden="true" />
+        <span className="text-[10px] text-tp-text-3">{t('ws_safetyNote')}</span>
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <StatCard label={t('ws_simulation_state')} value={SAFETY.SIMULATION_STATE} />
-        <StatCard label="is_verified"              value={String(SAFETY.IS_VERIFIED).toUpperCase()} />
-        <StatCard label="simulation_required"      value={String(SAFETY.SIMULATION_REQUIRED).toUpperCase()} />
-        <StatCard label={t('ws_noDispatch')}       value="YES" />
+
+      {/* Animation controls */}
+      <div className="rounded border border-tp-border bg-tp-surface-2 p-2.5">
+        <div className="text-[9px] font-semibold uppercase tracking-widest text-tp-text-3 mb-2">
+          Toolpath Animation
+        </div>
+
+        {/* Transport controls */}
+        <div className="flex items-center gap-1 mb-2">
+          <CtrlBtn onClick={onStop}      title="Stop"      disabled={!hasFrames}><Square     size={10}/></CtrlBtn>
+          <CtrlBtn onClick={() => onSeek(0)} title="Restart"  disabled={!hasFrames}><SkipBack    size={10}/></CtrlBtn>
+          <CtrlBtn onClick={onStepBack}  title="Step back" disabled={!hasFrames}><StepBack    size={10}/></CtrlBtn>
+          {animPlaying
+            ? <CtrlBtn onClick={onPause} title="Pause" disabled={!hasFrames} active><Pause  size={10}/></CtrlBtn>
+            : <CtrlBtn onClick={onPlay}  title="Play"  disabled={!hasFrames}><Play          size={10}/></CtrlBtn>
+          }
+          <CtrlBtn onClick={onStepFwd}   title="Step fwd"  disabled={!hasFrames}><StepForward size={10}/></CtrlBtn>
+          <CtrlBtn onClick={() => onSeek(animFrames - 1)} title="End" disabled={!hasFrames}><SkipForward size={10}/></CtrlBtn>
+
+          {/* Speed selector */}
+          <div className="ml-auto flex items-center gap-1">
+            <span className="text-[9px] text-tp-text-3">Speed:</span>
+            <select
+              value={animSpeed}
+              onChange={e => onSpeed(Number(e.target.value) as AnimSpeed)}
+              className="text-[10px] rounded border border-tp-border bg-tp-surface px-1 py-px
+                         text-tp-text focus:outline-none"
+            >
+              {ANIM_SPEEDS.map(s => (
+                <option key={s} value={s}>{s}×</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Timeline scrubber */}
+        <input
+          type="range"
+          min={0}
+          max={Math.max(animFrames - 1, 0)}
+          value={animFrame}
+          onChange={e => onSeek(Number(e.target.value))}
+          disabled={!hasFrames}
+          className="w-full h-1.5 accent-tp-accent disabled:opacity-30"
+        />
+        <div className="flex justify-between text-[9px] text-tp-text-3 mt-1">
+          <span>Frame {hasFrames ? animFrame + 1 : 0}/{animFrames}</span>
+          <span>{pct.toFixed(0)}%</span>
+        </div>
+        {!hasFrames && (
+          <p className="text-[10px] text-tp-text-3 italic mt-1">
+            {!workflow ? 'No workflow connected' : 'No toolpath data'}
+          </p>
+        )}
+      </div>
+
+      {/* Run Simulation */}
+      <div className="rounded border border-tp-border bg-tp-surface-2 p-2.5">
+        <div className="text-[9px] font-semibold uppercase tracking-widest text-tp-text-3 mb-2">
+          Verification Simulation
+        </div>
+        <div className="flex items-center gap-2 mb-2">
+          <button
+            type="button"
+            onClick={onRunSim}
+            disabled={!workflow || workflow.toolpathGroups.length === 0 || simRunning}
+            className="px-3 py-1.5 rounded text-[11px] bg-tp-accent text-white
+                       hover:bg-tp-accent/80 disabled:opacity-40 disabled:cursor-not-allowed
+                       flex items-center gap-1.5"
+          >
+            {simRunning && <Loader2 size={11} className="animate-spin" />}
+            {simRunning ? 'Running…' : 'Run Simulation'}
+          </button>
+          <span className="text-[10px] font-mono text-tp-text-3">
+            Status: {simState.runStatus}
+          </span>
+        </div>
+
+        {simState.runStatus !== 'NOT_PERFORMED' && (
+          <div className="space-y-1.5">
+            {/* Volume report */}
+            {simState.initialStockVolumeMm3 !== null && (
+              <div className="grid grid-cols-3 gap-2">
+                <VolumeCard label="Initial" mm3={simState.initialStockVolumeMm3} />
+                <VolumeCard label="Remaining" mm3={simState.remainingStockVolumeMm3} />
+                <VolumeCard label="Removed" mm3={simState.removedVolumeMm3} />
+              </div>
+            )}
+            {simState.initialStockVolumeMm3 === null && simState.runStatus === 'COMPLETED' && (
+              <p className="text-[10px] text-tp-text-3 italic">
+                Stock volume: NOT_VERIFIABLE (no confirmed stock dimensions)
+              </p>
+            )}
+            {/* Fidelity */}
+            <p className="text-[9px] text-tp-text-3">
+              Stock removal fidelity: {simState.stockRemovalFidelity}
+            </p>
+            {/* Checks */}
+            {Object.keys(simState.checks).length > 0 && (
+              <div className="mt-2">
+                <p className="text-[9px] text-tp-text-3 mb-1 uppercase tracking-wider">Check Results:</p>
+                {Object.entries(simState.checks).map(([key, chk]) => (
+                  <CheckRow key={key} name={key} status={chk.status} severity={chk.severity} />
+                ))}
+              </div>
+            )}
+            {simState.errorMessage && (
+              <p className="text-[10px] text-tp-error">{simState.errorMessage}</p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
+function CtrlBtn({ children, onClick, title, disabled, active }: {
+  children: React.ReactNode
+  onClick: () => void
+  title: string
+  disabled?: boolean
+  active?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      disabled={disabled}
+      className={`w-6 h-6 rounded border flex items-center justify-center transition-colors
+                 ${active
+                   ? 'border-tp-accent bg-tp-accent/15 text-tp-accent-light'
+                   : 'border-tp-border text-tp-text-2 hover:bg-tp-surface hover:text-tp-text'
+                 } disabled:opacity-30 disabled:cursor-not-allowed`}
+    >
+      {children}
+    </button>
+  )
+}
+
+function VolumeCard({ label, mm3 }: { label: string; mm3: number | null }) {
+  const val = mm3 !== null ? `${mm3.toFixed(0)} mm³` : 'N/A'
+  return (
+    <div className="p-1.5 rounded bg-tp-surface-3 border border-tp-border">
+      <div className="text-[9px] text-tp-text-3 mb-0.5">{label}</div>
+      <div className="text-[10px] font-mono text-tp-text">{val}</div>
+    </div>
+  )
+}
+
+function CheckRow({ name, status, severity }: { name: string; status: string; severity: string }) {
+  const color = status === 'PASS' ? 'text-green-400'
+    : status === 'FAIL' ? 'text-tp-error'
+    : status === 'INSUFFICIENT_DATA' ? 'text-tp-text-3'
+    : 'text-tp-text-3'
+  return (
+    <div className="flex items-center gap-2 py-0.5">
+      <span className={`text-[9px] font-mono w-16 shrink-0 ${color}`}>{status}</span>
+      <span className="text-[9px] text-tp-text-3 truncate">{name}</span>
+      {severity !== 'NONE' && severity !== '' && (
+        <span className="text-[8px] text-tp-text-3 ml-auto">[{severity}]</span>
+      )}
+    </div>
+  )
+}
+
 // ---------------------------------------------------------------------------
-// Verification tab
+// Verification tab (real check results when available)
 // ---------------------------------------------------------------------------
 
-function VerificationTab() {
+function VerificationTab({ simState }: { simState: SimulationState }) {
   const { t } = useLocale()
-  const checks = [
-    { label: t('ws_collisionCheck'),  value: SAFETY.COLLISION_CHECK },
-    { label: t('ws_gougeCheck'),      value: SAFETY.GOUGE_CHECK },
-    { label: t('ws_fixtureCheck'),    value: SAFETY.FIXTURE_CHECK },
-    { label: t('ws_machineEnvCheck'), value: SAFETY.MACHINE_ENVELOPE_CHECK },
+
+  const hasRealResults = simState.runStatus === 'COMPLETED' && Object.keys(simState.checks).length > 0
+
+  const defaultChecks = [
+    { label: t('ws_collisionCheck'),  key: 'tool_collision',   value: SAFETY.COLLISION_CHECK  as string },
+    { label: t('ws_gougeCheck'),      key: 'part_gouge',       value: SAFETY.GOUGE_CHECK      as string },
+    { label: t('ws_fixtureCheck'),    key: 'fixture_collision', value: SAFETY.FIXTURE_CHECK    as string },
+    { label: t('ws_machineEnvCheck'), key: 'machine_envelope',  value: SAFETY.MACHINE_ENVELOPE_CHECK as string },
   ]
+
   return (
     <div className="p-4 h-full overflow-y-auto">
-      <div className="text-[11px] text-tp-text-2 mb-3">{t('ws_verRequired')}</div>
-      <div className="grid grid-cols-2 gap-2 mb-3">
-        {checks.map(c => (
-          <StatCard key={c.label} label={c.label} value={c.value} />
-        ))}
+      <div className="text-[11px] text-tp-text-2 mb-3">
+        {hasRealResults
+          ? `Simulation completed — ${Object.keys(simState.checks).length} checks performed`
+          : t('ws_verRequired')}
       </div>
-      <div className="p-2 rounded bg-tp-surface-3 border border-tp-border/50">
+
+      <div className="grid grid-cols-2 gap-2 mb-3">
+        {defaultChecks.map(c => {
+          const realResult = simState.checks[c.key]
+          const displayVal = realResult ? realResult.status : c.value
+          return <StatCard key={c.label} label={c.label} value={displayVal} />
+        })}
+      </div>
+
+      {hasRealResults && (
+        <div className="mt-2 space-y-1">
+          <p className="text-[9px] text-tp-text-3 uppercase tracking-wider mb-1">All Checks:</p>
+          {Object.entries(simState.checks).map(([key, chk]) => (
+            <CheckRow key={key} name={key} status={chk.status} severity={chk.severity} />
+          ))}
+        </div>
+      )}
+
+      <div className="mt-3 p-2 rounded bg-tp-surface-3 border border-tp-border/50">
         <p className="text-[10px] text-tp-text-3 leading-relaxed">{t('ws_safetyNote')}</p>
       </div>
     </div>
@@ -212,11 +428,12 @@ function Stat({ label, value }: { label: string; value: string | number }) {
 }
 
 function StatCard({ label, value }: { label: string; value: string }) {
-  const isOk = value === 'NOT_PERFORMED' || value === 'TRUE' || value === 'YES'
+  const isOk = value === 'NOT_PERFORMED' || value === 'TRUE' || value === 'YES' || value === 'PASS'
+  const isFail = value === 'FAIL'
   return (
     <div className="p-2 rounded border border-tp-border bg-tp-surface-2">
       <div className="text-[9px] text-tp-text-3 mb-1">{label}</div>
-      <div className={`text-[11px] font-mono ${isOk ? 'text-tp-text-3' : 'text-tp-error'}`}>
+      <div className={`text-[11px] font-mono ${isFail ? 'text-tp-error' : isOk ? 'text-tp-text-3' : 'text-tp-text-2'}`}>
         {value}
       </div>
     </div>
@@ -228,15 +445,36 @@ function StatCard({ label, value }: { label: string; value: string }) {
 // ---------------------------------------------------------------------------
 
 export interface CamPanelProps {
-  workflow: ConnectedWorkflow | null
+  workflow:    ConnectedWorkflow | null
+  selectedId:  string | null
+  onSelect:    (id: string) => void
+  animFrames:  number
+  animFrame:   number
+  animPlaying: boolean
+  animSpeed:   AnimSpeed
+  simState:    SimulationState
+  simRunning:  boolean
+  onPlay:      () => void
+  onPause:     () => void
+  onStop:      () => void
+  onStepFwd:   () => void
+  onStepBack:  () => void
+  onSeek:      (frame: number) => void
+  onSpeed:     (s: AnimSpeed) => void
+  onRunSim:    () => void
 }
 
-export default function WorkspaceCamPanel({ workflow }: CamPanelProps) {
+export default function WorkspaceCamPanel({
+  workflow, selectedId, onSelect,
+  animFrames, animFrame, animPlaying, animSpeed,
+  simState, simRunning,
+  onPlay, onPause, onStop, onStepFwd, onStepBack, onSeek, onSpeed, onRunSim,
+}: CamPanelProps) {
   const { t } = useLocale()
-  const [activeTab, setActiveTab]   = useState<CamTab>('operations')
-  const [expanded,  setExpanded]    = useState(true)
+  const [activeTab, setActiveTab] = useState<CamTab>('operations')
+  const [expanded,  setExpanded]  = useState(true)
 
-  const PANEL_HEIGHT = 180
+  const PANEL_HEIGHT = 220
 
   return (
     <div
@@ -268,6 +506,18 @@ export default function WorkspaceCamPanel({ workflow }: CamPanelProps) {
             {workflow.partName ?? workflow.workflowId}
           </span>
         )}
+        {/* Sim state badge */}
+        {simState.runStatus !== 'NOT_PERFORMED' && (
+          <span className={`shrink-0 mr-1 text-[9px] font-mono px-1.5 py-0.5 rounded border
+                           ${simState.runStatus === 'COMPLETED'
+                             ? 'bg-green-900/20 text-green-400 border-green-700/30'
+                             : simState.runStatus === 'RUNNING'
+                               ? 'bg-tp-accent/10 text-tp-accent-light border-tp-accent/20'
+                               : 'bg-tp-error/10 text-tp-error border-tp-error/20'
+                           }`}>
+            SIM={simState.runStatus}
+          </span>
+        )}
         <button
           type="button"
           onClick={() => setExpanded(e => !e)}
@@ -282,10 +532,30 @@ export default function WorkspaceCamPanel({ workflow }: CamPanelProps) {
       {/* Tab content */}
       {expanded && (
         <div className="flex-1 overflow-hidden">
-          {activeTab === 'operations'   && <OperationsTab workflow={workflow} />}
+          {activeTab === 'operations'   && (
+            <OperationsTab workflow={workflow} selectedId={selectedId} onSelect={onSelect} />
+          )}
           {activeTab === 'toolpaths'    && <ToolpathsTab workflow={workflow} />}
-          {activeTab === 'simulation'   && <SimulationTab />}
-          {activeTab === 'verification' && <VerificationTab />}
+          {activeTab === 'simulation'   && (
+            <SimulationTab
+              workflow={workflow}
+              animFrames={animFrames}
+              animFrame={animFrame}
+              animPlaying={animPlaying}
+              animSpeed={animSpeed}
+              simState={simState}
+              simRunning={simRunning}
+              onPlay={onPlay}
+              onPause={onPause}
+              onStop={onStop}
+              onStepFwd={onStepFwd}
+              onStepBack={onStepBack}
+              onSeek={onSeek}
+              onSpeed={onSpeed}
+              onRunSim={onRunSim}
+            />
+          )}
+          {activeTab === 'verification' && <VerificationTab simState={simState} />}
         </div>
       )}
     </div>

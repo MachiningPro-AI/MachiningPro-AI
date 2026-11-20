@@ -25,7 +25,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { LoaderCircle, Maximize2, RotateCcw } from 'lucide-react'
 import { useLocale } from '../../i18n'
 import type { PreviewMesh } from '../../services/engineeringImport'
-import type { DisplayMode, ToolpathLineGroup, ViewPreset, WorkspaceFile } from './WorkspaceTypes'
+import type { DisplayMode, ToolPose, StockBbox, ToolpathLineGroup, ViewPreset, WorkspaceFile } from './WorkspaceTypes'
 import { CLIENT_RENDER_FORMATS, SERVER_RENDER_FORMATS } from './WorkspaceTypes'
 
 // ---------------------------------------------------------------------------
@@ -137,7 +137,12 @@ export interface ViewportProps {
   showGrid:     boolean
   showWcs:      boolean
   showToolpath: boolean
+  showStock:    boolean
   toolpaths:    ToolpathLineGroup[]
+  toolPose:     ToolPose | null
+  stockBbox:    StockBbox | null
+  collisionPoints: Array<[number, number, number]>
+  gougePoints:     Array<[number, number, number]>
   viewPreset:   ViewPreset | null
   onViewPresetConsumed: () => void
   onFit:        (() => void) | null
@@ -157,7 +162,12 @@ export default function WorkspaceViewport({
   showGrid,
   showWcs,
   showToolpath,
+  showStock,
   toolpaths,
+  toolPose,
+  stockBbox,
+  collisionPoints,
+  gougePoints,
   viewPreset,
   onViewPresetConsumed,
   onFit,
@@ -172,15 +182,19 @@ export default function WorkspaceViewport({
   const fitBoxRef      = useRef<THREE.Box3 | null>(null)
   const initPosRef     = useRef(new THREE.Vector3())
   const initTgtRef     = useRef(new THREE.Vector3())
-  const meshGroupRef   = useRef<THREE.Group | null>(null)
-  const edgeGroupRef   = useRef<THREE.Group | null>(null)
-  const tpGroupRef     = useRef<THREE.Group | null>(null)
-  const gridRef        = useRef<THREE.GridHelper | null>(null)
-  const wcsRef         = useRef<THREE.Group | null>(null)
-  const sceneRef       = useRef<THREE.Scene | null>(null)
-  const rendererRef    = useRef<THREE.WebGLRenderer | null>(null)
-  const axisCanvasRef  = useRef<HTMLCanvasElement | null>(null)
-  const disposeListRef = useRef<Array<THREE.BufferGeometry | THREE.Material>>([])
+  const meshGroupRef      = useRef<THREE.Group | null>(null)
+  const edgeGroupRef      = useRef<THREE.Group | null>(null)
+  const tpGroupRef        = useRef<THREE.Group | null>(null)
+  const gridRef           = useRef<THREE.GridHelper | null>(null)
+  const wcsRef            = useRef<THREE.Group | null>(null)
+  const toolMarkerRef     = useRef<THREE.Mesh | null>(null)
+  const stockBoxRef       = useRef<THREE.Group | null>(null)
+  const collisionGroupRef = useRef<THREE.Points | null>(null)
+  const gougeGroupRef     = useRef<THREE.Points | null>(null)
+  const sceneRef          = useRef<THREE.Scene | null>(null)
+  const rendererRef       = useRef<THREE.WebGLRenderer | null>(null)
+  const axisCanvasRef     = useRef<HTMLCanvasElement | null>(null)
+  const disposeListRef    = useRef<Array<THREE.BufferGeometry | THREE.Material>>([])
 
   const [loading,    setLoading]    = useState(false)
   const [parseError, setParseError] = useState<string | null>(null)
@@ -191,6 +205,7 @@ export default function WorkspaceViewport({
   const showGridRef     = useRef(showGrid)
   const showWcsRef      = useRef(showWcs)
   const showToolpathRef = useRef(showToolpath)
+  const showStockRef    = useRef(showStock)
 
   // ── Scene setup ──────────────────────────────────────────────────────────
 
@@ -273,6 +288,38 @@ export default function WorkspaceViewport({
     const edgeGroup = new THREE.Group()
     scene.add(edgeGroup)
     edgeGroupRef.current = edgeGroup
+
+    // Tool pose marker — small yellow sphere, hidden until pose set
+    const toolGeo = new THREE.SphereGeometry(0.5, 10, 10)
+    const toolMat = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0.85 })
+    const toolMarker = new THREE.Mesh(toolGeo, toolMat)
+    toolMarker.visible = false
+    scene.add(toolMarker)
+    toolMarkerRef.current = toolMarker
+    disposeListRef.current.push(toolGeo, toolMat)
+
+    // Stock bounding box group — transparent surface + wireframe edges
+    const stockBoxGroup = new THREE.Group()
+    stockBoxGroup.visible = false
+    scene.add(stockBoxGroup)
+    stockBoxRef.current = stockBoxGroup
+
+    // Collision / gouge point clouds (empty initially)
+    const colGeo  = new THREE.BufferGeometry()
+    const colMat  = new THREE.PointsMaterial({ color: 0xff1744, size: 2.5, sizeAttenuation: false })
+    const colPts  = new THREE.Points(colGeo, colMat)
+    colPts.visible = false
+    scene.add(colPts)
+    collisionGroupRef.current = colPts
+    disposeListRef.current.push(colGeo, colMat)
+
+    const gougeGeo = new THREE.BufferGeometry()
+    const gougeMat = new THREE.PointsMaterial({ color: 0xff6d00, size: 2.5, sizeAttenuation: false })
+    const gougePts = new THREE.Points(gougeGeo, gougeMat)
+    gougePts.visible = false
+    scene.add(gougePts)
+    gougeGroupRef.current = gougePts
+    disposeListRef.current.push(gougeGeo, gougeMat)
 
     // Ground raycasting plane for cursor position
     const groundGeo  = new THREE.PlaneGeometry(1e6, 1e6)
@@ -383,6 +430,8 @@ export default function WorkspaceViewport({
       cameraRef.current = controlsRef.current = sceneRef.current = rendererRef.current = null
       meshGroupRef.current = edgeGroupRef.current = tpGroupRef.current = null
       gridRef.current = wcsRef.current = null
+      toolMarkerRef.current = stockBoxRef.current = null
+      collisionGroupRef.current = gougeGroupRef.current = null
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])  // scene mounts once
@@ -580,6 +629,104 @@ export default function WorkspaceViewport({
     showToolpathRef.current = showToolpath
     if (tpGroupRef.current) tpGroupRef.current.visible = showToolpath
   }, [showToolpath])
+
+  // ── Tool pose (animation marker) ────────────────────────────────────────
+
+  useEffect(() => {
+    const marker = toolMarkerRef.current
+    if (!marker) return
+    if (toolPose) {
+      marker.position.set(toolPose.x, toolPose.y, toolPose.z)
+      marker.visible = true
+    } else {
+      marker.visible = false
+    }
+  }, [toolPose])
+
+  // ── Stock bounding box ───────────────────────────────────────────────────
+
+  useEffect(() => {
+    const group = stockBoxRef.current
+    if (!group) return
+
+    // Clear previous stock meshes
+    while (group.children.length > 0) {
+      const child = group.children[0]!
+      if (child instanceof THREE.Mesh || child instanceof THREE.LineSegments) {
+        (child as THREE.Mesh).geometry.dispose()
+        const mat = (child as THREE.Mesh).material as THREE.Material
+        mat.dispose()
+      }
+      group.remove(child)
+    }
+
+    if (!stockBbox) {
+      group.visible = false
+      return
+    }
+
+    const { minX, minY, minZ, maxX, maxY, maxZ } = stockBbox
+    const w = maxX - minX, h = maxY - minY, d = maxZ - minZ
+    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2, cz = (minZ + maxZ) / 2
+
+    const boxGeo = new THREE.BoxGeometry(w, h, d)
+    const boxMat = new THREE.MeshBasicMaterial({
+      color: stockBbox.confirmed ? 0x1a4fa0 : 0x2a7a4a,
+      transparent: true,
+      opacity: 0.08,
+      side: THREE.DoubleSide,
+    })
+    const boxMesh = new THREE.Mesh(boxGeo, boxMat)
+    boxMesh.position.set(cx, cy, cz)
+    group.add(boxMesh)
+
+    const edgeGeo = new THREE.EdgesGeometry(boxGeo)
+    const edgeMat = new THREE.LineBasicMaterial({
+      color: stockBbox.confirmed ? 0x4488ff : 0x44cc88,
+      transparent: true, opacity: 0.6,
+    })
+    const edgeMesh = new THREE.LineSegments(edgeGeo, edgeMat)
+    edgeMesh.position.set(cx, cy, cz)
+    group.add(edgeMesh)
+    disposeListRef.current.push(boxGeo, boxMat, edgeGeo, edgeMat)
+
+    group.visible = showStockRef.current
+  }, [stockBbox])
+
+  // ── Stock visibility ──────────────────────────────────────────────────────
+
+  useEffect(() => {
+    showStockRef.current = showStock
+    if (stockBoxRef.current) {
+      stockBoxRef.current.visible = showStock && !!stockBbox
+    }
+  }, [showStock, stockBbox])
+
+  // ── Collision / gouge point markers ──────────────────────────────────────
+
+  useEffect(() => {
+    const pts = collisionGroupRef.current
+    if (!pts) return
+    if (collisionPoints.length === 0) {
+      pts.visible = false
+      return
+    }
+    const flat = collisionPoints.flat()
+    pts.geometry.setAttribute('position', new THREE.Float32BufferAttribute(flat, 3))
+    pts.visible = true
+  }, [collisionPoints])
+
+  useEffect(() => {
+    const pts = gougeGroupRef.current
+    if (!pts) return
+    if (gougePoints.length === 0) {
+      pts.visible = false
+      return
+    }
+    const flat = gougePoints.flat()
+    pts.geometry.setAttribute('position', new THREE.Float32BufferAttribute(flat, 3))
+    pts.visible = true
+  }, [gougePoints])
 
   // ── View preset ──────────────────────────────────────────────────────────
 

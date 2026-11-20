@@ -156,3 +156,81 @@ export interface ConnectedWorkflow {
   toolpathGroups: ToolpathLineGroup[]
   planStatus: string | null
 }
+
+// ---------------------------------------------------------------------------
+// Tool pose for animation (real toolpath coordinates only)
+// ---------------------------------------------------------------------------
+
+export interface ToolPose {
+  x: number
+  y: number
+  z: number
+}
+
+// ---------------------------------------------------------------------------
+// Stock bounding box (real dimensions only)
+// ---------------------------------------------------------------------------
+
+export interface StockBbox {
+  minX: number
+  minY: number
+  minZ: number
+  maxX: number
+  maxY: number
+  maxZ: number
+  confirmed: boolean  // USER_CONFIRMED vs SUGGESTED
+}
+
+// ---------------------------------------------------------------------------
+// Simulation state (driven by /api/verification/simulate results only)
+// ---------------------------------------------------------------------------
+
+export type SimulationRunStatus = 'NOT_PERFORMED' | 'RUNNING' | 'COMPLETED' | 'FAILED'
+
+export interface SimCheckResult {
+  status: string         // PASS | FAIL | NOT_PERFORMED | INSUFFICIENT_DATA
+  severity: string       // NONE | INFO | WARNING | ERROR | CRITICAL
+  warnings: string[]
+}
+
+export interface SimulationState {
+  runStatus: SimulationRunStatus
+  toolpathId: string | null
+  verificationState: string
+  checks: Record<string, SimCheckResult>
+  initialStockVolumeMm3: number | null
+  remainingStockVolumeMm3: number | null
+  removedVolumeMm3: number | null
+  stockRemovalFidelity: string
+  collisionPoints: Array<[number, number, number]>
+  gougePoints: Array<[number, number, number]>
+  errorMessage: string | null
+}
+
+export const DEFAULT_SIMULATION_STATE: SimulationState = {
+  runStatus: 'NOT_PERFORMED',
+  toolpathId: null,
+  verificationState: 'NOT_PERFORMED',
+  checks: {},
+  initialStockVolumeMm3: null,
+  remainingStockVolumeMm3: null,
+  removedVolumeMm3: null,
+  stockRemovalFidelity: 'UNKNOWN',
+  collisionPoints: [],
+  gougePoints: [],
+  errorMessage: null,
+}
+
+// ---------------------------------------------------------------------------
+// Animation state (toolpath playback — real frames only)
+// ---------------------------------------------------------------------------
+
+export type AnimSpeed = 0.25 | 0.5 | 1 | 2 | 5 | 10
+export const ANIM_SPEEDS: AnimSpeed[] = [0.25, 0.5, 1, 2, 5, 10]
+
+export interface AnimationState {
+  frames: Array<[number, number, number]>
+  currentFrame: number
+  playing: boolean
+  speed: AnimSpeed
+}
