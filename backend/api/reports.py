@@ -18,7 +18,12 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 
 from ..observability import metrics
-from ..persistence import WorkflowStoreError, get_workflow_store
+from ..persistence import (
+    ReportRecord,
+    WorkflowStoreError,
+    get_report_history_store,
+    get_workflow_store,
+)
 from ..reports.models import ExportFormat, ReportLanguage, ReportUnits
 from ..reports.report_service import (
     REPORT_TYPES,
@@ -434,6 +439,15 @@ def generate_and_download(
     if item is None:
         raise HTTPException(500, detail="Report generation failed")
 
+    _save_report_history(
+        report_id=bundle.document.metadata.report_id,
+        workflow_id=req.workflow_id,
+        report_type=req.report_type,
+        language=str(bundle.document.metadata.language),
+        units=str(bundle.document.metadata.units),
+        formats=[fu],
+    )
+
     safe_fn = _SAFE_FILENAME_RE.sub("_", item.filename)
     metrics.increment(metrics.EXPORT_REQUESTED)
     return Response(
@@ -441,3 +455,67 @@ def generate_and_download(
         media_type=item.mime_type,
         headers={"Content-Disposition": f'attachment; filename="{safe_fn}"'},
     )
+
+
+@router.get("/history")
+def list_report_history(
+    workflow_id: str | None = None,
+    limit: int = 50,
+    _auth: dict = Depends(_require_user),  # noqa: B008
+) -> dict[str, Any]:
+    """List previously generated reports from persistent history.
+
+    REPORT_HISTORY_SURVIVES_RESTART=YES
+    """
+    try:
+        rhs = get_report_history_store()
+        if workflow_id:
+            rows = rhs.list_by_workflow(workflow_id, limit=limit)
+        else:
+            rows = rhs.list_recent(limit=limit)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(503, detail="Report history store unavailable") from exc
+    return {
+        "count": len(rows),
+        "reports": rows,
+        "safety": {
+            "IS_DISPATCHABLE": False,
+            "PRODUCTION_RELEASED": False,
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+
+def _save_report_history(
+    *,
+    report_id: str,
+    workflow_id: str | None,
+    report_type: str,
+    language: str,
+    units: str,
+    formats: list[str],
+    plan_id: str | None = None,
+) -> None:
+    """Persist report metadata to history store. Silently fails (non-blocking)."""
+    try:
+        rhs = get_report_history_store()
+        rhs.save(ReportRecord(
+            report_id=report_id,
+            workflow_id=workflow_id,
+            plan_id=plan_id,
+            report_type=report_type,
+            language=language,
+            units=units,
+            formats=formats,
+            status="GENERATED",
+            is_dispatchable=False,
+            production_released=False,
+            auto_approved=False,
+            engineering_state_changed=False,
+        ))
+    except Exception:  # noqa: BLE001
+        pass  # Report generation must not fail because history persistence failed

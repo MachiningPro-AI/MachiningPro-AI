@@ -1,7 +1,8 @@
-"""Level-20 persistence layer — durable workflow and artifact storage.
+"""Persistence layer — durable workflow, plan, artifact, and report storage.
 
 ARBITRARY_OBJECT_DESERIALIZATION=NO
 PERSISTENCE_FAILURE_POLICY=FAIL_CLOSED
+MANUFACTURING_PLAN_STORE_MODE=SQLITE_PERSISTENT
 """
 from __future__ import annotations
 
@@ -10,17 +11,25 @@ from pathlib import Path
 
 from ..manufacturing_plan.store import ManufacturingPlanStore
 from .artifact_store import ArtifactStore, ArtifactStoreError
+from .plan_store import PersistentManufacturingPlanStore, PlanStoreError
+from .report_history_store import ReportHistoryError, ReportHistoryStore, ReportRecord
 from .store import WorkflowStore, WorkflowStoreError
 
 __all__ = [
     "ArtifactStore",
     "ArtifactStoreError",
     "ManufacturingPlanStore",
+    "PersistentManufacturingPlanStore",
+    "PlanStoreError",
+    "ReportHistoryStore",
+    "ReportHistoryError",
+    "ReportRecord",
     "WorkflowStore",
     "WorkflowStoreError",
     "get_workflow_store",
     "get_artifact_store",
     "get_plan_store",
+    "get_report_history_store",
     "reset_stores",
 ]
 
@@ -28,7 +37,8 @@ _DATA_DIR = Path(os.getenv("MACHININGPRO_DATA_DIR", "data"))
 
 _workflow_store: WorkflowStore | None = None
 _artifact_store: ArtifactStore | None = None
-_plan_store: ManufacturingPlanStore | None = None
+_plan_store: PersistentManufacturingPlanStore | None = None
+_report_history_store: ReportHistoryStore | None = None
 
 
 def get_workflow_store() -> WorkflowStore:
@@ -47,25 +57,45 @@ def get_artifact_store() -> ArtifactStore:
     return _artifact_store
 
 
-def get_plan_store() -> ManufacturingPlanStore:
-    """Return the process-scoped ManufacturingPlanStore singleton."""
+def get_plan_store() -> PersistentManufacturingPlanStore:
+    """Return the persistent ManufacturingPlan store singleton.
+
+    Backed by SQLite at <data_dir>/plans.db.
+    MANUFACTURING_PLAN_STORE_MODE=SQLITE_PERSISTENT
+    PLAN_SURVIVES_BACKEND_RESTART=YES
+    """
     global _plan_store
     if _plan_store is None:
-        _plan_store = ManufacturingPlanStore()
+        db_path = _DATA_DIR / "plans.db"
+        _plan_store = PersistentManufacturingPlanStore(db_path)
     return _plan_store
 
 
-def reset_stores(data_dir: str | Path | None = None) -> None:
-    """Reset data-dir-dependent store singletons. Used in tests to inject a temp path.
+def get_report_history_store() -> ReportHistoryStore:
+    """Return the report history store singleton.
 
-    The in-memory ManufacturingPlanStore is NOT reset because it has no data-dir
-    dependency; callers that need a clean plan store can call get_plan_store()
-    and clear it directly.
+    Backed by SQLite at <data_dir>/report_history.db.
+    REPORT_HISTORY_SURVIVES_RESTART=YES
     """
-    global _workflow_store, _artifact_store, _DATA_DIR
+    global _report_history_store
+    if _report_history_store is None:
+        db_path = _DATA_DIR / "report_history.db"
+        _report_history_store = ReportHistoryStore(db_path)
+    return _report_history_store
+
+
+def reset_stores(data_dir: str | Path | None = None) -> None:
+    """Reset data-dir-dependent store singletons. Used in tests to inject a temp path."""
+    global _workflow_store, _artifact_store, _plan_store, _report_history_store, _DATA_DIR
     if _workflow_store is not None:
         _workflow_store.close()
         _workflow_store = None
+    if _plan_store is not None:
+        _plan_store.close()
+        _plan_store = None
+    if _report_history_store is not None:
+        _report_history_store.close()
+        _report_history_store = None
     _artifact_store = None
     if data_dir is not None:
         _DATA_DIR = Path(data_dir)
