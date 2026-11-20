@@ -17,7 +17,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { ChevronDown, AlertTriangle, X } from 'lucide-react'
+import { AlertTriangle, X } from 'lucide-react'
 import { useLocale } from '../i18n'
 import { useAuth } from '../hooks/useAuth'
 import WorkspaceViewport from '../components/workspace/WorkspaceViewport'

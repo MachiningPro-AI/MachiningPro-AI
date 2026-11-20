@@ -136,8 +136,6 @@ export interface PropertiesPanelProps {
   selectedId: string | null
 }
 
-type PanelTab = 'properties' | 'verification'
-
 export default function WorkspacePropertiesPanel({
   wsFile,
   mesh,
@@ -150,8 +148,6 @@ export default function WorkspacePropertiesPanel({
   const selectedOp = selectedId && workflow
     ? workflow.operations.find(op => `op-${op.operationId}` === selectedId)
     : null
-
-  const tab: PanelTab = 'properties'  // single tab for now; verification always visible below
 
   return (
     <div className="h-full overflow-hidden flex flex-col border-l border-tp-border bg-tp-surface"
