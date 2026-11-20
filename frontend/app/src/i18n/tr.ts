@@ -2144,4 +2144,13 @@ export const trTranslations: TranslationDictionary = {
   reports_type_manufacturingPlanDesc: 'Operasyonlar, takımlar, tezgahlar, kesme parametreleri, muayene, kontrol planı, açık maddeler',
   reports_safetyNote: 'Tüm oluşturulan raporlar güvenlik uyarısı içerir ve imalat kullanımı öncesinde mühendislik incelemesi gerektirir.',
   reports_provenance: 'Kaynak Bilgisi',
+  reports_sections: 'Bölümler',
+  reports_selectSections: 'Bölüm Seç',
+  reports_selectAllSections: 'Tümünü Seç',
+  reports_clearSections: 'Temizle',
+  reports_preview: 'Önizleme',
+  reports_previewing: 'Önizleniyor...',
+  reports_previewResult: 'Rapor Önizlemesi',
+  reports_sectionCountOf: 'bölüm seçili',
+  reports_noSectionsSelected: 'Bölüm seçilmedi — tüm bölümler dahil edilecek.',
 }

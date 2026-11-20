@@ -2144,4 +2144,13 @@ export const enTranslations: TranslationDictionary = {
   reports_type_manufacturingPlanDesc: 'Operations, tools, machines, cutting parameters, inspection, control plan, open items',
   reports_safetyNote: 'All generated reports carry a safety disclaimer and require engineering review before any manufacturing use.',
   reports_provenance: 'Provenance',
+  reports_sections: 'Sections',
+  reports_selectSections: 'Select Sections',
+  reports_selectAllSections: 'Select All',
+  reports_clearSections: 'Clear All',
+  reports_preview: 'Preview',
+  reports_previewing: 'Previewing...',
+  reports_previewResult: 'Report Preview',
+  reports_sectionCountOf: 'sections selected',
+  reports_noSectionsSelected: 'No sections selected — all sections will be included.',
 }

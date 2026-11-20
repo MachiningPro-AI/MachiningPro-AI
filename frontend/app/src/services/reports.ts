@@ -12,6 +12,7 @@ export interface ReportTypeInfo {
   description_en: string
   description_tr: string
   supported_formats: string[]
+  section_ids?: string[]
 }
 
 export interface ReportTypesResponse {
@@ -36,16 +37,43 @@ export interface GenerateReportResponse {
   disclaimer: string
 }
 
+export interface PreviewSectionInfo {
+  section_id: string
+  title: string
+  content_types: string[]
+  has_data: boolean
+}
+
+export interface PreviewReportResponse {
+  report_id: string
+  report_type: string
+  generated_at: string
+  language: string
+  units: string
+  section_count: number
+  sections: PreviewSectionInfo[]
+  safety: Record<string, boolean>
+  disclaimer: string
+}
+
 export interface GenerateReportRequest {
   workflow_id: string
   report_type?: string
   formats?: string[]
   language?: string
   units?: string
+  section_ids?: string[] | null
 }
 
 export async function listReportTypes(): Promise<ReportTypesResponse> {
   return api<ReportTypesResponse>('/reports/types')
+}
+
+export async function previewReport(req: GenerateReportRequest): Promise<PreviewReportResponse> {
+  return api<PreviewReportResponse>('/reports/preview', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  })
 }
 
 export async function generateReport(req: GenerateReportRequest): Promise<GenerateReportResponse> {
@@ -64,6 +92,8 @@ export async function downloadReportFormat(
   format: string,
   language: string,
   units: string,
+  reportType: string = 'FULL_MANUFACTURING_REPORT',
+  sectionIds?: string[] | null,
 ): Promise<{ blob: Blob; filename: string }> {
   const token = sessionStorage.getItem('machiningpro_token')
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -74,10 +104,11 @@ export async function downloadReportFormat(
     headers,
     body: JSON.stringify({
       workflow_id: workflowId,
-      report_type: 'MANUFACTURING_PLAN',
+      report_type: reportType,
       formats: [format],
       language,
       units,
+      section_ids: sectionIds ?? null,
     }),
   })
   if (!res.ok) {

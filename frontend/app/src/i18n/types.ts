@@ -2146,4 +2146,13 @@ export interface TranslationDictionary {
   reports_type_manufacturingPlanDesc: string
   reports_safetyNote: string
   reports_provenance: string
+  reports_sections: string
+  reports_selectSections: string
+  reports_selectAllSections: string
+  reports_clearSections: string
+  reports_preview: string
+  reports_previewing: string
+  reports_previewResult: string
+  reports_sectionCountOf: string
+  reports_noSectionsSelected: string
 }
