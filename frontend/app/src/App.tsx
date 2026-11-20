@@ -18,6 +18,7 @@ import ProcessPlanningPage from './pages/ProcessPlanningPage'
 import DrawingToProcessPage from './pages/DrawingToProcessPage'
 import MaterialLibraryPage from './pages/MaterialLibraryPage'
 import CadFeaturesPage from './pages/CadFeaturesPage'
+import CadCamWorkspacePage from './pages/CadCamWorkspacePage'
 import DrawingParserPage from './pages/DrawingParserPage'
 import GdtIntelligencePage from './pages/GdtIntelligencePage'
 import ManufacturingPlanPage from './pages/ManufacturingPlanPage'
@@ -91,6 +92,7 @@ function ProtectedRoutes() {
           element={<TechnicalDrawingIntelligencePage reviewer={user} />}
         />
         <Route path="app/cad-drawing/cad-features" element={<CadFeaturesPage />} />
+        <Route path="app/cad-drawing/cam-workspace" element={<CadCamWorkspacePage />} />
 
         {/* Manufacturing Workflow */}
         <Route path="app/workflow/manufacturing-analysis" element={<WorkflowPage />} />

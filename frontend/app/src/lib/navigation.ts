@@ -3,7 +3,7 @@ import {
   CheckSquare, TrendingUp, Settings2,
   Search, ClipboardList, Puzzle, SearchCode,
   Archive, FileText, Ruler, ShieldCheck, GitBranch, Workflow,
-  BarChart2, ClipboardCheck, FileDown,
+  BarChart2, ClipboardCheck, FileDown, Monitor,
 } from 'lucide-react'
 import type { NavGroup } from '../types/navigation'
 import type { TranslationDictionary } from '../i18n/types'
@@ -65,6 +65,12 @@ export const NAV_GROUPS: NavGroup[] = [
         labelKey: 'nav_cadFeatureRecognition',
         icon: SearchCode,
         badge: 'preview' as const,
+      },
+      {
+        id: 'cam-workspace',
+        path: '/app/cad-drawing/cam-workspace',
+        labelKey: 'nav_camWorkspace',
+        icon: Monitor,
       },
     ],
   },
