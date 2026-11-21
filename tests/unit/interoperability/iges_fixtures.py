@@ -162,3 +162,36 @@ def make_iges(
         newline=newline,
         final_newline=final_newline,
     )
+
+
+def make_iges_presentation_only() -> bytes:
+    """Return a valid IGES file containing ONLY a Color Definition (type 314) entity.
+
+    No geometric or topological entities are present.  Used to verify that the
+    import pipeline reports NO_RENDERABLE_GEOMETRY rather than aborting.
+    """
+    return make_iges(
+        entities=(
+            EntitySpec(
+                314,
+                "314,1.0,0.0,0.0;",
+                label="RED",
+            ),
+        ),
+    )
+
+
+def make_iges_presentation_and_geometry() -> bytes:
+    """Return a valid IGES file containing one type-314 entity AND a Line (type 110).
+
+    Used to verify that the type-314 entity is skipped but the line geometry is
+    extracted, producing iges_import_status=PARTIAL (not NO_RENDERABLE_GEOMETRY).
+    Note: a bare line cannot be tessellated (no surface), so preview_mesh will be
+    None, but the adapter-level geometry is non-empty.
+    """
+    return make_iges(
+        entities=(
+            EntitySpec(314, "314,1.0,0.0,0.0;", label="RED"),
+            EntitySpec(110, "110,0,0,0,10,0,0;", label="LINE"),
+        ),
+    )

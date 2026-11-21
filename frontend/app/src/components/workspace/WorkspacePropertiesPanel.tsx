@@ -15,7 +15,9 @@ import { ChevronRight, Pin, Search, X, Copy, Database } from 'lucide-react'
 import { useLocale } from '../../i18n'
 import { SAFETY, formatFileSize, COLLAPSED_STRIP_W } from './WorkspaceTypes'
 import type { WorkspaceFile, ConnectedWorkflow, OperationSummary } from './WorkspaceTypes'
-import type { PreviewMesh } from '../../services/engineeringImport'
+import type { PreviewMesh, ImportResult } from '../../services/engineeringImport'
+
+type IgesDiagnostics = ImportResult['iges_diagnostics']
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -169,13 +171,14 @@ function VerificationSection({ filter }: { filter?: string }) {
 // ---------------------------------------------------------------------------
 
 export interface PropertiesPanelProps {
-  wsFile:      WorkspaceFile | null
-  mesh:        PreviewMesh | null
-  workflow:    ConnectedWorkflow | null
-  selectedId:  string | null
-  collapsed?:  boolean
-  onCollapse?: () => void
-  style?:      CSSProperties
+  wsFile:          WorkspaceFile | null
+  mesh:            PreviewMesh | null
+  workflow:        ConnectedWorkflow | null
+  selectedId:      string | null
+  igesDiagnostics?: IgesDiagnostics
+  collapsed?:      boolean
+  onCollapse?:     () => void
+  style?:          CSSProperties
 }
 
 export default function WorkspacePropertiesPanel({
@@ -183,6 +186,7 @@ export default function WorkspacePropertiesPanel({
   mesh,
   workflow,
   selectedId,
+  igesDiagnostics,
   collapsed = false,
   onCollapse,
   style,
@@ -310,7 +314,30 @@ export default function WorkspacePropertiesPanel({
             {selectedOp ? (
               <OperationProperties op={selectedOp} filter={filter} />
             ) : (
-              <FileProperties wsFile={wsFile} mesh={mesh} filter={filter} />
+              <>
+                <FileProperties wsFile={wsFile} mesh={mesh} filter={filter} />
+                {/* IGES import diagnostics — shown when non-geometric entities were skipped */}
+                {igesDiagnostics && igesDiagnostics.iges_import_status !== 'COMPLETE' && (
+                  <div className="px-3 pb-2">
+                    <SectionHeader label="IGES Import Diagnostics" />
+                    <PropRow label="Status"      value={igesDiagnostics.iges_import_status} filter={filter} />
+                    <PropRow label="Geometry"    value={igesDiagnostics.renderable_geometry ? 'Present' : 'None'} filter={filter} />
+                    {igesDiagnostics.skipped_presentation_count > 0 && (
+                      <PropRow label="Presentation" value={`${igesDiagnostics.skipped_presentation_count} entities skipped (non-geometric)`} filter={filter} />
+                    )}
+                    {igesDiagnostics.skipped_annotation_count > 0 && (
+                      <PropRow label="Annotation"   value={`${igesDiagnostics.skipped_annotation_count} entities skipped (non-geometric)`} filter={filter} />
+                    )}
+                    {igesDiagnostics.skipped_metadata_count > 0 && (
+                      <PropRow label="Metadata"     value={`${igesDiagnostics.skipped_metadata_count} entities skipped (non-geometric)`} filter={filter} />
+                    )}
+                    {igesDiagnostics.unsupported_geometric_count > 0 && (
+                      <PropRow label="Unsup. Geom." value={`${igesDiagnostics.unsupported_geometric_count} geometric entities unsupported`} filter={filter} />
+                    )}
+                    <PropRow label="Note" value="Geometric surfaces rendered; non-geometric records ignored" filter={filter} />
+                  </div>
+                )}
+              </>
             )}
             {/* Workflow connection info — MUST 12: Workflow context */}
             {workflow && !selectedOp && (

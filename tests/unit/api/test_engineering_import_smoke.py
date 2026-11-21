@@ -26,7 +26,12 @@ from backend.api.engineering_import import (
 )
 from backend.interoperability.adapters.registry_helpers import build_default_adapter_registry
 from backend.interoperability.enums import CapabilityLevel, NormalizationStatus
-from tests.unit.interoperability.iges_fixtures import EntitySpec, make_iges
+from tests.unit.interoperability.iges_fixtures import (
+    EntitySpec,
+    make_iges,
+    make_iges_presentation_and_geometry,
+    make_iges_presentation_only,
+)
 
 # ---------------------------------------------------------------------------
 # Minimal synthetic file content
@@ -520,3 +525,270 @@ class TestSmoke08TessellationEligibility:
         result = _tessellate_step(data)
         assert result is not None, "Real STEP file must tessellate even at PARTIAL_SUCCESS level"
         assert result["triangle_count"] > 0
+
+
+# ---------------------------------------------------------------------------
+# MUST 10, 11 — IGES entity diagnostics (IGES robustness spec)
+# ---------------------------------------------------------------------------
+
+class TestSmoke09IgesDiagnostics:
+    """IGES import returns structured diagnostics for entity class counts."""
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _run_import(data: bytes, filename: str = "fixture.igs") -> dict:
+        import io
+
+        from backend.api.engineering_import import import_file
+
+        class _Upload:
+            file = io.BytesIO(data)
+
+        up = _Upload()
+        up.filename = filename  # type: ignore[attr-defined]
+        return import_file(up)
+
+    # ------------------------------------------------------------------
+    # MUST 10/11: iges_diagnostics present for IGES files
+    # ------------------------------------------------------------------
+
+    def test_iges_diagnostics_key_present_for_iges(self):
+        """iges_diagnostics is returned for IGES files."""
+        data = make_iges()
+        result = self._run_import(data)
+        assert "iges_diagnostics" in result
+        diag = result["iges_diagnostics"]
+        assert isinstance(diag, dict)
+
+    def test_iges_diagnostics_absent_for_step(self):
+        """iges_diagnostics is None for non-IGES formats (STEP)."""
+        import io
+
+        from backend.api.engineering_import import import_file
+
+        step_path = Path("D:/makina_ogrenmesi/olcum_denemeleri"
+                         "/MP_SYN_001_extracted/MachiningPro_Synthetic_Test_Pack/MP_SYN_001.step")
+        if not step_path.exists():
+            pytest.skip("Real STEP file not available")
+
+        class _Upload:
+            filename = "MP_SYN_001.step"
+            file = io.BytesIO(step_path.read_bytes())
+
+        result = import_file(_Upload())
+        assert result.get("iges_diagnostics") is None
+
+    # ------------------------------------------------------------------
+    # MUST 6: NO_RENDERABLE_GEOMETRY for presentation-only IGES
+    # ------------------------------------------------------------------
+
+    def test_presentation_only_iges_no_renderable_geometry(self):
+        """IGES with only type-314 Color Definition → NO_RENDERABLE_GEOMETRY."""
+        data = make_iges_presentation_only()
+        result = self._run_import(data)
+        diag = result.get("iges_diagnostics")
+        assert diag is not None
+        assert diag["renderable_geometry"] is False
+        assert diag["iges_import_status"] == "NO_RENDERABLE_GEOMETRY"
+
+    def test_presentation_only_no_mesh(self):
+        """Geometry-free IGES file must NOT return a preview_mesh."""
+        data = make_iges_presentation_only()
+        result = self._run_import(data)
+        assert result.get("preview_mesh") is None, (
+            "NO_RENDERABLE_GEOMETRY file must not produce a mesh"
+        )
+
+    # ------------------------------------------------------------------
+    # MUST 3/4: TYPE_314_FILE_ABORT=NO — mixed file still renders
+    # ------------------------------------------------------------------
+
+    def test_presentation_and_geometry_iges_import_not_aborted(self):
+        """IGES with type-314 + line → import not aborted (TYPE_314_FILE_ABORT=NO).
+
+        The file contains a type-314 Color Definition entity plus a Line entity.
+        The import must succeed at the adapter level (not FAILED/PARSE_ERROR).
+        Note: preview_mesh may be None because a bare line curve has no tessellatable
+        surface; this is correct and expected.
+        """
+        data = make_iges_presentation_and_geometry()
+        result = self._run_import(data)
+        # The import must NOT be aborted at the adapter level
+        assert result["import_status"] not in ("FAILED", "PARSE_ERROR", "UNRECOGNIZED"), (
+            "Type-314 must NOT abort the IGES import"
+        )
+
+    def test_presentation_and_geometry_iges_status_partial(self):
+        """Mixed file → iges_import_status=PARTIAL (not COMPLETE, not NO_RENDERABLE_GEOMETRY)."""
+        data = make_iges_presentation_and_geometry()
+        result = self._run_import(data)
+        diag = result.get("iges_diagnostics")
+        assert diag is not None
+        assert diag["iges_import_status"] == "PARTIAL", (
+            "File with skipped presentation entities must report PARTIAL, not COMPLETE"
+        )
+
+    def test_presentation_and_geometry_iges_import_status_not_no_renderable(self):
+        """Mixed IGES file (line+type-314) → iges_import_status is PARTIAL, not no-renderable.
+
+        renderable_geometry reflects whether the viewer can display the mesh (needs
+        a tessellatable surface), not whether the adapter extracted any geometry.
+        A file with only line curves has adapter-level geometry but no displayable
+        mesh, so iges_import_status must be PARTIAL (not NO_RENDERABLE_GEOMETRY).
+        """
+        data = make_iges_presentation_and_geometry()
+        result = self._run_import(data)
+        diag = result.get("iges_diagnostics")
+        assert diag is not None
+        assert diag["iges_import_status"] != "NO_RENDERABLE_GEOMETRY", (
+            "File with line geometry + type-314 must NOT be classified as no-renderable"
+        )
+        assert diag["iges_import_status"] == "PARTIAL"
+
+    # ------------------------------------------------------------------
+    # MUST 11: skipped entity counts populated
+    # ------------------------------------------------------------------
+
+    def test_presentation_count_in_diagnostics(self):
+        """skipped_presentation_count is non-negative integer."""
+        data = make_iges()
+        result = self._run_import(data)
+        diag = result["iges_diagnostics"]
+        assert isinstance(diag["skipped_presentation_count"], int)
+        assert diag["skipped_presentation_count"] >= 0
+
+    def test_annotation_count_in_diagnostics(self):
+        """skipped_annotation_count is non-negative integer."""
+        data = make_iges()
+        result = self._run_import(data)
+        diag = result["iges_diagnostics"]
+        assert isinstance(diag["skipped_annotation_count"], int)
+        assert diag["skipped_annotation_count"] >= 0
+
+    def test_unsupported_geometric_count_in_diagnostics(self):
+        """unsupported_geometric_count is non-negative integer."""
+        data = make_iges()
+        result = self._run_import(data)
+        diag = result["iges_diagnostics"]
+        assert isinstance(diag["unsupported_geometric_count"], int)
+        assert diag["unsupported_geometric_count"] >= 0
+
+    def test_total_skipped_non_geometric_field_present(self):
+        """total_skipped_non_geometric is present and consistent."""
+        data = make_iges()
+        result = self._run_import(data)
+        diag = result["iges_diagnostics"]
+        assert "total_skipped_non_geometric" in diag
+        assert isinstance(diag["total_skipped_non_geometric"], int)
+
+    # ------------------------------------------------------------------
+    # MUST 2: IgesEntityClass enum importable
+    # ------------------------------------------------------------------
+
+    def test_iges_entity_class_enum_importable(self):
+        """IgesEntityClass enum is exported from iges_mapping."""
+        from backend.interoperability.iges_mapping import IgesEntityClass
+        assert IgesEntityClass.GEOMETRIC.value == "GEOMETRIC"
+        assert IgesEntityClass.TOPOLOGICAL.value == "TOPOLOGICAL"
+        assert IgesEntityClass.PRESENTATION.value == "PRESENTATION"
+        assert IgesEntityClass.ANNOTATION.value == "ANNOTATION"
+        assert IgesEntityClass.STRUCTURAL.value == "STRUCTURAL"
+        assert IgesEntityClass.UNKNOWN.value == "UNKNOWN"
+
+    def test_iges_entity_classification_dict_importable(self):
+        """IGES_ENTITY_CLASSIFICATION dict is exported and covers key types."""
+        from backend.interoperability.iges_mapping import (
+            IGES_ENTITY_CLASSIFICATION,
+            IgesEntityClass,
+        )
+        # Type 314 = Color Definition → PRESENTATION
+        assert IGES_ENTITY_CLASSIFICATION[314] == IgesEntityClass.PRESENTATION
+        # Type 110 = Line → GEOMETRIC
+        assert IGES_ENTITY_CLASSIFICATION[110] == IgesEntityClass.GEOMETRIC
+        # Type 128 = NURBS surface → GEOMETRIC
+        assert IGES_ENTITY_CLASSIFICATION[128] == IgesEntityClass.GEOMETRIC
+        # Type 142 = Curve on surface → TOPOLOGICAL
+        assert IGES_ENTITY_CLASSIFICATION[142] == IgesEntityClass.TOPOLOGICAL
+        # Type 402 = Associativity Instance → STRUCTURAL
+        assert IGES_ENTITY_CLASSIFICATION[402] == IgesEntityClass.STRUCTURAL
+
+    def test_type_314_entity_class_is_presentation(self):
+        """Type 314 must map to PRESENTATION (not ANNOTATION or STRUCTURAL)."""
+        from backend.interoperability.iges_mapping import (
+            IGES_ENTITY_CLASSIFICATION,
+            IgesEntityClass,
+        )
+        assert IGES_ENTITY_CLASSIFICATION.get(314) == IgesEntityClass.PRESENTATION
+
+    # ------------------------------------------------------------------
+    # MUST 16: 3+ IGES files all return iges_diagnostics
+    # ------------------------------------------------------------------
+
+    @pytest.mark.parametrize("iges_path,expected_has_mesh", [
+        (
+            "D:/makina_ogrenmesi/olcum_denemeleri/MP_SYN_001_extracted"
+            "/MachiningPro_Synthetic_Test_Pack/MP_SYN_001.iges",
+            True,
+        ),
+        (
+            "D:/makina_ogrenmesi/olcum_denemeleri/sample_iges_1.igs",
+            True,
+        ),
+        (
+            "D:/makina_ogrenmesi/olcum_denemeleri/sample_iges_2.igs",
+            True,
+        ),
+    ])
+    def test_real_iges_files_have_diagnostics(self, iges_path: str, expected_has_mesh: bool):
+        """Every real IGES file returns iges_diagnostics with consistent fields."""
+        import io
+
+        path = Path(iges_path)
+        if not path.exists():
+            pytest.skip(f"Real IGES file not present: {iges_path}")
+
+        from backend.api.engineering_import import import_file
+
+        class _Upload:
+            file = io.BytesIO(path.read_bytes())
+
+        up = _Upload()
+        up.filename = path.name  # type: ignore[attr-defined]
+        result = import_file(up)
+
+        diag = result.get("iges_diagnostics")
+        assert diag is not None, f"iges_diagnostics missing for {path.name}"
+        assert diag["renderable_geometry"] == expected_has_mesh, (
+            f"{path.name}: renderable_geometry mismatch"
+        )
+        assert diag["iges_import_status"] in ("COMPLETE", "PARTIAL", "NO_RENDERABLE_GEOMETRY")
+        # All count fields must be non-negative
+        for field in ("skipped_presentation_count", "skipped_annotation_count",
+                      "skipped_metadata_count", "unsupported_geometric_count",
+                      "total_skipped_non_geometric"):
+            assert isinstance(diag[field], int) and diag[field] >= 0, (
+                f"{path.name}: {field} must be non-negative int"
+            )
+
+    def test_sample_iges2_has_partial_status(self):
+        """sample_iges_2.igs with 8× type-314 → iges_import_status=PARTIAL."""
+        import io
+
+        path = Path("D:/makina_ogrenmesi/olcum_denemeleri/sample_iges_2.igs")
+        if not path.exists():
+            pytest.skip("sample_iges_2.igs not present")
+
+        from backend.api.engineering_import import import_file
+
+        class _Upload:
+            filename = "sample_iges_2.igs"
+            file = io.BytesIO(path.read_bytes())
+
+        result = import_file(_Upload())
+        diag = result.get("iges_diagnostics")
+        assert diag is not None
+        assert diag["iges_import_status"] == "PARTIAL"
+        assert diag["renderable_geometry"] is True

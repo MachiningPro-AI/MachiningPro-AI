@@ -81,6 +81,15 @@ export interface ImportResult {
   metadata: Record<string, string | number | boolean | null>
   fidelity_events?: Array<{ class: string; description: string }>
   adapter_id?: string
+  iges_diagnostics?: {
+    renderable_geometry: boolean
+    iges_import_status: 'COMPLETE' | 'PARTIAL' | 'NO_RENDERABLE_GEOMETRY'
+    skipped_presentation_count: number
+    skipped_annotation_count: number
+    skipped_metadata_count: number
+    unsupported_geometric_count: number
+    total_skipped_non_geometric: number
+  } | null
   // CAD Import Level-1 common fields
   status?: string
   format?: string

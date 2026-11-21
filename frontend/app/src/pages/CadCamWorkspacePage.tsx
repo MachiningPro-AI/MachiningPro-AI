@@ -488,13 +488,15 @@ export default function CadCamWorkspacePage() {
   const [triCount,       setTriCount]       = useState(0)
   // MUST 12: file load status for model tree display
   const [fileLoadStatus, setFileLoadStatus] = useState<
-    'IDLE' | 'LOADING' | 'GEOMETRY_READY' | 'FAILED' | 'UNSUPPORTED'
+    'IDLE' | 'LOADING' | 'GEOMETRY_READY' | 'GEOMETRY_READY_WITH_WARNINGS' | 'FAILED' | 'UNSUPPORTED'
   >('IDLE')
   // MUST 13: structured error diagnostic
   interface ImportDiagnostic {
     file: string; format: string; stage: string; cause: string; action: string
   }
   const [importDiagnostic, setImportDiagnostic] = useState<ImportDiagnostic | null>(null)
+  // IGES-specific import diagnostics for properties panel
+  const [igesDiagnostics, setIgesDiagnostics] = useState<import('../services/engineeringImport').ImportResult['iges_diagnostics']>(null)
 
   // ── Viewport state ────────────────────────────────────────────────────────
   const [displayMode,  setDisplayMode]  = useState<DisplayMode>('shaded_edges')  // MUST 6: professional default
@@ -542,6 +544,7 @@ export default function CadCamWorkspacePage() {
     setMesh(null)
     setBackendError(null)
     setImportDiagnostic(null)
+    setIgesDiagnostics(null)
     setVtxCount(0)
     setTriCount(0)
     setFileLoadStatus('LOADING')
@@ -550,11 +553,14 @@ export default function CadCamWorkspacePage() {
       setLoadingBackend(true)
       try {
         const result = await detectAndImport(file)
+        if (result.iges_diagnostics) setIgesDiagnostics(result.iges_diagnostics)
         if (result.preview_mesh) {
           setMesh(result.preview_mesh)
           setVtxCount(result.preview_mesh.vertex_count)
           setTriCount(result.preview_mesh.triangle_count)
-          setFileLoadStatus('GEOMETRY_READY')
+          // GEOMETRY_READY_WITH_WARNINGS when non-geometric entities were skipped
+          const hasWarnings = result.iges_diagnostics?.iges_import_status === 'PARTIAL'
+          setFileLoadStatus(hasWarnings ? 'GEOMETRY_READY_WITH_WARNINGS' : 'GEOMETRY_READY')
         } else {
           // MUST 13: structured diagnostic from real API data
           const firstError = result.fidelity_events?.find(ev => ev.class === 'LOST' || ev.class === 'UNSUPPORTED')
@@ -603,6 +609,7 @@ export default function CadCamWorkspacePage() {
     setLoadingBackend(false)
     setBackendError(null)
     setImportDiagnostic(null)
+    setIgesDiagnostics(null)
     setFileLoadStatus('IDLE')
     setVtxCount(0)
     setTriCount(0)
@@ -977,6 +984,7 @@ export default function CadCamWorkspacePage() {
               mesh={mesh}
               workflow={workflow}
               selectedId={selectedId}
+              igesDiagnostics={igesDiagnostics}
               collapsed={layout.collapsedRight}
               onCollapse={handleCollapseRight}
               style={!layout.collapsedRight ? { width: layout.rightWidth, minWidth: layout.rightWidth } : undefined}

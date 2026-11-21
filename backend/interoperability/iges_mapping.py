@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from decimal import Decimal, InvalidOperation, localcontext
+from enum import Enum
 
 from backend.domain.exceptions import ValidationError
 from backend.domain.units import Quantity, Unit
@@ -38,11 +39,24 @@ from backend.interoperability.topology import (
 )
 
 __all__ = [
+    "IgesEntityClass",
     "IgesMappingIssue",
     "IgesMappingResult",
+    "IGES_ENTITY_CLASSIFICATION",
     "_UNSUPPORTED_CURVE_SURFACE_TYPES",
     "map_iges_model",
 ]
+
+
+class IgesEntityClass(str, Enum):
+    """Canonical IGES entity class used for entity inventory and diagnostics (MUST 2)."""
+
+    GEOMETRIC    = "GEOMETRIC"     # Curves and surfaces (types 100-198)
+    TOPOLOGICAL  = "TOPOLOGICAL"   # B-Rep topology (types 141-144, 186, 502-514)
+    PRESENTATION = "PRESENTATION"  # Visual appearance: color, line style (types 302-316)
+    ANNOTATION   = "ANNOTATION"    # Dimensions, notes, symbols (types 202-230)
+    STRUCTURAL   = "STRUCTURAL"    # Grouping, drawing, subfigure, property (types 302-434)
+    UNKNOWN      = "UNKNOWN"       # Type not covered by any known classification
 
 _GEOMETRY_TYPES = {100, 108, 110, 116, 118, 126, 128, 190, 192, 194, 196, 198}
 _AUXILIARY_TYPES = {123, 124, 320, 322}  # 320/322: Attribute Table entities (metadata only)
@@ -92,6 +106,46 @@ _PRESENTATION_TYPES = {
 _UNSUPPORTED_CURVE_SURFACE_TYPES: frozenset[int] = frozenset({
     102, 104, 112, 114, 120, 122, 130, 140,
 })
+# Structural entity types: subfigure/group definitions, drawing views, instance
+# entities, external references.  These are non-geometric administrative records.
+_STRUCTURAL_TYPES: frozenset[int] = frozenset({
+    302, 304, 308,   # Subfigure Definition, Group Associativity
+    404,             # Drawing
+    408,             # Singular Subfigure Instance
+    412, 414, 416,   # Rectangular / Circular array
+    418, 420,        # External Reference
+    430, 432, 434,   # Attribute Definition / Table
+})
+# Annotation entity types: dimensions, notes, leaders, symbols (202–230 range).
+_ANNOTATION_TYPES: frozenset[int] = frozenset({
+    202, 204, 206, 208, 210, 212, 214, 216, 218, 220, 222, 228, 230, 240, 242,
+})
+
+# ---------------------------------------------------------------------------
+# Public entity classification lookup (MUST 2).
+# Maps every recognised IGES entity type to its canonical IgesEntityClass.
+# Types absent from this dict are classified as UNKNOWN.
+# ---------------------------------------------------------------------------
+IGES_ENTITY_CLASSIFICATION: dict[int, IgesEntityClass] = {}
+
+for _et in _GEOMETRY_TYPES | _UNSUPPORTED_CURVE_SURFACE_TYPES:
+    IGES_ENTITY_CLASSIFICATION[_et] = IgesEntityClass.GEOMETRIC
+
+for _et in _TOPOLOGY_TYPES | _BOUNDARY_TYPES:
+    IGES_ENTITY_CLASSIFICATION[_et] = IgesEntityClass.TOPOLOGICAL
+
+# 314 = Color Definition Entity → PRESENTATION; other _PRESENTATION_TYPES that
+# are annotation dimensions stay classified as ANNOTATION.
+for _et in {302, 310, 314, 316, 318}:
+    IGES_ENTITY_CLASSIFICATION[_et] = IgesEntityClass.PRESENTATION
+
+for _et in _ANNOTATION_TYPES | (_PRESENTATION_TYPES - {302, 310, 314, 316, 318}):
+    IGES_ENTITY_CLASSIFICATION[_et] = IgesEntityClass.ANNOTATION
+
+for _et in _STRUCTURAL_TYPES | _METADATA_TYPES | _AUXILIARY_TYPES:
+    IGES_ENTITY_CLASSIFICATION[_et] = IgesEntityClass.STRUCTURAL
+
+del _et  # clean up loop variable from module scope
 _SUPPORTED_FORMS: dict[int, frozenset[int]] = {
     100: frozenset({0}),
     108: frozenset({0}),

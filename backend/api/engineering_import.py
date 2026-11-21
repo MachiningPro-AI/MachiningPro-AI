@@ -499,6 +499,60 @@ def import_file(
         if preview_mesh is not None:
             has_renderable_geometry = True
 
+    # IGES-specific entity diagnostics (MUST 10, 11 — IGES robustness spec).
+    iges_diagnostics: dict[str, Any] | None = None
+    if format_id == "IGES":
+        _skipped_pres = sum(
+            1 for ev in fidelity_events
+            if ev.get("class") in ("UNSUPPORTED", "PARTIALLY_PRESERVED")
+            and any(kw in ev.get("description", "").lower()
+                    for kw in ("presentation", "color", "annotation"))
+        )
+        _skipped_ann = sum(
+            1 for ev in fidelity_events
+            if ev.get("class") in ("UNSUPPORTED", "PARTIALLY_PRESERVED")
+            and "annotation" in ev.get("description", "").lower()
+        )
+        _skipped_meta = sum(
+            1 for ev in fidelity_events
+            if ev.get("class") in ("UNSUPPORTED", "PARTIALLY_PRESERVED")
+            and any(kw in ev.get("description", "").lower()
+                    for kw in ("metadata", "property", "view", "associativity",
+                               "subfigure", "drawing", "structural"))
+        )
+        _unsup_geom = sum(
+            1 for ev in fidelity_events
+            if ev.get("class") in ("UNSUPPORTED", "LOST")
+            and not any(kw in ev.get("description", "").lower()
+                        for kw in ("presentation", "annotation", "metadata", "color",
+                                   "property", "view", "associativity",
+                                   "subfigure", "drawing"))
+        )
+        _total_non_geom = _skipped_pres + _skipped_meta
+        # Has ANY geometry: adapter-level (canonical curves/surfaces) OR tessellation mesh.
+        # Files with parse errors may have no adapter geometry but still tessellate via gmsh.
+        _adapter_has_geom = (
+            isinstance(geom, CanonicalGeometry)
+            and (len(geom.curves) + len(geom.surfaces)) > 0
+        )
+        _has_iges_mesh = preview_mesh is not None
+        _any_geometry = _adapter_has_geom or _has_iges_mesh
+        if not _any_geometry:
+            _iges_status = "NO_RENDERABLE_GEOMETRY"
+        elif _total_non_geom > 0 or _unsup_geom > 0:
+            _iges_status = "PARTIAL"
+        else:
+            _iges_status = "COMPLETE"
+        iges_diagnostics = {
+            "renderable_geometry": _has_iges_mesh,
+            "iges_import_status": _iges_status,
+            "skipped_presentation_count": _skipped_pres,
+            "skipped_annotation_count": _skipped_ann,
+            "skipped_metadata_count": _skipped_meta,
+            "unsupported_geometric_count": _unsup_geom,
+            "total_skipped_non_geometric": _total_non_geom,
+        }
+
     # Separated status model: individual concern statuses preserved for
     # backward compatibility alongside the existing import_status field.
     from backend.interoperability.enums import CapabilityLevel as _CL
@@ -821,6 +875,7 @@ def import_file(
         "entity_count": display_entity_count,
         "has_renderable_geometry": has_renderable_geometry,
         "preview_mesh": preview_mesh,
+        "iges_diagnostics": iges_diagnostics,
         "metadata": entity_meta,
         "fidelity_events": fidelity_events[:10],
         "adapter_id": document.adapter_id,

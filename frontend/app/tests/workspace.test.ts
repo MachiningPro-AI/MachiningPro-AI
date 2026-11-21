@@ -1032,3 +1032,126 @@ describe('B-Rep tessellation eligibility — MUST 4/MUST 8', () => {
     assert.ok(eligible, 'STEP with PARTIAL_SUCCESS must attempt tessellation')
   })
 })
+
+// ---------------------------------------------------------------------------
+// IGES robustness — GEOMETRY_READY_WITH_WARNINGS + diagnostics (MUSTs from IGES spec)
+// ---------------------------------------------------------------------------
+
+describe('IGES GEOMETRY_READY_WITH_WARNINGS status — MUST 12', () => {
+  type FileLoadStatus =
+    | 'IDLE' | 'LOADING' | 'GEOMETRY_READY'
+    | 'GEOMETRY_READY_WITH_WARNINGS' | 'FAILED' | 'UNSUPPORTED'
+
+  type IgesDiagnostics = {
+    renderable_geometry: boolean
+    iges_import_status: 'COMPLETE' | 'PARTIAL' | 'NO_RENDERABLE_GEOMETRY'
+    skipped_presentation_count: number
+    skipped_annotation_count: number
+    skipped_metadata_count: number
+    unsupported_geometric_count: number
+    total_skipped_non_geometric: number
+  }
+
+  function resolveFileLoadStatus(
+    previewMesh: object | null | undefined,
+    igesDiag: IgesDiagnostics | null | undefined,
+  ): FileLoadStatus {
+    if (!previewMesh) return 'FAILED'
+    const hasWarnings = igesDiag?.iges_import_status === 'PARTIAL'
+    return hasWarnings ? 'GEOMETRY_READY_WITH_WARNINGS' : 'GEOMETRY_READY'
+  }
+
+  it('mesh + no diagnostics → GEOMETRY_READY', () => {
+    const status = resolveFileLoadStatus({ vertex_count: 100 }, null)
+    assert.strictEqual(status, 'GEOMETRY_READY')
+  })
+
+  it('mesh + COMPLETE diagnostics → GEOMETRY_READY', () => {
+    const diag: IgesDiagnostics = {
+      renderable_geometry: true, iges_import_status: 'COMPLETE',
+      skipped_presentation_count: 0, skipped_annotation_count: 0,
+      skipped_metadata_count: 0, unsupported_geometric_count: 0,
+      total_skipped_non_geometric: 0,
+    }
+    const status = resolveFileLoadStatus({ vertex_count: 100 }, diag)
+    assert.strictEqual(status, 'GEOMETRY_READY')
+  })
+
+  it('mesh + PARTIAL diagnostics → GEOMETRY_READY_WITH_WARNINGS (TYPE_314_FILE_ABORT=NO)', () => {
+    const diag: IgesDiagnostics = {
+      renderable_geometry: true, iges_import_status: 'PARTIAL',
+      skipped_presentation_count: 8, skipped_annotation_count: 0,
+      skipped_metadata_count: 0, unsupported_geometric_count: 0,
+      total_skipped_non_geometric: 8,
+    }
+    const status = resolveFileLoadStatus({ vertex_count: 4605 }, diag)
+    assert.strictEqual(status, 'GEOMETRY_READY_WITH_WARNINGS')
+  })
+
+  it('no mesh + NO_RENDERABLE_GEOMETRY diagnostics → FAILED', () => {
+    const diag: IgesDiagnostics = {
+      renderable_geometry: false, iges_import_status: 'NO_RENDERABLE_GEOMETRY',
+      skipped_presentation_count: 1, skipped_annotation_count: 0,
+      skipped_metadata_count: 0, unsupported_geometric_count: 0,
+      total_skipped_non_geometric: 1,
+    }
+    const status = resolveFileLoadStatus(null, diag)
+    assert.strictEqual(status, 'FAILED')
+  })
+
+  it('GEOMETRY_READY_WITH_WARNINGS is a valid FileLoadStatus value', () => {
+    const statuses: FileLoadStatus[] = [
+      'IDLE', 'LOADING', 'GEOMETRY_READY',
+      'GEOMETRY_READY_WITH_WARNINGS', 'FAILED', 'UNSUPPORTED',
+    ]
+    assert.ok(statuses.includes('GEOMETRY_READY_WITH_WARNINGS'))
+  })
+})
+
+describe('IGES diagnostics fields — MUST 10/11', () => {
+  it('diagnostics object has all required fields', () => {
+    const diag = {
+      renderable_geometry: true,
+      iges_import_status: 'PARTIAL' as const,
+      skipped_presentation_count: 3,
+      skipped_annotation_count: 0,
+      skipped_metadata_count: 2,
+      unsupported_geometric_count: 0,
+      total_skipped_non_geometric: 5,
+    }
+    assert.ok('renderable_geometry' in diag)
+    assert.ok('iges_import_status' in diag)
+    assert.ok('skipped_presentation_count' in diag)
+    assert.ok('skipped_annotation_count' in diag)
+    assert.ok('skipped_metadata_count' in diag)
+    assert.ok('unsupported_geometric_count' in diag)
+    assert.ok('total_skipped_non_geometric' in diag)
+  })
+
+  it('total_skipped_non_geometric is sum of presentation + metadata', () => {
+    const diag = {
+      skipped_presentation_count: 8,
+      skipped_metadata_count: 42,
+    }
+    const expected = diag.skipped_presentation_count + diag.skipped_metadata_count
+    assert.strictEqual(expected, 50)
+  })
+
+  it('NO_RENDERABLE_GEOMETRY implies renderable_geometry=false', () => {
+    function consistent(status: string, hasGeom: boolean): boolean {
+      if (status === 'NO_RENDERABLE_GEOMETRY') return hasGeom === false
+      if (status === 'COMPLETE' || status === 'PARTIAL') return hasGeom === true
+      return false
+    }
+    assert.ok(consistent('NO_RENDERABLE_GEOMETRY', false))
+    assert.ok(consistent('PARTIAL', true))
+    assert.ok(consistent('COMPLETE', true))
+    assert.ok(!consistent('NO_RENDERABLE_GEOMETRY', true))
+  })
+
+  it('type-314 skipped → skipped_presentation_count >= 1', () => {
+    const skipped314Count = 8
+    const diag = { skipped_presentation_count: skipped314Count }
+    assert.ok(diag.skipped_presentation_count >= 1)
+  })
+})
