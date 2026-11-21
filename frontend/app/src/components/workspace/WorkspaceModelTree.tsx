@@ -5,9 +5,11 @@
  * No fabricated nodes or geometry representations.
  */
 
-import { ChevronRight, ChevronDown, Eye, EyeOff } from 'lucide-react'
+import type { CSSProperties } from 'react'
+import { ChevronRight, ChevronDown, ChevronLeft, Eye, EyeOff } from 'lucide-react'
 import { useLocale } from '../../i18n'
 import type { TreeNode, WorkspaceFile, ConnectedWorkflow } from './WorkspaceTypes'
+import { COLLAPSED_STRIP_W } from './WorkspaceTypes'
 import { useState, useCallback } from 'react'
 
 // ---------------------------------------------------------------------------
@@ -186,6 +188,9 @@ export interface ModelTreeProps {
   onSelect:    (id: string | null) => void
   vtxCount:    number
   triCount:    number
+  collapsed?:  boolean
+  onCollapse?: () => void
+  style?:      CSSProperties
 }
 
 export default function WorkspaceModelTree({
@@ -195,6 +200,9 @@ export default function WorkspaceModelTree({
   onSelect,
   vtxCount,
   triCount,
+  collapsed = false,
+  onCollapse,
+  style,
 }: ModelTreeProps) {
   const { t } = useLocale()
 
@@ -235,14 +243,56 @@ export default function WorkspaceModelTree({
 
   const isEmpty = !wsFile && !workflow
 
+  // Collapsed strip — MUST 3
+  if (collapsed) {
+    return (
+      <div
+        className="h-full shrink-0 flex flex-col items-center justify-between
+                   border-r border-tp-border bg-tp-surface py-1 cursor-pointer
+                   hover:bg-tp-surface-2 transition-colors"
+        style={{ width: `${COLLAPSED_STRIP_W}px`, minWidth: `${COLLAPSED_STRIP_W}px` }}
+        role="button"
+        aria-label="Expand Model Tree"
+        title="Expand Model Tree"
+        onClick={onCollapse}
+      >
+        <button
+          type="button"
+          className="text-tp-text-3 hover:text-tp-text p-1"
+          onClick={e => { e.stopPropagation(); onCollapse?.() }}
+          aria-label="Expand"
+        >
+          <ChevronRight size={14} />
+        </button>
+        <div className="flex-1 flex items-center justify-center">
+          <span className="text-[9px] font-semibold uppercase tracking-widest text-tp-text-3
+                           [writing-mode:vertical-rl] rotate-180">
+            {t('ws_modelTree')}
+          </span>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="h-full overflow-hidden flex flex-col border-r border-tp-border bg-tp-surface"
-         style={{ width: '260px', minWidth: '260px' }}>
+         style={style ?? { width: '260px', minWidth: '260px' }}>
       {/* Header */}
-      <div className="shrink-0 h-8 flex items-center px-3 border-b border-tp-border">
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-tp-text-3">
+      <div className="shrink-0 h-8 flex items-center px-3 border-b border-tp-border gap-2">
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-tp-text-3 flex-1">
           {t('ws_modelTree')}
         </span>
+        {onCollapse && (
+          <button
+            type="button"
+            onClick={onCollapse}
+            aria-label="Collapse Model Tree"
+            title="Collapse"
+            className="text-tp-text-3 hover:text-tp-text p-0.5 rounded"
+          >
+            <ChevronLeft size={12} />
+          </button>
+        )}
       </div>
 
       {/* Tree */}

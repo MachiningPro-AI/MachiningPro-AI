@@ -17,7 +17,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { AlertTriangle, X } from 'lucide-react'
+import { AlertTriangle, X, ChevronDown, Check } from 'lucide-react'
 import { useLocale } from '../i18n'
 import { useAuth } from '../hooks/useAuth'
 import WorkspaceViewport from '../components/workspace/WorkspaceViewport'
@@ -26,12 +26,30 @@ import WorkspacePropertiesPanel from '../components/workspace/WorkspacePropertie
 import WorkspaceRibbon from '../components/workspace/WorkspaceRibbon'
 import WorkspaceCamPanel from '../components/workspace/WorkspaceCamPanel'
 import WorkspaceStatusBar from '../components/workspace/WorkspaceStatusBar'
-import { detectFormat } from '../components/workspace/WorkspaceTypes'
-import { DEFAULT_SIMULATION_STATE } from '../components/workspace/WorkspaceTypes'
+import WorkspaceViewerToolbar from '../components/workspace/WorkspaceViewerToolbar'
+import {
+  detectFormat,
+  DEFAULT_SIMULATION_STATE,
+  DEFAULT_LAYOUT,
+  DEFAULT_BG_PRESET,
+  BACKGROUND_PRESETS,
+  LAYOUT_PRESETS,
+  MIN_PANEL_WIDTH,
+  MAX_PANEL_WIDTH,
+  MIN_BOTTOM_HEIGHT,
+  MAX_BOTTOM_HEIGHT,
+  loadWorkspaceLayout,
+  saveWorkspaceLayout,
+} from '../components/workspace/WorkspaceTypes'
 import type {
+  BackgroundPreset,
+  BgPresetId,
   DisplayMode,
+  LayoutPresetId,
+  PartOpacityPreset,
   ViewPreset,
   WorkspaceFile,
+  WorkspaceLayout,
   ConnectedWorkflow,
   OperationSummary,
   ToolpathLineGroup,
@@ -60,9 +78,21 @@ interface MenuBarProps {
   onConnectWorkflow: () => void
   onCloseFile: () => void
   hasFile: boolean
+  // Layout — MUST 4, 6, 7, 9
+  layout: WorkspaceLayout
+  onTogglePanel: (panel: keyof Pick<WorkspaceLayout, 'showModelTree' | 'showProperties' | 'showCamPanel' | 'showStatusBar'>) => void
+  onLayoutPreset: (preset: LayoutPresetId) => void
+  onSaveLayout: () => void
+  onRestoreLayout: () => void
+  onResetLayout: () => void
+  onViewerMaximize: () => void
 }
 
-function MenuBar({ onOpenFile, onConnectWorkflow, onCloseFile, hasFile }: MenuBarProps) {
+function MenuBar({
+  onOpenFile, onConnectWorkflow, onCloseFile, hasFile,
+  layout, onTogglePanel, onLayoutPreset,
+  onSaveLayout, onRestoreLayout, onResetLayout, onViewerMaximize,
+}: MenuBarProps) {
   const { t } = useLocale()
   const [openMenu, setOpenMenu] = useState<string | null>(null)
 
@@ -74,6 +104,8 @@ function MenuBar({ onOpenFile, onConnectWorkflow, onCloseFile, hasFile }: MenuBa
     { id: 'simulate', labelKey: 'ws_simulateMenu' },
     { id: 'help',     labelKey: 'ws_helpMenu' },
   ]
+
+  const layoutPresets: LayoutPresetId[] = ['MODEL', 'DRAWING', 'MANUFACTURING', 'CAM', 'SIMULATION', 'INSPECTION']
 
   return (
     <div
@@ -103,14 +135,70 @@ function MenuBar({ onOpenFile, onConnectWorkflow, onCloseFile, hasFile }: MenuBa
           {openMenu === 'file' && menu.id === 'file' && (
             <div className="absolute left-0 top-8 z-50 w-52 rounded border border-tp-border
                             bg-tp-surface shadow-lg shadow-black/40 py-1">
-              <DropdownItem label={t('ws_openFile')}      onClick={() => { setOpenMenu(null); onOpenFile() }} />
-              <DropdownItem label={t('ws_loadWorkflow')}  onClick={() => { setOpenMenu(null); onConnectWorkflow() }} />
+              <DropdownItem label={t('ws_openFile')}     onClick={() => { setOpenMenu(null); onOpenFile() }} />
+              <DropdownItem label={t('ws_loadWorkflow')} onClick={() => { setOpenMenu(null); onConnectWorkflow() }} />
               <div className="h-px bg-tp-border my-1" />
-              <DropdownItem label={t('ws_closeFile')}     onClick={() => { setOpenMenu(null); onCloseFile() }} disabled={!hasFile} />
+              <DropdownItem label={t('ws_closeFile')}    onClick={() => { setOpenMenu(null); onCloseFile() }} disabled={!hasFile} />
             </div>
           )}
 
-          {openMenu === menu.id && menu.id !== 'file' && (
+          {/* VIEW menu — MUST 4, 6, 7, 9 */}
+          {openMenu === 'view' && menu.id === 'view' && (
+            <div className="absolute left-0 top-8 z-50 w-56 rounded border border-tp-border
+                            bg-tp-surface shadow-lg shadow-black/40 py-1">
+              {/* Panels — MUST 4 */}
+              <div className="px-3 py-1 text-[9px] font-semibold uppercase tracking-widest text-tp-text-3">
+                Panels
+              </div>
+              {([
+                { key: 'showModelTree' as const,  label: 'Model Tree' },
+                { key: 'showProperties' as const, label: 'Properties' },
+                { key: 'showCamPanel' as const,   label: 'CAM Panel' },
+                { key: 'showStatusBar' as const,  label: 'Status Bar' },
+              ]).map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => { onTogglePanel(key); setOpenMenu(null) }}
+                  className="w-full text-left px-3 py-1.5 text-[11px] flex items-center gap-2
+                             text-tp-text-2 hover:bg-tp-surface-2 hover:text-tp-text"
+                >
+                  <Check size={10} className={layout[key] ? 'text-tp-accent-light' : 'opacity-0'} aria-hidden="true" />
+                  {label}
+                </button>
+              ))}
+              <div className="h-px bg-tp-border my-1" />
+              {/* Layout presets — MUST 6 */}
+              <div className="px-3 py-1 text-[9px] font-semibold uppercase tracking-widest text-tp-text-3">
+                Layout Presets
+              </div>
+              {layoutPresets.map(preset => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => { onLayoutPreset(preset); setOpenMenu(null) }}
+                  className="w-full text-left px-3 py-1.5 text-[11px] flex items-center gap-2
+                             text-tp-text-2 hover:bg-tp-surface-2 hover:text-tp-text"
+                >
+                  <Check size={10} className={layout.activePreset === preset ? 'text-tp-accent-light' : 'opacity-0'} aria-hidden="true" />
+                  {preset.charAt(0) + preset.slice(1).toLowerCase()}
+                </button>
+              ))}
+              <div className="h-px bg-tp-border my-1" />
+              {/* Viewer maximize — MUST 9 */}
+              <DropdownItem
+                label={layout.viewerMaximized ? 'Restore Workspace' : 'Maximize Viewer'}
+                onClick={() => { onViewerMaximize(); setOpenMenu(null) }}
+              />
+              <div className="h-px bg-tp-border my-1" />
+              {/* Layout persistence — MUST 7 */}
+              <DropdownItem label="Save Workspace Layout"    onClick={() => { onSaveLayout();    setOpenMenu(null) }} />
+              <DropdownItem label="Restore Workspace Layout" onClick={() => { onRestoreLayout(); setOpenMenu(null) }} />
+              <DropdownItem label="Reset to Default Layout"  onClick={() => { onResetLayout();   setOpenMenu(null) }} />
+            </div>
+          )}
+
+          {openMenu === menu.id && menu.id !== 'file' && menu.id !== 'view' && (
             <div className="absolute left-0 top-8 z-50 w-44 rounded border border-tp-border
                             bg-tp-surface shadow-lg shadow-black/40 p-2">
               <div className="text-[10px] text-tp-text-3 italic">Available via ribbon</div>
@@ -271,6 +359,125 @@ export default function CadCamWorkspacePage() {
   const { t } = useLocale()
   const { token } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // ── Workspace layout state — MUST 2,3,4,6,7,8,9 ─────────────────────────
+  // HARD RULE 7: layout is never stored in engineering state
+  const [layout, setLayout] = useState<WorkspaceLayout>(() => loadWorkspaceLayout())
+  const layoutRef            = useRef<WorkspaceLayout>(layout)
+  const savedLayoutRef       = useRef<WorkspaceLayout | null>(null)  // for Restore
+
+  useEffect(() => { layoutRef.current = layout }, [layout])
+
+  const updateLayout = useCallback((patch: Partial<WorkspaceLayout>) => {
+    setLayout(l => ({ ...l, ...patch }))
+  }, [])
+
+  // Auto-save layout to localStorage (MUST 7) — debounced
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => saveWorkspaceLayout(layoutRef.current), 600)
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
+  }, [layout])
+
+  // Apply a layout preset — MUST 6
+  const handleLayoutPreset = useCallback((presetId: LayoutPresetId) => {
+    const preset = LAYOUT_PRESETS[presetId]
+    updateLayout({ ...preset, activePreset: presetId })
+  }, [updateLayout])
+
+  // Save/Restore/Reset — MUST 7
+  const handleSaveLayout   = useCallback(() => { savedLayoutRef.current = { ...layoutRef.current }; saveWorkspaceLayout(layoutRef.current) }, [])
+  const handleRestoreLayout= useCallback(() => { if (savedLayoutRef.current) setLayout({ ...savedLayoutRef.current }) }, [])
+  const handleResetLayout  = useCallback(() => setLayout({ ...DEFAULT_LAYOUT }), [])
+
+  // Panel toggles — MUST 4
+  const handleTogglePanel = useCallback((panel: keyof Pick<WorkspaceLayout, 'showModelTree' | 'showProperties' | 'showCamPanel' | 'showStatusBar'>) => {
+    updateLayout({ [panel]: !layoutRef.current[panel] })
+  }, [updateLayout])
+
+  // Viewer maximize — MUST 9
+  const handleViewerMaximize = useCallback(() => {
+    updateLayout({ viewerMaximized: !layoutRef.current.viewerMaximized })
+  }, [updateLayout])
+
+  // Fullscreen — MUST 10
+  const handleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => undefined)
+    } else {
+      document.exitFullscreen().catch(() => undefined)
+    }
+  }, [])
+
+  // Panel collapse toggles — MUST 3
+  const handleCollapseLeft   = useCallback(() => updateLayout({ collapsedLeft:   !layoutRef.current.collapsedLeft   }), [updateLayout])
+  const handleCollapseRight  = useCallback(() => updateLayout({ collapsedRight:  !layoutRef.current.collapsedRight  }), [updateLayout])
+  const handleCollapseBottom = useCallback(() => updateLayout({ collapsedBottom: !layoutRef.current.collapsedBottom }), [updateLayout])
+
+  // ── Panel resize drag handles — MUST 2 ───────────────────────────────────
+  // HARD RULE 2: resize never touches engineering state
+  // HARD RULE 5: viewport never becomes zero-size
+
+  const resizeRef = useRef<{
+    type: 'left' | 'right' | 'bottom'
+    startX: number; startY: number
+    startW: number; startH: number
+  } | null>(null)
+
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      const r = resizeRef.current
+      if (!r) return
+      if (r.type === 'left') {
+        const delta = e.clientX - r.startX
+        const newW = Math.max(MIN_PANEL_WIDTH, Math.min(MAX_PANEL_WIDTH, r.startW + delta))
+        setLayout(l => ({ ...l, leftWidth: newW }))
+      } else if (r.type === 'right') {
+        const delta = r.startX - e.clientX
+        const newW = Math.max(MIN_PANEL_WIDTH, Math.min(MAX_PANEL_WIDTH, r.startW + delta))
+        setLayout(l => ({ ...l, rightWidth: newW }))
+      } else {
+        const delta = e.clientY - r.startY
+        const newH = Math.max(MIN_BOTTOM_HEIGHT, Math.min(MAX_BOTTOM_HEIGHT, r.startH + delta))
+        setLayout(l => ({ ...l, bottomHeight: newH }))
+      }
+    }
+    const onMouseUp = () => {
+      if (resizeRef.current) {
+        resizeRef.current = null
+        saveWorkspaceLayout(layoutRef.current)
+      }
+    }
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup',   onMouseUp)
+    return () => {
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup',   onMouseUp)
+    }
+  }, [])
+
+  const startResizeLeft   = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    resizeRef.current = { type: 'left',  startX: e.clientX, startY: e.clientY, startW: layoutRef.current.leftWidth,   startH: layoutRef.current.bottomHeight }
+  }, [])
+  const startResizeRight  = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    resizeRef.current = { type: 'right', startX: e.clientX, startY: e.clientY, startW: layoutRef.current.rightWidth,  startH: layoutRef.current.bottomHeight }
+  }, [])
+  const startResizeBottom = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    resizeRef.current = { type: 'bottom', startX: e.clientX, startY: e.clientY, startW: layoutRef.current.leftWidth,  startH: layoutRef.current.bottomHeight }
+  }, [])
+
+  // ── Appearance state — MUST 15, 16, 17, 20 ───────────────────────────────
+  // These are user preferences only — HARD RULE 7: never in engineering state
+
+  const bgPreset: BackgroundPreset =
+    BACKGROUND_PRESETS.find(p => p.id === layout.bgPresetId) ?? DEFAULT_BG_PRESET
+
+  const handleBgPreset = useCallback((id: BgPresetId) => updateLayout({ bgPresetId: id }), [updateLayout])
+  const handlePartOpacity = useCallback((v: PartOpacityPreset) => updateLayout({ partOpacity: v }), [updateLayout])
 
   // ── File state ────────────────────────────────────────────────────────────
   const [wsFile,         setWsFile]         = useState<WorkspaceFile | null>(null)
@@ -511,6 +718,12 @@ export default function CadCamWorkspacePage() {
     ? { x: animFrames[animFrame]![0], y: animFrames[animFrame]![1], z: animFrames[animFrame]![2] }
     : null
 
+  // ── Left panel actual width (accounting for collapsed/hidden) ──────────────
+  const leftVisible    = layout.showModelTree   && !layout.viewerMaximized
+  const rightVisible   = layout.showProperties  && !layout.viewerMaximized
+  const bottomVisible  = layout.showCamPanel    && !layout.viewerMaximized
+  const statusVisible  = layout.showStatusBar
+
   return (
     <div className="h-full overflow-hidden flex flex-col bg-tp-surface-3">
 
@@ -520,6 +733,13 @@ export default function CadCamWorkspacePage() {
         onConnectWorkflow={() => setShowConnectDialog(true)}
         onCloseFile={handleCloseFile}
         hasFile={hasFile}
+        layout={layout}
+        onTogglePanel={handleTogglePanel}
+        onLayoutPreset={handleLayoutPreset}
+        onSaveLayout={handleSaveLayout}
+        onRestoreLayout={handleRestoreLayout}
+        onResetLayout={handleResetLayout}
+        onViewerMaximize={handleViewerMaximize}
       />
 
       {/* Ribbon */}
@@ -548,92 +768,193 @@ export default function CadCamWorkspacePage() {
         onAnimPause={handleAnimPause}
         onAnimStop={handleAnimStop}
         onAnimSpeed={handleAnimSpeed}
+        layoutPreset={layout.activePreset}
+        onLayoutPreset={handleLayoutPreset}
+        bgPresetId={layout.bgPresetId}
+        onBgPreset={handleBgPreset}
+        partOpacity={layout.partOpacity}
+        onPartOpacity={handlePartOpacity}
       />
 
-      {/* Three-panel area */}
-      <div className="flex-1 overflow-hidden flex">
+      {/* Inner layout — flex col, flex-1 */}
+      <div className="flex-1 overflow-hidden flex flex-col min-h-0">
 
-        {/* Left: Model tree */}
-        <WorkspaceModelTree
-          wsFile={wsFile}
-          workflow={workflow}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-          vtxCount={vtxCount}
-          triCount={triCount}
-        />
+        {/* Three-panel row — takes remaining space minus CAM panel */}
+        <div className="flex-1 overflow-hidden flex min-h-0">
 
-        {/* Center: 3D viewport */}
-        <div className="flex-1 overflow-hidden relative">
-          {backendError && (
-            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10
-                            bg-tp-error/15 border border-tp-error text-tp-error
-                            text-[11px] px-3 py-1.5 rounded flex items-center gap-2">
-              <AlertTriangle size={12} aria-hidden="true" />
-              {backendError}
-            </div>
+          {/* Left: Model tree panel */}
+          {leftVisible && (
+            <>
+              <WorkspaceModelTree
+                wsFile={wsFile}
+                workflow={workflow}
+                selectedId={selectedId}
+                onSelect={setSelectedId}
+                vtxCount={vtxCount}
+                triCount={triCount}
+                collapsed={layout.collapsedLeft}
+                onCollapse={handleCollapseLeft}
+                style={!layout.collapsedLeft ? { width: layout.leftWidth, minWidth: layout.leftWidth } : undefined}
+              />
+              {/* Left resize handle — MUST 2: only when expanded */}
+              {!layout.collapsedLeft && (
+                <div
+                  className="w-1 shrink-0 cursor-col-resize hover:bg-tp-accent/40
+                             active:bg-tp-accent/60 transition-colors bg-tp-border/20"
+                  onMouseDown={startResizeLeft}
+                  aria-hidden="true"
+                  title="Drag to resize Model Tree"
+                />
+              )}
+            </>
           )}
-          <WorkspaceViewport
-            wsFile={wsFile}
-            mesh={mesh}
-            displayMode={displayMode}
-            showGrid={showGrid}
-            showWcs={showWcs}
-            showToolpath={showToolpath}
-            showStock={showStock}
-            toolpaths={toolpaths}
-            toolPose={toolPose}
-            stockBbox={stockBbox}
-            collisionPoints={simState.collisionPoints}
-            gougePoints={simState.gougePoints}
-            viewPreset={viewPreset}
-            onViewPresetConsumed={() => setViewPreset(null)}
-            onFit={null}
-            onCursorPos={setCursorPos}
-            onMeshLoaded={(vtx, tri) => { setVtxCount(vtx); setTriCount(tri) }}
-            loadingBackend={loadingBackend}
-          />
+
+          {/* Center: 3D viewport */}
+          <div className="flex-1 overflow-hidden relative min-w-0">
+            {backendError && (
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10
+                              bg-tp-error/15 border border-tp-error text-tp-error
+                              text-[11px] px-3 py-1.5 rounded flex items-center gap-2">
+                <AlertTriangle size={12} aria-hidden="true" />
+                {backendError}
+              </div>
+            )}
+
+            <WorkspaceViewport
+              wsFile={wsFile}
+              mesh={mesh}
+              displayMode={displayMode}
+              showGrid={showGrid}
+              showWcs={showWcs}
+              showToolpath={showToolpath}
+              showStock={showStock}
+              toolpaths={toolpaths}
+              toolPose={toolPose}
+              stockBbox={stockBbox}
+              collisionPoints={simState.collisionPoints}
+              gougePoints={simState.gougePoints}
+              viewPreset={viewPreset}
+              onViewPresetConsumed={() => setViewPreset(null)}
+              onFit={null}
+              onCursorPos={setCursorPos}
+              onMeshLoaded={(vtx, tri) => { setVtxCount(vtx); setTriCount(tri) }}
+              loadingBackend={loadingBackend}
+              bgPreset={bgPreset}
+              partOpacity={layout.partOpacity}
+            />
+
+            {/* Viewer toolbar overlay — MUST 14 */}
+            <WorkspaceViewerToolbar
+              hasFile={hasFile}
+              displayMode={displayMode}
+              showGrid={showGrid}
+              showWcs={showWcs}
+              showStock={showStock}
+              showToolpath={showToolpath}
+              hasStock={hasStock}
+              hasToolpaths={hasToolpaths}
+              viewerMaximized={layout.viewerMaximized}
+              onViewPreset={setViewPreset}
+              onFitAll={() => setViewPreset('iso')}
+              onDisplayMode={setDisplayMode}
+              onToggleGrid={() => setShowGrid(v => !v)}
+              onToggleWcs={() => setShowWcs(v => !v)}
+              onToggleStock={() => setShowStock(v => !v)}
+              onToggleToolpath={() => setShowToolpath(v => !v)}
+              onMaximize={handleViewerMaximize}
+              onFullscreen={handleFullscreen}
+            />
+
+            {/* Viewer maximize restore overlay — MUST 9 */}
+            {layout.viewerMaximized && (
+              <button
+                type="button"
+                onClick={handleViewerMaximize}
+                className="absolute top-2 right-14 z-20 flex items-center gap-1 px-2 py-1
+                           rounded border border-tp-border bg-tp-surface/80 text-[10px]
+                           text-tp-text-2 hover:bg-tp-surface hover:text-tp-text"
+                title="Restore workspace panels"
+              >
+                <ChevronDown size={10} aria-hidden="true" />
+                Restore
+              </button>
+            )}
+          </div>
+
+          {/* Right resize handle — MUST 2 */}
+          {rightVisible && !layout.collapsedRight && (
+            <div
+              className="w-1 shrink-0 cursor-col-resize hover:bg-tp-accent/40
+                         active:bg-tp-accent/60 transition-colors bg-tp-border/20"
+              onMouseDown={startResizeRight}
+              aria-hidden="true"
+              title="Drag to resize Properties"
+            />
+          )}
+
+          {/* Right: Properties panel */}
+          {rightVisible && (
+            <WorkspacePropertiesPanel
+              wsFile={wsFile}
+              mesh={mesh}
+              workflow={workflow}
+              selectedId={selectedId}
+              collapsed={layout.collapsedRight}
+              onCollapse={handleCollapseRight}
+              style={!layout.collapsedRight ? { width: layout.rightWidth, minWidth: layout.rightWidth } : undefined}
+            />
+          )}
         </div>
 
-        {/* Right: Properties */}
-        <WorkspacePropertiesPanel
-          wsFile={wsFile}
-          mesh={mesh}
-          workflow={workflow}
-          selectedId={selectedId}
-        />
+        {/* Bottom resize handle — MUST 2 */}
+        {bottomVisible && !layout.collapsedBottom && (
+          <div
+            className="h-1 shrink-0 cursor-row-resize hover:bg-tp-accent/40
+                       active:bg-tp-accent/60 transition-colors bg-tp-border/20"
+            onMouseDown={startResizeBottom}
+            aria-hidden="true"
+            title="Drag to resize CAM panel"
+          />
+        )}
+
+        {/* CAM operations panel */}
+        {bottomVisible && (
+          <WorkspaceCamPanel
+            workflow={workflow}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            animFrames={animFrames.length}
+            animFrame={animFrame}
+            animPlaying={animPlaying}
+            animSpeed={animSpeed}
+            simState={simState}
+            simRunning={simRunning}
+            onPlay={handleAnimPlay}
+            onPause={handleAnimPause}
+            onStop={handleAnimStop}
+            onStepFwd={handleAnimStepFwd}
+            onStepBack={handleAnimStepBack}
+            onSeek={handleAnimSeek}
+            onSpeed={handleAnimSpeed}
+            onRunSim={handleRunSimulation}
+            panelHeight={layout.bottomHeight}
+            collapsed={layout.collapsedBottom}
+            onCollapse={handleCollapseBottom}
+          />
+        )}
       </div>
 
-      {/* CAM operations panel */}
-      <WorkspaceCamPanel
-        workflow={workflow}
-        selectedId={selectedId}
-        onSelect={setSelectedId}
-        animFrames={animFrames.length}
-        animFrame={animFrame}
-        animPlaying={animPlaying}
-        animSpeed={animSpeed}
-        simState={simState}
-        simRunning={simRunning}
-        onPlay={handleAnimPlay}
-        onPause={handleAnimPause}
-        onStop={handleAnimStop}
-        onStepFwd={handleAnimStepFwd}
-        onStepBack={handleAnimStepBack}
-        onSeek={handleAnimSeek}
-        onSpeed={handleAnimSpeed}
-        onRunSim={handleRunSimulation}
-      />
-
       {/* Status bar */}
-      <WorkspaceStatusBar
-        wsFile={wsFile}
-        cursorPos={cursorPos}
-        units={units}
-        onToggleUnits={() => setUnits(u => u === 'mm' ? 'inch' : 'mm')}
-        operationCount={opCount}
-        toolpathCount={tpSegCount}
-      />
+      {statusVisible && (
+        <WorkspaceStatusBar
+          wsFile={wsFile}
+          cursorPos={cursorPos}
+          units={units}
+          onToggleUnits={() => setUnits(u => u === 'mm' ? 'inch' : 'mm')}
+          operationCount={opCount}
+          toolpathCount={tpSegCount}
+        />
+      )}
 
       {/* Hidden file input */}
       <input

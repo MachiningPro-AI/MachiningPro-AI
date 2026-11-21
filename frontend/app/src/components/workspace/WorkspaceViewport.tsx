@@ -25,11 +25,11 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { LoaderCircle, Maximize2, RotateCcw } from 'lucide-react'
 import { useLocale } from '../../i18n'
 import type { PreviewMesh } from '../../services/engineeringImport'
-import type { DisplayMode, ToolPose, StockBbox, ToolpathLineGroup, ViewPreset, WorkspaceFile } from './WorkspaceTypes'
-import { CLIENT_RENDER_FORMATS, SERVER_RENDER_FORMATS } from './WorkspaceTypes'
+import type { BackgroundPreset, DisplayMode, ToolPose, StockBbox, ToolpathLineGroup, ViewPreset, WorkspaceFile } from './WorkspaceTypes'
+import { CLIENT_RENDER_FORMATS, DEFAULT_BG_PRESET, SERVER_RENDER_FORMATS } from './WorkspaceTypes'
 
 // ---------------------------------------------------------------------------
-// Scene constants
+// Scene constants (defaults — overridable via bgPreset prop)
 // ---------------------------------------------------------------------------
 
 const BG        = 0x0d1117
@@ -149,6 +149,9 @@ export interface ViewportProps {
   onCursorPos:  (pos: [number, number, number] | null) => void
   onMeshLoaded: (vtxCount: number, triCount: number) => void
   loadingBackend: boolean
+  // Appearance — MUST 15, 17, 18, 20 — never alter engineering data
+  bgPreset?:    BackgroundPreset
+  partOpacity?: number
 }
 
 // ---------------------------------------------------------------------------
@@ -174,6 +177,8 @@ export default function WorkspaceViewport({
   onCursorPos,
   onMeshLoaded,
   loadingBackend,
+  bgPreset,
+  partOpacity,
 }: ViewportProps) {
   const { t } = useLocale()
   const containerRef   = useRef<HTMLDivElement>(null)
@@ -206,6 +211,8 @@ export default function WorkspaceViewport({
   const showWcsRef      = useRef(showWcs)
   const showToolpathRef = useRef(showToolpath)
   const showStockRef    = useRef(showStock)
+  // Track appearance props for use in render loop — MUST 15, 18
+  const bgPresetRef     = useRef<BackgroundPreset>(bgPreset ?? DEFAULT_BG_PRESET)
 
   // ── Scene setup ──────────────────────────────────────────────────────────
 
@@ -357,11 +364,11 @@ export default function WorkspaceViewport({
       controls.update()
       renderer.render(scene, camera)
 
-      // Update axis triad mini-canvas
+      // Update axis triad mini-canvas — MUST 18: contrast adapts to bgPreset
       if (axCtx && axisCanvasRef.current) {
         const sz = axisCanvasRef.current.width
         axCtx.clearRect(0, 0, sz, sz)
-        axCtx.fillStyle = 'rgba(13,17,23,0.7)'
+        axCtx.fillStyle = bgPresetRef.current.axisCanvasBg
         axCtx.fillRect(0, 0, sz, sz)
 
         const origin = new THREE.Vector3(0, 0, 0)
@@ -737,6 +744,50 @@ export default function WorkspaceViewport({
     onViewPresetConsumed()
   }, [viewPreset, onViewPresetConsumed])
 
+  // ── Background preset — MUST 15, 18 ─────────────────────────────────────
+
+  useEffect(() => {
+    const preset = bgPreset ?? DEFAULT_BG_PRESET
+    bgPresetRef.current = preset
+
+    const scene = sceneRef.current
+    if (!scene) return
+
+    // Update scene background — MUST 15
+    scene.background = new THREE.Color(preset.color)
+
+    // Recreate grid with contrasting colors — MUST 18
+    const oldGrid = gridRef.current
+    if (oldGrid) {
+      scene.remove(oldGrid)
+      if (Array.isArray(oldGrid.material)) oldGrid.material.forEach(m => m.dispose())
+      else (oldGrid.material as THREE.Material).dispose()
+      oldGrid.geometry.dispose()
+    }
+    const newGrid = new THREE.GridHelper(2000, 100, preset.gridColor1, preset.gridColor2)
+    newGrid.visible = showGridRef.current
+    scene.add(newGrid)
+    gridRef.current = newGrid
+  }, [bgPreset])
+
+  // ── Part opacity — MUST 20 ───────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!meshGroupRef.current) return
+    const opacity = partOpacity ?? 1
+    meshGroupRef.current.traverse(obj => {
+      if (obj instanceof THREE.Mesh) {
+        const mat = obj.material as THREE.Material | THREE.Material[]
+        const mats = Array.isArray(mat) ? mat : [mat]
+        for (const m of mats) {
+          m.transparent = opacity < 1
+          ;(m as THREE.MeshPhongMaterial).opacity = opacity
+          m.needsUpdate = true
+        }
+      }
+    })
+  }, [partOpacity])
+
   // ── Fit all callback ─────────────────────────────────────────────────────
 
   const handleFit = useCallback(() => {
@@ -761,8 +812,12 @@ export default function WorkspaceViewport({
   const showEmpty   = !wsFile && !mesh && !isLoading
   const showError   = !!parseError
 
+  const bgCss = bgPreset
+    ? `#${bgPreset.color.toString(16).padStart(6, '0')}`
+    : '#0d1117'
+
   return (
-    <div className="relative w-full h-full overflow-hidden bg-[#0d1117]">
+    <div className="relative w-full h-full overflow-hidden" style={{ backgroundColor: bgCss }}>
       {/* Three.js canvas container */}
       <div ref={containerRef} className="absolute inset-0" />
 

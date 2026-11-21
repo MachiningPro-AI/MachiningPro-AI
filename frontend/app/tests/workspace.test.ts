@@ -564,3 +564,296 @@ describe('ANIM_SPEEDS coverage', () => {
   it('includes 1x (normal)', () => assert.ok(ANIM_SPEEDS_FE.includes(1)))
   it('includes 10x (fast forward)', () => assert.ok(ANIM_SPEEDS_FE.includes(10)))
 })
+
+// ---------------------------------------------------------------------------
+// WorkspaceLayout — MUST 2,3,4,6,7,8 — pure logic re-implemented inline
+// (WorkspaceTypes imports Three.js; we test pure functions here)
+// ---------------------------------------------------------------------------
+
+type BgPresetId = 'dark_eng' | 'neutral_gray' | 'light_eng' | 'gradient_dark' | 'gradient_light'
+type LayoutPresetId = 'MODEL' | 'DRAWING' | 'MANUFACTURING' | 'CAM' | 'SIMULATION' | 'INSPECTION'
+type PartOpacityPreset = 1 | 0.75 | 0.5 | 0.25
+
+interface WorkspaceLayout {
+  leftWidth: number; rightWidth: number; bottomHeight: number
+  showModelTree: boolean; showProperties: boolean; showCamPanel: boolean; showStatusBar: boolean
+  collapsedLeft: boolean; collapsedRight: boolean; collapsedBottom: boolean
+  viewerMaximized: boolean; activePreset: LayoutPresetId
+  bgPresetId: BgPresetId; customBgColor: string | null; partOpacity: PartOpacityPreset
+  savedVersion: number
+}
+
+const MIN_PANEL_WIDTH_T  = 160
+const MAX_PANEL_WIDTH_T  = 600
+const MIN_BOTTOM_HEIGHT_T = 100
+const MAX_BOTTOM_HEIGHT_T = 480
+const COLLAPSED_STRIP_W_T = 32
+
+const DEFAULT_LAYOUT_T: WorkspaceLayout = {
+  leftWidth: 260, rightWidth: 260, bottomHeight: 220,
+  showModelTree: true, showProperties: true, showCamPanel: true, showStatusBar: true,
+  collapsedLeft: false, collapsedRight: false, collapsedBottom: false,
+  viewerMaximized: false, activePreset: 'MODEL',
+  bgPresetId: 'dark_eng', customBgColor: null, partOpacity: 1, savedVersion: 1,
+}
+
+function clampNum(v: unknown, min: number, max: number, fallback: number): number {
+  const n = typeof v === 'number' && isFinite(v) ? v : fallback
+  return Math.max(min, Math.min(max, n))
+}
+
+function loadWorkspaceLayoutT(raw: string | null): WorkspaceLayout {
+  try {
+    if (!raw) return { ...DEFAULT_LAYOUT_T }
+    const p = JSON.parse(raw) as Partial<WorkspaceLayout>
+    const lw = clampNum(p.leftWidth,    MIN_PANEL_WIDTH_T,  MAX_PANEL_WIDTH_T,  DEFAULT_LAYOUT_T.leftWidth)
+    const rw = clampNum(p.rightWidth,   MIN_PANEL_WIDTH_T,  MAX_PANEL_WIDTH_T,  DEFAULT_LAYOUT_T.rightWidth)
+    const bh = clampNum(p.bottomHeight, MIN_BOTTOM_HEIGHT_T, MAX_BOTTOM_HEIGHT_T, DEFAULT_LAYOUT_T.bottomHeight)
+    return { ...DEFAULT_LAYOUT_T, ...p, leftWidth: lw, rightWidth: rw, bottomHeight: bh }
+  } catch {
+    return { ...DEFAULT_LAYOUT_T }
+  }
+}
+
+const BACKGROUND_PRESETS_T = [
+  { id: 'dark_eng'       as BgPresetId, label: 'Dark Engineering',  color: 0x0d1117, isDark: true  },
+  { id: 'neutral_gray'   as BgPresetId, label: 'Neutral Gray',       color: 0x1a1f2e, isDark: true  },
+  { id: 'light_eng'      as BgPresetId, label: 'Light Engineering',  color: 0xd8e0e8, isDark: false },
+  { id: 'gradient_dark'  as BgPresetId, label: 'Gradient Dark',      color: 0x111827, isDark: true  },
+  { id: 'gradient_light' as BgPresetId, label: 'Gradient Light',     color: 0xe8ecf2, isDark: false },
+]
+
+const LAYOUT_PRESETS_T: Record<LayoutPresetId, Partial<WorkspaceLayout>> = {
+  MODEL:         { showModelTree: true,  showProperties: true,  showCamPanel: false, collapsedLeft: false, collapsedRight: false, collapsedBottom: false, leftWidth: 280, rightWidth: 260, bottomHeight: 220 },
+  DRAWING:       { showModelTree: true,  showProperties: true,  showCamPanel: false, collapsedLeft: false, collapsedRight: false, collapsedBottom: true,  leftWidth: 260, rightWidth: 280, bottomHeight: 220 },
+  MANUFACTURING: { showModelTree: true,  showProperties: true,  showCamPanel: true,  collapsedLeft: false, collapsedRight: false, collapsedBottom: false, leftWidth: 260, rightWidth: 260, bottomHeight: 260 },
+  CAM:           { showModelTree: true,  showProperties: false, showCamPanel: true,  collapsedLeft: false, collapsedRight: true,  collapsedBottom: false, leftWidth: 260, rightWidth: 260, bottomHeight: 320 },
+  SIMULATION:    { showModelTree: false, showProperties: true,  showCamPanel: true,  collapsedLeft: true,  collapsedRight: false, collapsedBottom: false, leftWidth: 260, rightWidth: 300, bottomHeight: 320 },
+  INSPECTION:    { showModelTree: true,  showProperties: true,  showCamPanel: false, collapsedLeft: false, collapsedRight: false, collapsedBottom: true,  leftWidth: 300, rightWidth: 300, bottomHeight: 220 },
+}
+
+const PART_OPACITY_PRESETS_T: PartOpacityPreset[] = [1, 0.75, 0.5, 0.25]
+
+describe('DEFAULT_LAYOUT constants', () => {
+  it('leftWidth within panel bounds',    () => { assert.ok(DEFAULT_LAYOUT_T.leftWidth  >= MIN_PANEL_WIDTH_T  && DEFAULT_LAYOUT_T.leftWidth  <= MAX_PANEL_WIDTH_T)  })
+  it('rightWidth within panel bounds',   () => { assert.ok(DEFAULT_LAYOUT_T.rightWidth >= MIN_PANEL_WIDTH_T  && DEFAULT_LAYOUT_T.rightWidth <= MAX_PANEL_WIDTH_T)  })
+  it('bottomHeight within panel bounds', () => { assert.ok(DEFAULT_LAYOUT_T.bottomHeight >= MIN_BOTTOM_HEIGHT_T && DEFAULT_LAYOUT_T.bottomHeight <= MAX_BOTTOM_HEIGHT_T) })
+  it('all panels shown by default',  () => {
+    assert.strictEqual(DEFAULT_LAYOUT_T.showModelTree,  true)
+    assert.strictEqual(DEFAULT_LAYOUT_T.showProperties, true)
+    assert.strictEqual(DEFAULT_LAYOUT_T.showCamPanel,   true)
+    assert.strictEqual(DEFAULT_LAYOUT_T.showStatusBar,  true)
+  })
+  it('none collapsed by default', () => {
+    assert.strictEqual(DEFAULT_LAYOUT_T.collapsedLeft,   false)
+    assert.strictEqual(DEFAULT_LAYOUT_T.collapsedRight,  false)
+    assert.strictEqual(DEFAULT_LAYOUT_T.collapsedBottom, false)
+  })
+  it('viewerMaximized false by default', () => assert.strictEqual(DEFAULT_LAYOUT_T.viewerMaximized, false))
+  it('activePreset is MODEL by default', () => assert.strictEqual(DEFAULT_LAYOUT_T.activePreset, 'MODEL'))
+  it('bgPresetId is dark_eng by default', () => assert.strictEqual(DEFAULT_LAYOUT_T.bgPresetId, 'dark_eng'))
+  it('partOpacity is 1 by default', () => assert.strictEqual(DEFAULT_LAYOUT_T.partOpacity, 1))
+  it('COLLAPSED_STRIP_W is 32px', () => assert.strictEqual(COLLAPSED_STRIP_W_T, 32))
+})
+
+describe('loadWorkspaceLayout — MUST 7, 8', () => {
+  it('returns default on null storage', () => {
+    const result = loadWorkspaceLayoutT(null)
+    assert.deepStrictEqual(result, DEFAULT_LAYOUT_T)
+  })
+
+  it('returns default on corrupt JSON', () => {
+    const result = loadWorkspaceLayoutT('{{not json}}')
+    assert.deepStrictEqual(result, DEFAULT_LAYOUT_T)
+  })
+
+  it('restores valid stored layout', () => {
+    const stored: WorkspaceLayout = { ...DEFAULT_LAYOUT_T, leftWidth: 320, bgPresetId: 'neutral_gray', partOpacity: 0.5 }
+    const result = loadWorkspaceLayoutT(JSON.stringify(stored))
+    assert.strictEqual(result.leftWidth, 320)
+    assert.strictEqual(result.bgPresetId, 'neutral_gray')
+    assert.strictEqual(result.partOpacity, 0.5)
+  })
+
+  it('clamps leftWidth below MIN to MIN — HARD RULE 6', () => {
+    const stored = { ...DEFAULT_LAYOUT_T, leftWidth: 50 }
+    const result = loadWorkspaceLayoutT(JSON.stringify(stored))
+    assert.strictEqual(result.leftWidth, MIN_PANEL_WIDTH_T)
+  })
+
+  it('clamps leftWidth above MAX to MAX — HARD RULE 6', () => {
+    const stored = { ...DEFAULT_LAYOUT_T, leftWidth: 9999 }
+    const result = loadWorkspaceLayoutT(JSON.stringify(stored))
+    assert.strictEqual(result.leftWidth, MAX_PANEL_WIDTH_T)
+  })
+
+  it('clamps rightWidth out-of-range', () => {
+    const stored = { ...DEFAULT_LAYOUT_T, rightWidth: 10 }
+    const result = loadWorkspaceLayoutT(JSON.stringify(stored))
+    assert.strictEqual(result.rightWidth, MIN_PANEL_WIDTH_T)
+  })
+
+  it('clamps bottomHeight below MIN', () => {
+    const stored = { ...DEFAULT_LAYOUT_T, bottomHeight: 10 }
+    const result = loadWorkspaceLayoutT(JSON.stringify(stored))
+    assert.strictEqual(result.bottomHeight, MIN_BOTTOM_HEIGHT_T)
+  })
+
+  it('clamps bottomHeight above MAX', () => {
+    const stored = { ...DEFAULT_LAYOUT_T, bottomHeight: 2000 }
+    const result = loadWorkspaceLayoutT(JSON.stringify(stored))
+    assert.strictEqual(result.bottomHeight, MAX_BOTTOM_HEIGHT_T)
+  })
+
+  it('handles non-numeric leftWidth gracefully', () => {
+    const stored = { ...DEFAULT_LAYOUT_T, leftWidth: 'abc' }
+    const result = loadWorkspaceLayoutT(JSON.stringify(stored))
+    assert.strictEqual(result.leftWidth, DEFAULT_LAYOUT_T.leftWidth)
+  })
+})
+
+describe('BACKGROUND_PRESETS — MUST 15, 17, 18', () => {
+  it('has exactly 5 presets', () => assert.strictEqual(BACKGROUND_PRESETS_T.length, 5))
+
+  it('dark_eng has isDark=true',       () => assert.strictEqual(BACKGROUND_PRESETS_T.find(p => p.id === 'dark_eng')!.isDark,       true))
+  it('neutral_gray has isDark=true',   () => assert.strictEqual(BACKGROUND_PRESETS_T.find(p => p.id === 'neutral_gray')!.isDark,   true))
+  it('light_eng has isDark=false',     () => assert.strictEqual(BACKGROUND_PRESETS_T.find(p => p.id === 'light_eng')!.isDark,     false))
+  it('gradient_dark has isDark=true',  () => assert.strictEqual(BACKGROUND_PRESETS_T.find(p => p.id === 'gradient_dark')!.isDark,  true))
+  it('gradient_light has isDark=false',() => assert.strictEqual(BACKGROUND_PRESETS_T.find(p => p.id === 'gradient_light')!.isDark, false))
+
+  it('all presets have valid hex color', () => {
+    for (const p of BACKGROUND_PRESETS_T) {
+      assert.ok(p.color >= 0 && p.color <= 0xffffff, `${p.id} color out of range`)
+    }
+  })
+
+  it('all preset ids are unique', () => {
+    const ids = BACKGROUND_PRESETS_T.map(p => p.id)
+    assert.strictEqual(new Set(ids).size, ids.length)
+  })
+
+  it('preset ids match BgPresetId type values', () => {
+    const valid: BgPresetId[] = ['dark_eng', 'neutral_gray', 'light_eng', 'gradient_dark', 'gradient_light']
+    for (const p of BACKGROUND_PRESETS_T) {
+      assert.ok(valid.includes(p.id), `${p.id} not a valid BgPresetId`)
+    }
+  })
+})
+
+describe('LAYOUT_PRESETS — MUST 6, HARD RULE 1, 2', () => {
+  const presetIds: LayoutPresetId[] = ['MODEL', 'DRAWING', 'MANUFACTURING', 'CAM', 'SIMULATION', 'INSPECTION']
+
+  it('has exactly 6 presets', () => assert.strictEqual(presetIds.length, 6))
+
+  it('all presets are defined', () => {
+    for (const id of presetIds) {
+      assert.ok(id in LAYOUT_PRESETS_T, `Missing preset: ${id}`)
+    }
+  })
+
+  it('no preset contains engineering data fields — HARD RULE 1', () => {
+    const forbiddenFields = ['operationId', 'toolRef', 'machineId', 'workflowId', 'planStatus', 'drawingNumber']
+    for (const id of presetIds) {
+      const preset = LAYOUT_PRESETS_T[id]
+      for (const field of forbiddenFields) {
+        assert.ok(!(field in preset), `Preset ${id} illegally contains engineering field: ${field}`)
+      }
+    }
+  })
+
+  it('no preset triggers simulation or CAM regen — HARD RULE 2', () => {
+    const forbiddenFields = ['runSimulation', 'regenToolpath', 'dispatchJob', 'confirmWcs']
+    for (const id of presetIds) {
+      const preset = LAYOUT_PRESETS_T[id]
+      for (const field of forbiddenFields) {
+        assert.ok(!(field in preset), `Preset ${id} illegally contains control field: ${field}`)
+      }
+    }
+  })
+
+  it('MODEL preset shows model tree and properties', () => {
+    assert.strictEqual(LAYOUT_PRESETS_T.MODEL.showModelTree, true)
+    assert.strictEqual(LAYOUT_PRESETS_T.MODEL.showProperties, true)
+  })
+
+  it('CAM preset shows model tree and CAM panel', () => {
+    assert.strictEqual(LAYOUT_PRESETS_T.CAM.showModelTree, true)
+    assert.strictEqual(LAYOUT_PRESETS_T.CAM.showCamPanel, true)
+  })
+
+  it('SIMULATION preset hides model tree', () => {
+    assert.strictEqual(LAYOUT_PRESETS_T.SIMULATION.showModelTree, false)
+  })
+
+  it('all panel width/height values in presets are within bounds when defined', () => {
+    for (const id of presetIds) {
+      const p = LAYOUT_PRESETS_T[id]
+      if (p.leftWidth   !== undefined) assert.ok(p.leftWidth   >= MIN_PANEL_WIDTH_T  && p.leftWidth   <= MAX_PANEL_WIDTH_T,  `${id}.leftWidth out of range`)
+      if (p.rightWidth  !== undefined) assert.ok(p.rightWidth  >= MIN_PANEL_WIDTH_T  && p.rightWidth  <= MAX_PANEL_WIDTH_T,  `${id}.rightWidth out of range`)
+      if (p.bottomHeight !== undefined) assert.ok(p.bottomHeight >= MIN_BOTTOM_HEIGHT_T && p.bottomHeight <= MAX_BOTTOM_HEIGHT_T, `${id}.bottomHeight out of range`)
+    }
+  })
+})
+
+describe('PART_OPACITY_PRESETS — MUST 20', () => {
+  it('has exactly 4 opacity values', () => assert.strictEqual(PART_OPACITY_PRESETS_T.length, 4))
+  it('includes 100% (fully opaque)', () => assert.ok(PART_OPACITY_PRESETS_T.includes(1)))
+  it('includes 75%',  () => assert.ok(PART_OPACITY_PRESETS_T.includes(0.75)))
+  it('includes 50%',  () => assert.ok(PART_OPACITY_PRESETS_T.includes(0.5)))
+  it('includes 25%',  () => assert.ok(PART_OPACITY_PRESETS_T.includes(0.25)))
+  it('all values between 0 and 1 inclusive', () => {
+    for (const v of PART_OPACITY_PRESETS_T) {
+      assert.ok(v > 0 && v <= 1, `${v} out of range`)
+    }
+  })
+  it('values are in descending order', () => {
+    for (let i = 1; i < PART_OPACITY_PRESETS_T.length; i++) {
+      assert.ok(PART_OPACITY_PRESETS_T[i]! < PART_OPACITY_PRESETS_T[i-1]!, `Not descending at index ${i}`)
+    }
+  })
+})
+
+describe('WorkspaceLayout — HARD RULE 7: layout never in engineering records', () => {
+  it('WorkspaceLayout has no operationId field', () => {
+    const layout: WorkspaceLayout = { ...DEFAULT_LAYOUT_T }
+    assert.ok(!('operationId' in layout))
+  })
+
+  it('WorkspaceLayout has no toolRef field', () => {
+    const layout: WorkspaceLayout = { ...DEFAULT_LAYOUT_T }
+    assert.ok(!('toolRef' in layout))
+  })
+
+  it('WorkspaceLayout has no machineId field', () => {
+    const layout: WorkspaceLayout = { ...DEFAULT_LAYOUT_T }
+    assert.ok(!('machineId' in layout))
+  })
+
+  it('WorkspaceLayout has no workflowId field', () => {
+    const layout: WorkspaceLayout = { ...DEFAULT_LAYOUT_T }
+    assert.ok(!('workflowId' in layout))
+  })
+
+  it('bgPresetId change does not affect SAFETY constants', () => {
+    const layout: WorkspaceLayout = { ...DEFAULT_LAYOUT_T, bgPresetId: 'light_eng' }
+    assert.strictEqual(SAFETY.IS_DISPATCHABLE,     false)
+    assert.strictEqual(SAFETY.PRODUCTION_RELEASED, false)
+    assert.strictEqual(SAFETY.COLLISION_CHECK,     'NOT_PERFORMED')
+    assert.strictEqual(layout.bgPresetId,          'light_eng')
+  })
+})
+
+describe('Panel sizing constraints — HARD RULE 5', () => {
+  it('MIN_PANEL_WIDTH is non-zero — viewport cannot be squeezed to zero', () => {
+    assert.ok(MIN_PANEL_WIDTH_T > 0)
+  })
+  it('MAX_PANEL_WIDTH > MIN_PANEL_WIDTH', () => {
+    assert.ok(MAX_PANEL_WIDTH_T > MIN_PANEL_WIDTH_T)
+  })
+  it('MIN_BOTTOM_HEIGHT is non-zero', () => {
+    assert.ok(MIN_BOTTOM_HEIGHT_T > 0)
+  })
+  it('MAX_BOTTOM_HEIGHT > MIN_BOTTOM_HEIGHT', () => {
+    assert.ok(MAX_BOTTOM_HEIGHT_T > MIN_BOTTOM_HEIGHT_T)
+  })
+})

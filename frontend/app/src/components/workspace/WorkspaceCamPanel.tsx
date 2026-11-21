@@ -462,6 +462,10 @@ export interface CamPanelProps {
   onSeek:      (frame: number) => void
   onSpeed:     (s: AnimSpeed) => void
   onRunSim:    () => void
+  // Layout — MUST 3: collapse support
+  panelHeight?:  number
+  collapsed?:    boolean
+  onCollapse?:   () => void
 }
 
 export default function WorkspaceCamPanel({
@@ -469,17 +473,50 @@ export default function WorkspaceCamPanel({
   animFrames, animFrame, animPlaying, animSpeed,
   simState, simRunning,
   onPlay, onPause, onStop, onStepFwd, onStepBack, onSeek, onSpeed, onRunSim,
+  panelHeight,
+  collapsed = false,
+  onCollapse,
 }: CamPanelProps) {
   const { t } = useLocale()
   const [activeTab, setActiveTab] = useState<CamTab>('operations')
   const [expanded,  setExpanded]  = useState(true)
 
-  const PANEL_HEIGHT = 220
+  // Fully collapsed by external layout state — render minimal strip
+  if (collapsed) {
+    return (
+      <div
+        className="shrink-0 flex items-center justify-between border-t border-tp-border
+                   bg-tp-surface px-2 cursor-pointer hover:bg-tp-surface-2 transition-colors"
+        style={{ height: '32px' }}
+        role="button"
+        aria-label="Expand CAM panel"
+        onClick={onCollapse}
+      >
+        <div className="flex items-center gap-2">
+          {TABS.map(tab => (
+            <span key={tab.id} className="text-[9px] text-tp-text-3 uppercase">
+              {t(tab.labelKey as Parameters<typeof t>[0])}
+            </span>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={e => { e.stopPropagation(); onCollapse?.() }}
+          aria-label="Expand"
+          className="text-tp-text-3 hover:text-tp-text"
+        >
+          <ChevronUp size={12} />
+        </button>
+      </div>
+    )
+  }
+
+  const effectiveHeight = panelHeight ?? 220
 
   return (
     <div
       className="shrink-0 flex flex-col border-t border-tp-border bg-tp-surface"
-      style={{ height: expanded ? `${PANEL_HEIGHT}px` : '32px' }}
+      style={{ height: expanded ? `${effectiveHeight}px` : '32px' }}
     >
       {/* Tab bar + collapse toggle */}
       <div className="shrink-0 h-8 flex items-center border-b border-tp-border">
@@ -527,6 +564,18 @@ export default function WorkspaceCamPanel({
         >
           {expanded ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
         </button>
+        {onCollapse && (
+          <button
+            type="button"
+            onClick={onCollapse}
+            className="shrink-0 w-7 h-8 flex items-center justify-center
+                       text-tp-text-3 hover:text-tp-text-2"
+            aria-label="Hide CAM panel"
+            title="Hide panel"
+          >
+            <ChevronDown size={11} className="opacity-60" />
+          </button>
+        )}
       </div>
 
       {/* Tab content */}

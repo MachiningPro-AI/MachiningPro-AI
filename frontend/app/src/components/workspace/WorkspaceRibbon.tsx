@@ -13,11 +13,11 @@
 import {
   FolderOpen, Maximize2, LayoutGrid, Box, Eye, Grid3x3,
   Ruler, Scissors, Layers, GitBranch, AlertTriangle,
-  Play, Pause, Square, ChevronRight,
+  Play, Pause, Square, ChevronRight, Sun,
 } from 'lucide-react'
 import { useLocale } from '../../i18n'
-import { ANIM_SPEEDS } from './WorkspaceTypes'
-import type { AnimSpeed, DisplayMode, ViewPreset } from './WorkspaceTypes'
+import { ANIM_SPEEDS, BACKGROUND_PRESETS, PART_OPACITY_PRESETS } from './WorkspaceTypes'
+import type { AnimSpeed, BgPresetId, DisplayMode, LayoutPresetId, PartOpacityPreset, ViewPreset } from './WorkspaceTypes'
 
 // ---------------------------------------------------------------------------
 // RibbonButton
@@ -121,6 +121,14 @@ export interface RibbonProps {
   onAnimPause:    () => void
   onAnimStop:     () => void
   onAnimSpeed:    (s: AnimSpeed) => void
+  // Layout presets — MUST 6
+  layoutPreset?:  LayoutPresetId
+  onLayoutPreset?:(preset: LayoutPresetId) => void
+  // Appearance — MUST 15, 19, 20
+  bgPresetId?:    BgPresetId
+  onBgPreset?:    (id: BgPresetId) => void
+  partOpacity?:   PartOpacityPreset
+  onPartOpacity?: (v: PartOpacityPreset) => void
 }
 
 export default function WorkspaceRibbon({
@@ -131,8 +139,19 @@ export default function WorkspaceRibbon({
   onToggleGrid, onToggleWcs, onToggleStock, onToggleToolpath,
   onConnectWorkflow,
   onAnimPlay, onAnimPause, onAnimStop, onAnimSpeed,
+  layoutPreset, onLayoutPreset,
+  bgPresetId, onBgPreset,
+  partOpacity, onPartOpacity,
 }: RibbonProps) {
   const { t } = useLocale()
+  const LAYOUT_PRESETS_LIST: Array<{ id: LayoutPresetId; short: string }> = [
+    { id: 'MODEL',         short: 'MDL' },
+    { id: 'DRAWING',       short: 'DRW' },
+    { id: 'MANUFACTURING', short: 'MFG' },
+    { id: 'CAM',           short: 'CAM' },
+    { id: 'SIMULATION',    short: 'SIM' },
+    { id: 'INSPECTION',    short: 'INS' },
+  ]
 
   return (
     <div className="shrink-0 h-[52px] flex items-stretch gap-0 px-1
@@ -293,6 +312,73 @@ export default function WorkspaceRibbon({
           disabled
         />
       </Group>
+
+      {onLayoutPreset && (
+        <>
+          <Sep />
+
+          {/* LAYOUT PRESETS — MUST 6 */}
+          <Group label="Layout">
+            {LAYOUT_PRESETS_LIST.map(p => (
+              <RibbonBtn
+                key={p.id}
+                icon={<span className="text-[8px] font-mono font-bold leading-none">{p.short}</span>}
+                label={p.id.charAt(0) + p.id.slice(1).toLowerCase()}
+                onClick={() => onLayoutPreset(p.id)}
+                active={layoutPreset === p.id}
+                title={`Apply ${p.id} workspace layout`}
+              />
+            ))}
+          </Group>
+        </>
+      )}
+
+      {(onBgPreset ?? onPartOpacity) && (
+        <>
+          <Sep />
+
+          {/* APPEARANCE — MUST 15, 19, 20 */}
+          <Group label="Appearance">
+            {onBgPreset && (
+              <div className="flex items-center gap-0.5">
+                <Sun size={12} className="text-tp-text-3 shrink-0" aria-hidden="true" />
+                {BACKGROUND_PRESETS.map(preset => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => onBgPreset(preset.id)}
+                    title={preset.label}
+                    aria-label={`Background: ${preset.label}`}
+                    className={`w-5 h-5 rounded border transition-all
+                               ${bgPresetId === preset.id
+                                 ? 'border-tp-accent ring-1 ring-tp-accent/50'
+                                 : 'border-tp-border/60 hover:border-tp-border'
+                               }`}
+                    style={{ backgroundColor: `#${preset.color.toString(16).padStart(6, '0')}` }}
+                  />
+                ))}
+              </div>
+            )}
+            {onPartOpacity && (
+              <div className="flex items-center gap-0.5">
+                <span className="text-[9px] text-tp-text-3 font-mono">α</span>
+                <select
+                  value={partOpacity ?? 1}
+                  onChange={e => onPartOpacity(Number(e.target.value) as PartOpacityPreset)}
+                  className="text-[9px] rounded border border-tp-border bg-tp-surface-3 px-0.5 py-px
+                             text-tp-text focus:outline-none"
+                  title="Part opacity"
+                  aria-label="Part opacity"
+                >
+                  {PART_OPACITY_PRESETS.map(v => (
+                    <option key={v} value={v}>{Math.round(v * 100)}%</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </Group>
+        </>
+      )}
 
       {/* Spacer + safety badge */}
       <div className="flex-1" />

@@ -9,8 +9,11 @@
  *   NO_FABRICATED_PROPERTIES=YES — only shows real loaded data
  */
 
+import { useState } from 'react'
+import type { CSSProperties } from 'react'
+import { ChevronRight, Pin, Search, X, Copy, Database } from 'lucide-react'
 import { useLocale } from '../../i18n'
-import { SAFETY, formatFileSize } from './WorkspaceTypes'
+import { SAFETY, formatFileSize, COLLAPSED_STRIP_W } from './WorkspaceTypes'
 import type { WorkspaceFile, ConnectedWorkflow, OperationSummary } from './WorkspaceTypes'
 import type { PreviewMesh } from '../../services/engineeringImport'
 
@@ -18,12 +21,31 @@ import type { PreviewMesh } from '../../services/engineeringImport'
 // Helpers
 // ---------------------------------------------------------------------------
 
-function PropRow({ label, value }: { label: string; value: string | number | null | undefined }) {
+function PropRow({ label, value, filter }: {
+  label: string
+  value: string | number | null | undefined
+  filter?: string
+}) {
   if (value === null || value === undefined || value === '') return null
+  const str = String(value)
+  if (filter) {
+    const lc = filter.toLowerCase()
+    if (!label.toLowerCase().includes(lc) && !str.toLowerCase().includes(lc)) return null
+  }
   return (
-    <div className="flex items-start gap-2 py-1 border-b border-tp-border/40">
+    <div className="group flex items-start gap-2 py-1 border-b border-tp-border/40 hover:bg-tp-surface-2/40">
       <span className="shrink-0 w-28 text-[11px] text-tp-text-3">{label}</span>
-      <span className="flex-1 text-[11px] text-tp-text break-all font-mono">{String(value)}</span>
+      <span className="flex-1 text-[11px] text-tp-text break-all font-mono">{str}</span>
+      <button
+        type="button"
+        onClick={() => void navigator.clipboard.writeText(str).catch(() => undefined)}
+        title="Copy value"
+        className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity
+                   text-tp-text-3 hover:text-tp-text p-px"
+        aria-label="Copy value"
+      >
+        <Copy size={9} />
+      </button>
     </div>
   )
 }
@@ -58,25 +80,33 @@ function StatusBadge({ label, value }: { label: string; value: string }) {
 // File properties section
 // ---------------------------------------------------------------------------
 
-function FileProperties({ wsFile, mesh }: { wsFile: WorkspaceFile | null; mesh: PreviewMesh | null }) {
+function FileProperties({ wsFile, mesh, filter }: {
+  wsFile: WorkspaceFile | null
+  mesh: PreviewMesh | null
+  filter?: string
+}) {
   const { t } = useLocale()
   if (!wsFile && !mesh) return null
 
   return (
     <div className="px-3 pb-2">
-      <SectionHeader label={t('ws_fileName')} />
-      {wsFile && <PropRow label={t('ws_fileName')} value={wsFile.name} />}
-      {wsFile && <PropRow label={t('ws_fileFormat')} value={wsFile.format} />}
-      {wsFile && <PropRow label={t('ws_fileSize')} value={formatFileSize(wsFile.sizeBytes)} />}
-      {wsFile && <PropRow label={t('ws_loadedAt')} value={wsFile.loadedAt.toLocaleTimeString()} />}
-      {mesh && <PropRow label={t('ws_vertices')} value={mesh.vertex_count.toLocaleString()} />}
-      {mesh && <PropRow label={t('ws_triangles')} value={mesh.triangle_count.toLocaleString()} />}
+      <SectionHeader label="File Properties" />
+      {wsFile && <PropRow label={t('ws_fileName')}   value={wsFile.name}                              filter={filter} />}
+      {wsFile && <PropRow label={t('ws_fileFormat')} value={wsFile.format}                           filter={filter} />}
+      {wsFile && <PropRow label={t('ws_fileSize')}   value={formatFileSize(wsFile.sizeBytes)}        filter={filter} />}
+      {wsFile && <PropRow label={t('ws_loadedAt')}   value={wsFile.loadedAt.toLocaleTimeString()}   filter={filter} />}
+      {mesh   && <PropRow label="Context"            value="Geometry Properties"                     filter={filter} />}
+      {mesh   && <PropRow label={t('ws_vertices')}   value={mesh.vertex_count.toLocaleString()}      filter={filter} />}
+      {mesh   && <PropRow label={t('ws_triangles')}  value={mesh.triangle_count.toLocaleString()}    filter={filter} />}
       {mesh?.bounding_box && (
         <>
           <SectionHeader label={t('ws_boundingBox')} />
-          <PropRow label="X" value={`${mesh.bounding_box.min[0].toFixed(3)} → ${mesh.bounding_box.max[0].toFixed(3)} mm`} />
-          <PropRow label="Y" value={`${mesh.bounding_box.min[1].toFixed(3)} → ${mesh.bounding_box.max[1].toFixed(3)} mm`} />
-          <PropRow label="Z" value={`${mesh.bounding_box.min[2].toFixed(3)} → ${mesh.bounding_box.max[2].toFixed(3)} mm`} />
+          <PropRow label="X" value={`${mesh.bounding_box.min[0].toFixed(3)} → ${mesh.bounding_box.max[0].toFixed(3)} mm`} filter={filter} />
+          <PropRow label="Y" value={`${mesh.bounding_box.min[1].toFixed(3)} → ${mesh.bounding_box.max[1].toFixed(3)} mm`} filter={filter} />
+          <PropRow label="Z" value={`${mesh.bounding_box.min[2].toFixed(3)} → ${mesh.bounding_box.max[2].toFixed(3)} mm`} filter={filter} />
+          <PropRow label="Size X" value={`${(mesh.bounding_box.max[0] - mesh.bounding_box.min[0]).toFixed(3)} mm`} filter={filter} />
+          <PropRow label="Size Y" value={`${(mesh.bounding_box.max[1] - mesh.bounding_box.min[1]).toFixed(3)} mm`} filter={filter} />
+          <PropRow label="Size Z" value={`${(mesh.bounding_box.max[2] - mesh.bounding_box.min[2]).toFixed(3)} mm`} filter={filter} />
         </>
       )}
     </div>
@@ -87,18 +117,21 @@ function FileProperties({ wsFile, mesh }: { wsFile: WorkspaceFile | null; mesh: 
 // Operation properties section
 // ---------------------------------------------------------------------------
 
-function OperationProperties({ op }: { op: OperationSummary }) {
+function OperationProperties({ op, filter }: { op: OperationSummary; filter?: string }) {
   const { t } = useLocale()
   return (
     <div className="px-3 pb-2">
-      <SectionHeader label={t('ws_camOperations')} />
-      <PropRow label="ID"       value={op.operationId} />
-      <PropRow label="Name"     value={op.name} />
-      <PropRow label="Type"     value={op.type} />
-      <PropRow label="Tool"     value={op.toolRef ?? '—'} />
-      <PropRow label="Setup"    value={op.setupRef ?? '—'} />
-      <PropRow label="Seq #"    value={op.sequenceNumber} />
-      <PropRow label="Status"   value={op.status} />
+      <SectionHeader label="Operation Properties" />
+      <PropRow label="Context"  value="Operation Properties" filter={filter} />
+      <PropRow label="ID"       value={op.operationId}         filter={filter} />
+      <PropRow label="Name"     value={op.name}                filter={filter} />
+      <PropRow label="Type"     value={op.type}                filter={filter} />
+      <PropRow label="Tool Ref" value={op.toolRef ?? '—'}      filter={filter} />
+      <PropRow label="Setup"    value={op.setupRef ?? '—'}     filter={filter} />
+      <PropRow label="Seq #"    value={op.sequenceNumber}      filter={filter} />
+      <PropRow label="Status"   value={op.status}              filter={filter} />
+      <SectionHeader label="CAM Context" />
+      <PropRow label="Category" value={t('ws_camOperations')}  filter={filter} />
     </div>
   )
 }
@@ -107,8 +140,14 @@ function OperationProperties({ op }: { op: OperationSummary }) {
 // Verification section (always NOT_PERFORMED)
 // ---------------------------------------------------------------------------
 
-function VerificationSection() {
+function VerificationSection({ filter }: { filter?: string }) {
   const { t } = useLocale()
+  // Filter check: show section only if filter matches any item
+  if (filter) {
+    const lc = filter.toLowerCase()
+    const items = ['verification', 'collision', 'gouge', 'fixture', 'machine', 'envelope', 'not_performed']
+    if (!items.some(s => s.includes(lc))) return null
+  }
   return (
     <div className="px-3 pb-3">
       <SectionHeader label={t('ws_verification')} />
@@ -130,10 +169,13 @@ function VerificationSection() {
 // ---------------------------------------------------------------------------
 
 export interface PropertiesPanelProps {
-  wsFile:    WorkspaceFile | null
-  mesh:      PreviewMesh | null
-  workflow:  ConnectedWorkflow | null
-  selectedId: string | null
+  wsFile:      WorkspaceFile | null
+  mesh:        PreviewMesh | null
+  workflow:    ConnectedWorkflow | null
+  selectedId:  string | null
+  collapsed?:  boolean
+  onCollapse?: () => void
+  style?:      CSSProperties
 }
 
 export default function WorkspacePropertiesPanel({
@@ -141,26 +183,120 @@ export default function WorkspacePropertiesPanel({
   mesh,
   workflow,
   selectedId,
+  collapsed = false,
+  onCollapse,
+  style,
 }: PropertiesPanelProps) {
   const { t } = useLocale()
+  const [searchTerm, setSearchTerm] = useState('')
+  const [showSearch, setShowSearch] = useState(false)
 
-  // Find selected operation from workflow
+  const filter = showSearch && searchTerm ? searchTerm : undefined
+
+  // Determine context — MUST 12
   const selectedOp = selectedId && workflow
     ? workflow.operations.find(op => `op-${op.operationId}` === selectedId)
     : null
 
+  const isMeshNode     = selectedId === 'body-0'
+  const isRootNode     = selectedId === 'root' || selectedId?.startsWith('wf-')
+
+  // Collapsed strip — MUST 3
+  if (collapsed) {
+    return (
+      <div
+        className="h-full shrink-0 flex flex-col items-center justify-between
+                   border-l border-tp-border bg-tp-surface py-1 cursor-pointer
+                   hover:bg-tp-surface-2 transition-colors"
+        style={{ width: `${COLLAPSED_STRIP_W}px`, minWidth: `${COLLAPSED_STRIP_W}px` }}
+        role="button"
+        aria-label="Expand Properties"
+        title="Expand Properties"
+        onClick={onCollapse}
+      >
+        <button
+          type="button"
+          className="text-tp-text-3 hover:text-tp-text p-1"
+          onClick={e => { e.stopPropagation(); onCollapse?.() }}
+          aria-label="Expand"
+        >
+          <ChevronRight size={14} />
+        </button>
+        <div className="flex-1 flex items-center justify-center">
+          <span className="text-[9px] font-semibold uppercase tracking-widest text-tp-text-3
+                           [writing-mode:vertical-rl]">
+            {t('ws_properties')}
+          </span>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="h-full overflow-hidden flex flex-col border-l border-tp-border bg-tp-surface"
-         style={{ width: '260px', minWidth: '260px' }}>
-      {/* Header */}
-      <div className="shrink-0 h-8 flex items-center px-3 border-b border-tp-border gap-3">
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-tp-text-3">
-          {t('ws_properties')}
+         style={style ?? { width: '260px', minWidth: '260px' }}>
+
+      {/* Properties toolbar — MUST 11 */}
+      <div className="shrink-0 h-8 flex items-center px-2 border-b border-tp-border gap-1">
+        <Pin size={10} className="text-tp-text-3 shrink-0" aria-hidden="true" />
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-tp-text-3 flex-1 truncate">
+          {selectedOp
+            ? 'Operation'
+            : (isMeshNode || (mesh && !isRootNode))
+              ? 'Geometry'
+              : t('ws_properties')
+          }
         </span>
-        <span className="ml-auto text-[9px] font-mono text-tp-text-3 opacity-60">
-          {t('ws_simNotVerified')}
-        </span>
+        <button
+          type="button"
+          onClick={() => { setShowSearch(v => !v); if (showSearch) setSearchTerm('') }}
+          title="Filter properties"
+          aria-label="Filter properties"
+          className={`p-0.5 rounded ${showSearch ? 'text-tp-accent-light' : 'text-tp-text-3 hover:text-tp-text'}`}
+        >
+          <Search size={10} />
+        </button>
+        <button
+          type="button"
+          title="Source / provenance"
+          aria-label="Show source"
+          className="p-0.5 rounded text-tp-text-3 hover:text-tp-text"
+        >
+          <Database size={10} />
+        </button>
+        {onCollapse && (
+          <button
+            type="button"
+            onClick={onCollapse}
+            aria-label="Collapse Properties"
+            title="Collapse"
+            className="p-0.5 rounded text-tp-text-3 hover:text-tp-text"
+          >
+            <X size={10} />
+          </button>
+        )}
       </div>
+
+      {/* Search bar — MUST 13 */}
+      {showSearch && (
+        <div className="shrink-0 flex items-center border-b border-tp-border px-2 py-1 gap-1">
+          <Search size={10} className="text-tp-text-3 shrink-0" aria-hidden="true" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            placeholder="Filter properties…"
+            className="flex-1 bg-transparent text-[11px] text-tp-text placeholder:text-tp-text-3
+                       outline-none"
+            autoFocus
+          />
+          {searchTerm && (
+            <button type="button" onClick={() => setSearchTerm('')} className="text-tp-text-3 hover:text-tp-text">
+              <X size={9} />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto [scrollbar-width:thin]
@@ -172,28 +308,28 @@ export default function WorkspacePropertiesPanel({
         ) : (
           <>
             {selectedOp ? (
-              <OperationProperties op={selectedOp} />
+              <OperationProperties op={selectedOp} filter={filter} />
             ) : (
-              <FileProperties wsFile={wsFile} mesh={mesh} />
+              <FileProperties wsFile={wsFile} mesh={mesh} filter={filter} />
             )}
-            {/* Workflow connection info */}
+            {/* Workflow connection info — MUST 12: Workflow context */}
             {workflow && !selectedOp && (
               <div className="px-3 pb-2">
                 <SectionHeader label="Workflow" />
-                <PropRow label="ID"      value={workflow.workflowId} />
-                <PropRow label="Part"    value={workflow.partName ?? '—'} />
-                <PropRow label="Drawing" value={workflow.drawingNumber ?? '—'} />
-                <PropRow label="Plan"    value={workflow.planStatus ?? '—'} />
-                <PropRow label="Ops"     value={workflow.operations.length} />
-                <PropRow label="TP Groups" value={workflow.toolpathGroups.length} />
+                <PropRow label="ID"       value={workflow.workflowId}             filter={filter} />
+                <PropRow label="Part"     value={workflow.partName ?? '—'}        filter={filter} />
+                <PropRow label="Drawing"  value={workflow.drawingNumber ?? '—'}   filter={filter} />
+                <PropRow label="Plan"     value={workflow.planStatus ?? '—'}      filter={filter} />
+                <PropRow label="Ops"      value={workflow.operations.length}      filter={filter} />
+                <PropRow label="TP Groups" value={workflow.toolpathGroups.length} filter={filter} />
               </div>
             )}
           </>
         )}
 
-        {/* Verification — always visible */}
+        {/* Verification — always visible — MUST 12: Verification context */}
         <div className="border-t border-tp-border mt-1">
-          <VerificationSection />
+          <VerificationSection filter={filter} />
         </div>
       </div>
     </div>
