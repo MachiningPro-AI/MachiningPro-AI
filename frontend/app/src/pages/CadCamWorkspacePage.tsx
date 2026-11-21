@@ -486,9 +486,18 @@ export default function CadCamWorkspacePage() {
   const [backendError,   setBackendError]   = useState<string | null>(null)
   const [vtxCount,       setVtxCount]       = useState(0)
   const [triCount,       setTriCount]       = useState(0)
+  // MUST 12: file load status for model tree display
+  const [fileLoadStatus, setFileLoadStatus] = useState<
+    'IDLE' | 'LOADING' | 'GEOMETRY_READY' | 'FAILED' | 'UNSUPPORTED'
+  >('IDLE')
+  // MUST 13: structured error diagnostic
+  interface ImportDiagnostic {
+    file: string; format: string; stage: string; cause: string; action: string
+  }
+  const [importDiagnostic, setImportDiagnostic] = useState<ImportDiagnostic | null>(null)
 
   // ── Viewport state ────────────────────────────────────────────────────────
-  const [displayMode,  setDisplayMode]  = useState<DisplayMode>('shaded')
+  const [displayMode,  setDisplayMode]  = useState<DisplayMode>('shaded_edges')  // MUST 6: professional default
   const [showGrid,     setShowGrid]     = useState(true)
   const [showWcs,      setShowWcs]      = useState(true)
   const [showStock,    setShowStock]    = useState(true)
@@ -532,8 +541,10 @@ export default function CadCamWorkspacePage() {
     setWsFile(wsf)
     setMesh(null)
     setBackendError(null)
+    setImportDiagnostic(null)
     setVtxCount(0)
     setTriCount(0)
+    setFileLoadStatus('LOADING')
 
     if (format === 'STEP' || format === 'IGES') {
       setLoadingBackend(true)
@@ -543,14 +554,46 @@ export default function CadCamWorkspacePage() {
           setMesh(result.preview_mesh)
           setVtxCount(result.preview_mesh.vertex_count)
           setTriCount(result.preview_mesh.triangle_count)
+          setFileLoadStatus('GEOMETRY_READY')
         } else {
+          // MUST 13: structured diagnostic from real API data
+          const firstError = result.fidelity_events?.find(ev => ev.class === 'LOST' || ev.class === 'UNSUPPORTED')
+          const cause = firstError?.description
+            ?? result.errors?.[0]
+            ?? (result.import_status === 'PARTIAL_SUCCESS'
+              ? 'Tessellation produced no geometry. The file may be empty, corrupted, or contain only non-solid entities.'
+              : `Import status: ${result.import_status}`)
+          const action = format === 'STEP'
+            ? 'Ensure the STEP file contains solid or surface bodies. Try saving as AP214 or AP242 from your CAD application.'
+            : 'Ensure the IGES file contains surfaces or solid geometry. Resave from the originating CAD tool.'
+          setImportDiagnostic({
+            file: file.name,
+            format: result.format_id ?? format,
+            stage: result.preview_mesh === undefined ? 'TESSELLATION_FAILED' : 'NO_GEOMETRY_RETURNED',
+            cause,
+            action,
+          })
           setBackendError(t('ws_geometryError'))
+          setFileLoadStatus('FAILED')
         }
-      } catch {
+      } catch (err) {
+        const cause = err instanceof Error ? err.message : 'Network or server error.'
+        setImportDiagnostic({
+          file: file.name,
+          format,
+          stage: 'UPLOAD_FAILED',
+          cause,
+          action: 'Check that the backend service is running and you are authenticated.',
+        })
         setBackendError(t('ws_geometryError'))
+        setFileLoadStatus('FAILED')
       } finally {
         setLoadingBackend(false)
       }
+    } else if (format === 'STL' || format === 'OBJ' || format === '3MF') {
+      setFileLoadStatus('GEOMETRY_READY')
+    } else {
+      setFileLoadStatus('UNSUPPORTED')
     }
   }, [t])
 
@@ -559,6 +602,8 @@ export default function CadCamWorkspacePage() {
     setMesh(null)
     setLoadingBackend(false)
     setBackendError(null)
+    setImportDiagnostic(null)
+    setFileLoadStatus('IDLE')
     setVtxCount(0)
     setTriCount(0)
   }, [])
@@ -792,6 +837,7 @@ export default function CadCamWorkspacePage() {
                 onSelect={setSelectedId}
                 vtxCount={vtxCount}
                 triCount={triCount}
+                fileLoadStatus={fileLoadStatus}
                 collapsed={layout.collapsedLeft}
                 onCollapse={handleCollapseLeft}
                 style={!layout.collapsedLeft ? { width: layout.leftWidth, minWidth: layout.leftWidth } : undefined}
@@ -811,14 +857,46 @@ export default function CadCamWorkspacePage() {
 
           {/* Center: 3D viewport */}
           <div className="flex-1 overflow-hidden relative min-w-0">
-            {backendError && (
+            {/* MUST 13: Structured error diagnostic panel */}
+            {importDiagnostic ? (
+              <div className="absolute top-2 left-2 right-2 z-10 max-w-lg mx-auto
+                              bg-tp-surface border border-tp-error/60 rounded shadow-lg shadow-black/40
+                              text-[11px]">
+                <div className="flex items-center gap-2 px-3 py-2 bg-tp-error/10 border-b border-tp-error/30">
+                  <AlertTriangle size={12} className="text-tp-error shrink-0" aria-hidden="true" />
+                  <span className="font-semibold text-tp-error uppercase tracking-wider text-[10px]">
+                    Geometry Import Failed
+                  </span>
+                  <button
+                    type="button"
+                    className="ml-auto text-tp-text-3 hover:text-tp-text"
+                    onClick={() => { setImportDiagnostic(null); setBackendError(null) }}
+                    aria-label="Dismiss"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+                <div className="px-3 py-2 grid grid-cols-[80px_1fr] gap-x-2 gap-y-1">
+                  <span className="text-tp-text-3 font-mono">File</span>
+                  <span className="text-tp-text truncate">{importDiagnostic.file}</span>
+                  <span className="text-tp-text-3 font-mono">Format</span>
+                  <span className="text-tp-text font-mono">{importDiagnostic.format}</span>
+                  <span className="text-tp-text-3 font-mono">Stage</span>
+                  <span className="text-tp-text font-mono text-tp-error">{importDiagnostic.stage}</span>
+                  <span className="text-tp-text-3 font-mono">Cause</span>
+                  <span className="text-tp-text leading-relaxed">{importDiagnostic.cause}</span>
+                  <span className="text-tp-text-3 font-mono">Action</span>
+                  <span className="text-tp-text leading-relaxed">{importDiagnostic.action}</span>
+                </div>
+              </div>
+            ) : backendError ? (
               <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10
                               bg-tp-error/15 border border-tp-error text-tp-error
                               text-[11px] px-3 py-1.5 rounded flex items-center gap-2">
                 <AlertTriangle size={12} aria-hidden="true" />
                 {backendError}
               </div>
-            )}
+            ) : null}
 
             <WorkspaceViewport
               wsFile={wsFile}

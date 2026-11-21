@@ -191,6 +191,8 @@ export interface ModelTreeProps {
   collapsed?:  boolean
   onCollapse?: () => void
   style?:      CSSProperties
+  // MUST 12: file load status badge
+  fileLoadStatus?: 'IDLE' | 'LOADING' | 'GEOMETRY_READY' | 'FAILED' | 'UNSUPPORTED'
 }
 
 export default function WorkspaceModelTree({
@@ -203,6 +205,7 @@ export default function WorkspaceModelTree({
   collapsed = false,
   onCollapse,
   style,
+  fileLoadStatus = 'IDLE',
 }: ModelTreeProps) {
   const { t } = useLocale()
 
@@ -294,6 +297,27 @@ export default function WorkspaceModelTree({
           </button>
         )}
       </div>
+
+      {/* MUST 12: file load status badge */}
+      {fileLoadStatus !== 'IDLE' && (
+        <div className={`shrink-0 flex items-center gap-1.5 px-3 py-1 border-b border-tp-border/40 text-[9px] font-mono uppercase tracking-wider
+          ${fileLoadStatus === 'GEOMETRY_READY' ? 'text-tp-accent-light' :
+            fileLoadStatus === 'FAILED' ? 'text-tp-error' :
+            fileLoadStatus === 'LOADING' ? 'text-tp-text-3 animate-pulse' :
+            'text-tp-text-3'}`}
+        >
+          <span className={`w-1.5 h-1.5 rounded-full inline-block shrink-0
+            ${fileLoadStatus === 'GEOMETRY_READY' ? 'bg-tp-accent-light' :
+              fileLoadStatus === 'FAILED' ? 'bg-tp-error' :
+              fileLoadStatus === 'LOADING' ? 'bg-tp-text-3' :
+              'bg-tp-text-3'}`}
+          />
+          {fileLoadStatus === 'LOADING'       ? 'PARSING…'       :
+           fileLoadStatus === 'GEOMETRY_READY'? 'GEOMETRY READY'  :
+           fileLoadStatus === 'FAILED'        ? 'GEOMETRY FAILED' :
+           fileLoadStatus === 'UNSUPPORTED'   ? 'NO 3D PREVIEW'   : ''}
+        </div>
+      )}
 
       {/* Tree */}
       <div

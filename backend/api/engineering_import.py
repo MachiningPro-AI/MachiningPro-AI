@@ -83,13 +83,16 @@ _FAMILY_LABELS: dict[str, str] = {
 # STEP tessellation (gmsh) — local only, no cloud, no paid API (HARD RULE 03)
 # ---------------------------------------------------------------------------
 
-def _tessellate_step(data: bytes) -> dict[str, Any] | None:
-    """Tessellate STEP bytes with gmsh.
+def _tessellate_brep(data: bytes, suffix: str) -> dict[str, Any] | None:
+    """Tessellate B-Rep geometry (STEP or IGES) with gmsh + OpenCASCADE.
 
-    Returns a browser-safe preview_mesh dict or None on failure.
+    Returns a browser-safe preview_mesh dict, or None on any failure.
     TEMP_FILE_UNIQUE=YES, TEMP_FILE_CLEANUP=YES, GMSH_FINALIZE_GUARANTEED=YES.
-    Node tags are NOT assumed contiguous/zero-based (HARD RULE 17).
-    Only triangle elements (type 2) are promoted to indices.
+    Node tags are NOT assumed contiguous/zero-based.
+    Only triangle elements (element type 2) are promoted to indices.
+
+    ``suffix`` must be ".step"/".stp" for STEP or ".igs"/".iges" for IGES.
+    gmsh derives the CAD kernel from the file extension.
     """
     try:
         import gmsh  # noqa: PLC0415
@@ -98,12 +101,13 @@ def _tessellate_step(data: bytes) -> dict[str, Any] | None:
 
     tmp_path: str | None = None
     try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".step") as f:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as f:
             f.write(data)
             tmp_path = f.name
 
         gmsh.initialize(["-v", "0"], interruptible=False)
         try:
+            gmsh.option.setNumber("General.Verbosity", 0)
             gmsh.open(tmp_path)
             gmsh.model.mesh.generate(2)
 
@@ -153,6 +157,14 @@ def _tessellate_step(data: bytes) -> dict[str, Any] | None:
                 os.unlink(tmp_path)
             except OSError:
                 pass
+
+
+def _tessellate_step(data: bytes) -> dict[str, Any] | None:
+    return _tessellate_brep(data, ".step")
+
+
+def _tessellate_iges(data: bytes) -> dict[str, Any] | None:
+    return _tessellate_brep(data, ".igs")
 
 
 # ---------------------------------------------------------------------------
@@ -468,14 +480,22 @@ def import_file(
                 "zmax": float(bb.max_point.z.value),
             }
 
-    # STEP preview: local gmsh tessellation
+    # B-Rep preview: local gmsh tessellation (STEP and IGES).
+    # Attempted whenever the file reached at least Level 1 parsing (header
+    # recognised + DATA section found).  The token adapter returns
+    # "PARTIAL_SUCCESS" when pythonocc-core is absent; gmsh tessellates
+    # directly from the raw bytes without a geometry kernel, so the condition
+    # is relaxed to "not an outright parse failure."
     preview_mesh: dict[str, Any] | None = None
+    _can_tessellate = import_status not in ("FAILED", "UNRECOGNIZED", "PARSE_ERROR")
     if (
         document.format_descriptor.family == FormatFamily.NEUTRAL_EXCHANGE
-        and format_id.startswith("STEP")
-        and import_status == "SUCCESS"
+        and _can_tessellate
     ):
-        preview_mesh = _tessellate_step(data)
+        if format_id.startswith("STEP"):
+            preview_mesh = _tessellate_step(data)
+        elif format_id == "IGES":
+            preview_mesh = _tessellate_iges(data)
         if preview_mesh is not None:
             has_renderable_geometry = True
 

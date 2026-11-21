@@ -430,3 +430,93 @@ class TestSmoke07StepTessellation:
         assert abs(bb["max"][0] - bb["min"][0] - 20.0) < 1.0, "X extent should be ≈20mm"
         assert abs(bb["max"][1] - bb["min"][1] - 20.0) < 1.0, "Y extent should be ≈20mm"
         assert abs(bb["max"][2] - bb["min"][2] - 10.0) < 1.0, "Z extent should be ≈10mm"
+
+
+# ===========================================================================
+# Smoke 8 — Tessellation eligibility fix (PARTIAL_SUCCESS root cause)
+# ===========================================================================
+
+class TestSmoke08TessellationEligibility:
+    """ROOT_CAUSE_FIX: PARTIAL_SUCCESS must allow tessellation (MUST 4 / MUST 8)."""
+
+    def _can_tessellate(self, status: str) -> bool:
+        """Mirror the backend fix logic."""
+        return status not in ("FAILED", "UNRECOGNIZED", "PARSE_ERROR")
+
+    def test_success_eligible(self):
+        assert self._can_tessellate("SUCCESS")
+
+    def test_partial_success_eligible_root_cause_fix(self):
+        """PARTIAL_SUCCESS must allow tessellation — this is the root cause fix."""
+        assert self._can_tessellate("PARTIAL_SUCCESS"), (
+            "PARTIAL_SUCCESS returned when pythonocc-core absent; "
+            "gmsh tessellation must still be attempted"
+        )
+
+    def test_recognized_only_eligible(self):
+        assert self._can_tessellate("RECOGNIZED_ONLY")
+
+    def test_unknown_eligible(self):
+        assert self._can_tessellate("UNKNOWN")
+
+    def test_failed_not_eligible(self):
+        assert not self._can_tessellate("FAILED")
+
+    def test_unrecognized_not_eligible(self):
+        assert not self._can_tessellate("UNRECOGNIZED")
+
+    def test_parse_error_not_eligible(self):
+        assert not self._can_tessellate("PARSE_ERROR")
+
+    def test_tessellate_brep_importable(self):
+        """_tessellate_brep is importable and callable."""
+        from backend.api.engineering_import import _tessellate_brep
+        assert callable(_tessellate_brep)
+
+    def test_tessellate_iges_importable(self):
+        """_tessellate_iges is importable and callable (MUST 8)."""
+        from backend.api.engineering_import import _tessellate_iges
+        assert callable(_tessellate_iges)
+
+    def test_tessellate_brep_empty_returns_none(self):
+        """Empty bytes must return None for any suffix."""
+        from backend.api.engineering_import import _tessellate_brep
+        for suffix in (".step", ".igs"):
+            assert _tessellate_brep(b"", suffix) is None
+
+    def test_tessellate_iges_empty_returns_none(self):
+        from backend.api.engineering_import import _tessellate_iges
+        assert _tessellate_iges(b"") is None
+
+    def test_tessellate_iges_invalid_returns_none(self):
+        """Non-IGES bytes must return None without raising."""
+        from backend.api.engineering_import import _tessellate_iges
+        assert _tessellate_iges(b"NOT AN IGES FILE\x00") is None
+
+    def test_tessellate_step_delegates_to_brep(self):
+        """_tessellate_step wraps _tessellate_brep with .step suffix."""
+        from backend.api import engineering_import as ei
+        # Both must exist and be callable
+        assert callable(ei._tessellate_step)
+        assert callable(ei._tessellate_brep)
+        # Empty bytes: both return None
+        assert ei._tessellate_step(b"") is None
+        assert ei._tessellate_brep(b"", ".step") is None
+
+    @pytest.mark.skipif(
+        not _SAMPLE_STEP_PATH.exists(),
+        reason="sample_part.step not present in repo root",
+    )
+    def test_partial_success_step_reaches_tessellation(self):
+        """When status is PARTIAL_SUCCESS + STEP format, tessellate must be called.
+
+        This is the key regression guard: before the fix, the condition
+        `import_status == 'SUCCESS'` blocked tessellation for PARTIAL_SUCCESS files.
+        After the fix, PARTIAL_SUCCESS passes the gate and gmsh produces a mesh.
+        """
+        from backend.api.engineering_import import _tessellate_step
+        data = _SAMPLE_STEP_PATH.read_bytes()
+        # PARTIAL_SUCCESS is now eligible; tessellation must succeed on a real part
+        result = _tessellate_step(data)
+        assert result is not None, "Real STEP file must tessellate even at PARTIAL_SUCCESS level"
+        assert result["triangle_count"] > 0

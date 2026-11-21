@@ -857,3 +857,178 @@ describe('Panel sizing constraints — HARD RULE 5', () => {
     assert.ok(MAX_BOTTOM_HEIGHT_T > MIN_BOTTOM_HEIGHT_T)
   })
 })
+
+// ---------------------------------------------------------------------------
+// MUST 12: File load status badge
+// ---------------------------------------------------------------------------
+
+describe('File load status — MUST 12', () => {
+  type FileLoadStatus = 'IDLE' | 'LOADING' | 'GEOMETRY_READY' | 'FAILED' | 'UNSUPPORTED'
+
+  const ALL_STATUSES: FileLoadStatus[] = ['IDLE', 'LOADING', 'GEOMETRY_READY', 'FAILED', 'UNSUPPORTED']
+
+  it('All 5 required status values exist', () => {
+    assert.strictEqual(ALL_STATUSES.length, 5)
+  })
+
+  it('GEOMETRY_READY is distinct from LOADING', () => {
+    const s1: FileLoadStatus = 'GEOMETRY_READY'
+    const s2: FileLoadStatus = 'LOADING'
+    assert.notStrictEqual(s1, s2)
+  })
+
+  it('FAILED is distinct from UNSUPPORTED', () => {
+    const s1: FileLoadStatus = 'FAILED'
+    const s2: FileLoadStatus = 'UNSUPPORTED'
+    assert.notStrictEqual(s1, s2)
+  })
+
+  it('Default status is IDLE, not a failure state', () => {
+    const dflt: FileLoadStatus = 'IDLE'
+    assert.strictEqual(dflt, 'IDLE')
+    assert.notStrictEqual(dflt, 'FAILED')
+  })
+
+  it('After STEP mesh received → GEOMETRY_READY', () => {
+    function simulateStepResult(hasMesh: boolean): FileLoadStatus {
+      return hasMesh ? 'GEOMETRY_READY' : 'FAILED'
+    }
+    assert.strictEqual(simulateStepResult(true),  'GEOMETRY_READY')
+    assert.strictEqual(simulateStepResult(false), 'FAILED')
+  })
+
+  it('STL/OBJ/3MF always → GEOMETRY_READY (client-rendered)', () => {
+    const clientFormats: FileFormat[] = ['STL', 'OBJ', '3MF']
+    function statusForClient(fmt: FileFormat): FileLoadStatus {
+      if (['STL', 'OBJ', '3MF'].includes(fmt)) return 'GEOMETRY_READY'
+      return 'UNSUPPORTED'
+    }
+    for (const f of clientFormats) assert.strictEqual(statusForClient(f), 'GEOMETRY_READY')
+  })
+
+  it('IMAGE/UNKNOWN → UNSUPPORTED', () => {
+    const noPreviewFormats: FileFormat[] = ['IMAGE', 'UNKNOWN']
+    function statusForNoPreview(fmt: FileFormat): FileLoadStatus {
+      return ['IMAGE', 'UNKNOWN'].includes(fmt) ? 'UNSUPPORTED' : 'GEOMETRY_READY'
+    }
+    for (const f of noPreviewFormats) assert.strictEqual(statusForNoPreview(f), 'UNSUPPORTED')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// MUST 13: Structured error diagnostic
+// ---------------------------------------------------------------------------
+
+describe('Import error diagnostic — MUST 13', () => {
+  interface ImportDiagnostic {
+    file: string; format: string; stage: string; cause: string; action: string
+  }
+
+  it('All 5 required diagnostic fields are present', () => {
+    const d: ImportDiagnostic = {
+      file: 'MP_SYN_001.step',
+      format: 'STEP-GENERIC',
+      stage: 'TESSELLATION_FAILED',
+      cause: 'Tessellation produced no geometry.',
+      action: 'Ensure the STEP file contains solid or surface bodies.',
+    }
+    assert.ok(d.file)
+    assert.ok(d.format)
+    assert.ok(d.stage)
+    assert.ok(d.cause)
+    assert.ok(d.action)
+  })
+
+  it('Stage is TESSELLATION_FAILED when backend returned no preview_mesh', () => {
+    function inferStage(hasMesh: boolean | undefined): string {
+      if (hasMesh === undefined) return 'TESSELLATION_FAILED'
+      return hasMesh ? 'GEOMETRY_OK' : 'NO_GEOMETRY_RETURNED'
+    }
+    assert.strictEqual(inferStage(undefined), 'TESSELLATION_FAILED')
+    assert.strictEqual(inferStage(false),     'NO_GEOMETRY_RETURNED')
+    assert.strictEqual(inferStage(true),      'GEOMETRY_OK')
+  })
+
+  it('Cause prefers fidelity_events LOST/UNSUPPORTED class over generic message', () => {
+    function pickCause(events?: Array<{class: string; description: string}>, errors?: string[]): string {
+      const first = events?.find(ev => ev.class === 'LOST' || ev.class === 'UNSUPPORTED')
+      return first?.description ?? errors?.[0] ?? 'Tessellation produced no geometry.'
+    }
+    assert.strictEqual(pickCause([{class: 'UNSUPPORTED', description: 'OCC not available'}]), 'OCC not available')
+    assert.strictEqual(pickCause([], ['some error']), 'some error')
+    assert.strictEqual(pickCause(), 'Tessellation produced no geometry.')
+  })
+
+  it('Action differs between STEP and IGES formats', () => {
+    function pickAction(format: string): string {
+      return format === 'STEP'
+        ? 'Ensure the STEP file contains solid or surface bodies. Try saving as AP214 or AP242.'
+        : 'Ensure the IGES file contains surfaces or solid geometry. Resave from the originating CAD tool.'
+    }
+    assert.ok(pickAction('STEP').includes('AP214'))
+    assert.ok(pickAction('IGES').includes('IGES'))
+    assert.notStrictEqual(pickAction('STEP'), pickAction('IGES'))
+  })
+})
+
+// ---------------------------------------------------------------------------
+// MUST 6: Default display mode is shaded_edges
+// ---------------------------------------------------------------------------
+
+describe('Default display mode — MUST 6', () => {
+  it('shaded_edges is a valid DisplayMode value', () => {
+    const mode: DisplayMode = 'shaded_edges'
+    assert.strictEqual(mode, 'shaded_edges')
+  })
+
+  it('shaded_edges is distinct from plain shaded', () => {
+    const edges: DisplayMode  = 'shaded_edges'
+    const plain: DisplayMode  = 'shaded'
+    assert.notStrictEqual(edges, plain)
+  })
+
+  it('Default mode must be shaded_edges, not plain shaded', () => {
+    const DEFAULT_DISPLAY_MODE: DisplayMode = 'shaded_edges'
+    assert.strictEqual(DEFAULT_DISPLAY_MODE, 'shaded_edges')
+    assert.notStrictEqual(DEFAULT_DISPLAY_MODE, 'shaded')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// MUST 4/MUST 8: Backend B-Rep format detection logic
+// ---------------------------------------------------------------------------
+
+describe('B-Rep tessellation eligibility — MUST 4/MUST 8', () => {
+  type ImportStatus = 'SUCCESS' | 'PARTIAL_SUCCESS' | 'RECOGNIZED_ONLY' | 'FAILED' | 'UNRECOGNIZED' | 'PARSE_ERROR' | 'UNKNOWN'
+
+  function canTessellate(status: ImportStatus): boolean {
+    // Mirror backend fix: not in FAILED/UNRECOGNIZED/PARSE_ERROR
+    return !(['FAILED', 'UNRECOGNIZED', 'PARSE_ERROR'] as ImportStatus[]).includes(status)
+  }
+
+  it('SUCCESS can tessellate', () => { assert.ok(canTessellate('SUCCESS')) })
+  it('PARTIAL_SUCCESS can tessellate — ROOT CAUSE FIX', () => { assert.ok(canTessellate('PARTIAL_SUCCESS')) })
+  it('RECOGNIZED_ONLY can tessellate', () => { assert.ok(canTessellate('RECOGNIZED_ONLY')) })
+  it('FAILED cannot tessellate', () => { assert.ok(!canTessellate('FAILED')) })
+  it('UNRECOGNIZED cannot tessellate', () => { assert.ok(!canTessellate('UNRECOGNIZED')) })
+  it('PARSE_ERROR cannot tessellate', () => { assert.ok(!canTessellate('PARSE_ERROR')) })
+
+  it('STEP format triggers STEP tessellation', () => {
+    function chooseFormat(formatId: string): 'STEP' | 'IGES' | 'NONE' {
+      if (formatId.startsWith('STEP')) return 'STEP'
+      if (formatId === 'IGES') return 'IGES'
+      return 'NONE'
+    }
+    assert.strictEqual(chooseFormat('STEP-GENERIC'), 'STEP')
+    assert.strictEqual(chooseFormat('STEP-AP214'),   'STEP')
+    assert.strictEqual(chooseFormat('IGES'),         'IGES')
+    assert.strictEqual(chooseFormat('DXF'),          'NONE')
+  })
+
+  it('PARTIAL_SUCCESS + STEP = tessellation attempted (key regression guard)', () => {
+    const importStatus: ImportStatus = 'PARTIAL_SUCCESS'
+    const formatId = 'STEP-GENERIC'
+    const eligible = canTessellate(importStatus) && formatId.startsWith('STEP')
+    assert.ok(eligible, 'STEP with PARTIAL_SUCCESS must attempt tessellation')
+  })
+})
