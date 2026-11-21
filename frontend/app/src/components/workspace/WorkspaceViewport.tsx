@@ -63,10 +63,15 @@ function fitToBox(
   box.getCenter(center)
   box.getSize(size)
   const maxDim = Math.max(size.x, size.y, size.z)
+  if (maxDim <= 0) return
   const fovRad = (camera.fov * Math.PI) / 180
   const dist   = (maxDim / 2 / Math.tan(fovRad / 2)) * 1.6
   camera.position.set(center.x + dist * 0.25, center.y + dist * 0.5, center.z + dist)
   camera.lookAt(center)
+  // Update near/far so the entire model is inside the frustum regardless of offset from origin
+  camera.near = Math.max(dist * 0.001, 0.001)
+  camera.far  = dist * 100
+  camera.updateProjectionMatrix()
   controls.target.copy(center)
   controls.update()
 }
@@ -457,7 +462,7 @@ export default function WorkspaceViewport({
     setParseError(null)
 
     if (!wsFile && !mesh) return
-    if (wsFile && SERVER_RENDER_FORMATS.includes(wsFile.format)) return  // handled by mesh prop
+    if (wsFile && !mesh && SERVER_RENDER_FORMATS.includes(wsFile.format)) return  // mesh not yet arrived; wait for it
 
     setLoading(true)
     let alive = true

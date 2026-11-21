@@ -1155,3 +1155,73 @@ describe('IGES diagnostics fields — MUST 10/11', () => {
     assert.ok(diag.skipped_presentation_count >= 1)
   })
 })
+
+// ---------------------------------------------------------------------------
+// SERVER_RENDER_FORMATS guard — mesh-invisible-viewport fix (STEP/IGES)
+// ---------------------------------------------------------------------------
+// The viewport mesh-load effect has this guard:
+//   if (wsFile && !mesh && SERVER_RENDER_FORMATS.includes(wsFile.format)) return
+// MUST: when wsFile is STEP/IGES AND mesh is present, the guard must NOT fire
+// (the mesh prop is the signal that the backend tessellation has arrived).
+// Before the fix, the guard was `if (wsFile && SERVER_RENDER_FORMATS...)` which
+// fired even when mesh was already set, causing the mesh to never render.
+// ---------------------------------------------------------------------------
+
+describe('SERVER_RENDER_FORMATS render guard — STEP/IGES mesh visibility fix', () => {
+  type FileFormat = 'STL' | 'OBJ' | '3MF' | 'STEP' | 'IGES'
+  const SERVER_RENDER_FORMATS: FileFormat[] = ['STEP', 'IGES']
+
+  interface PreviewMesh { vertex_count: number; triangle_count: number }
+
+  function shouldSkipRenderEffect(
+    wsFile: { format: FileFormat } | null,
+    mesh: PreviewMesh | null,
+  ): boolean {
+    // Mirrors corrected guard: skip only when wsFile is server-format AND mesh not yet arrived
+    if (wsFile && !mesh && SERVER_RENDER_FORMATS.includes(wsFile.format)) return true
+    return false
+  }
+
+  it('wsFile=STEP, mesh=null → guard fires (waiting for backend mesh)', () => {
+    assert.ok(shouldSkipRenderEffect({ format: 'STEP' }, null))
+  })
+
+  it('wsFile=IGES, mesh=null → guard fires (waiting for backend mesh)', () => {
+    assert.ok(shouldSkipRenderEffect({ format: 'IGES' }, null))
+  })
+
+  it('wsFile=STEP, mesh=present → guard does NOT fire (must render)', () => {
+    const mesh = { vertex_count: 1415, triangle_count: 2874 }
+    assert.ok(!shouldSkipRenderEffect({ format: 'STEP' }, mesh))
+  })
+
+  it('wsFile=IGES, mesh=present → guard does NOT fire (must render)', () => {
+    const mesh = { vertex_count: 550, triangle_count: 1104 }
+    assert.ok(!shouldSkipRenderEffect({ format: 'IGES' }, mesh))
+  })
+
+  it('wsFile=null, mesh=present → guard does not fire (pure mesh prop path)', () => {
+    const mesh = { vertex_count: 100, triangle_count: 50 }
+    assert.ok(!shouldSkipRenderEffect(null, mesh))
+  })
+
+  it('wsFile=STL, mesh=null → guard does not fire (client-render format)', () => {
+    assert.ok(!shouldSkipRenderEffect({ format: 'STL' }, null))
+  })
+
+  it('the BUG (old guard) would incorrectly skip STEP+mesh', () => {
+    // Old bug: `if (wsFile && SERVER_RENDER_FORMATS.includes(wsFile.format)) return`
+    function oldBuggedGuard(
+      wsFile: { format: FileFormat } | null,
+      _mesh: PreviewMesh | null,
+    ): boolean {
+      if (wsFile && SERVER_RENDER_FORMATS.includes(wsFile.format)) return true
+      return false
+    }
+    const mesh = { vertex_count: 1415, triangle_count: 2874 }
+    // Old code: fires even when mesh is present — this is the bug
+    assert.ok(oldBuggedGuard({ format: 'STEP' }, mesh))
+    // New code: does not fire when mesh is present — this is the fix
+    assert.ok(!shouldSkipRenderEffect({ format: 'STEP' }, mesh))
+  })
+})
