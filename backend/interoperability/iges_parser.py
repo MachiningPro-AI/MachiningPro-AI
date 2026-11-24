@@ -147,6 +147,7 @@ class IgesModel:
     entities: tuple[IgesEntity, ...]
     entities_by_pointer: MappingProxyType
     section_counts: MappingProxyType
+    cyclic_reference_warnings: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -944,7 +945,14 @@ def _validate_entity_resource_counts(
 
 def _validate_reference_graph(
     entities_by_pointer: MappingProxyType, limits: IgesLimits
-) -> None:
+) -> list[str]:
+    """Validate entity reference graph.
+
+    Returns a list of cyclic-reference warning strings (empty when no cycles
+    exist).  Cycles are skipped rather than treated as fatal so that files
+    whose only problematic references are in presentation/color entities can
+    still yield parseable geometry.
+    """
     graph: dict[int, tuple[int, ...]] = {}
     for pointer, entity in entities_by_pointer.items():
         targets: list[int] = []
@@ -970,6 +978,8 @@ def _validate_reference_graph(
             targets.append(target_pointer)
         graph[pointer] = tuple(targets)
 
+    cyclic_warnings: list[str] = []
+    cyclic_edges: set[tuple[int, int]] = set()
     colors: dict[int, int] = {}
     postorder: list[int] = []
     for root in graph:
@@ -990,21 +1000,31 @@ def _validate_reference_graph(
             stack[-1] = (node, child_index + 1)
             child_color = colors.get(child, 0)
             if child_color == 1:
-                raise IgesParseError(
-                    f"cyclic IGES entity reference involving DE {child}"
-                )
+                # Cyclic edge: record warning and skip instead of raising.
+                # This allows files whose cycles are confined to presentation
+                # or color entities to continue processing.
+                edge = (node, child)
+                if edge not in cyclic_edges:
+                    cyclic_edges.add(edge)
+                    cyclic_warnings.append(
+                        f"cyclic IGES entity reference involving DE {child}"
+                    )
+                continue
             if child_color == 0:
                 stack.append((child, 0))
 
     longest_path: dict[int, int] = {}
     for node in postorder:
         depth = max(
-            (longest_path[child] + 1 for child in graph[node]),
+            (longest_path[child] + 1 for child in graph[node]
+             if (node, child) not in cyclic_edges),
             default=0,
         )
         if depth > limits.max_reference_depth:
             raise IgesParseError("IGES reference depth limit exceeded")
         longest_path[node] = depth
+
+    return cyclic_warnings
 
 
 def parse_iges_bytes(
@@ -1023,7 +1043,7 @@ def parse_iges_bytes(
     entities_by_pointer = MappingProxyType(
         {entity.directory.de_pointer: entity for entity in entities}
     )
-    _validate_reference_graph(entities_by_pointer, limits)
+    cyclic_warnings = _validate_reference_graph(entities_by_pointer, limits)
     return IgesModel(
         global_section=global_section,
         entities=entities,
@@ -1031,4 +1051,5 @@ def parse_iges_bytes(
         section_counts=MappingProxyType(
             {name: len(section_records) for name, section_records in sections.items()}
         ),
+        cyclic_reference_warnings=tuple(cyclic_warnings),
     )

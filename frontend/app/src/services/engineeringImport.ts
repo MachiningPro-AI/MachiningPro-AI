@@ -89,6 +89,12 @@ export interface ImportResult {
     skipped_metadata_count: number
     unsupported_geometric_count: number
     total_skipped_non_geometric: number
+    parser_status?: 'SUCCESS' | 'PARTIAL'
+    cyclic_reference_count?: number
+    cyclic_reference_des?: number[]
+    tessellation_status?: 'SUCCESS' | 'FAILED' | 'NOT_ATTEMPTED'
+    vertex_count?: number
+    triangle_count?: number
   } | null
   // CAD Import Level-1 common fields
   status?: string

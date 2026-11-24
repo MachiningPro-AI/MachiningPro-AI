@@ -320,8 +320,16 @@ export default function WorkspacePropertiesPanel({
                 {igesDiagnostics && igesDiagnostics.iges_import_status !== 'COMPLETE' && (
                   <div className="px-3 pb-2">
                     <SectionHeader label="IGES Import Diagnostics" />
-                    <PropRow label="Status"      value={igesDiagnostics.iges_import_status} filter={filter} />
-                    <PropRow label="Geometry"    value={igesDiagnostics.renderable_geometry ? 'Present' : 'None'} filter={filter} />
+                    <PropRow label="Import Status"  value={igesDiagnostics.iges_import_status} filter={filter} />
+                    <PropRow label="Parser Status"  value={igesDiagnostics.parser_status ?? '—'} filter={filter} />
+                    <PropRow label="Renderable Geom." value={igesDiagnostics.renderable_geometry ? 'Present' : 'None'} filter={filter} />
+                    {(igesDiagnostics.cyclic_reference_count ?? 0) > 0 && (
+                      <PropRow
+                        label="Cyclic References"
+                        value={`${igesDiagnostics.cyclic_reference_count} detected${igesDiagnostics.cyclic_reference_des?.length ? ` (DE: ${igesDiagnostics.cyclic_reference_des.join(', ')})` : ''}`}
+                        filter={filter}
+                      />
+                    )}
                     {igesDiagnostics.skipped_presentation_count > 0 && (
                       <PropRow label="Presentation" value={`${igesDiagnostics.skipped_presentation_count} entities skipped (non-geometric)`} filter={filter} />
                     )}
@@ -333,6 +341,13 @@ export default function WorkspacePropertiesPanel({
                     )}
                     {igesDiagnostics.unsupported_geometric_count > 0 && (
                       <PropRow label="Unsup. Geom." value={`${igesDiagnostics.unsupported_geometric_count} geometric entities unsupported`} filter={filter} />
+                    )}
+                    <PropRow label="Tessellation"   value={igesDiagnostics.tessellation_status ?? '—'} filter={filter} />
+                    {(igesDiagnostics.vertex_count ?? 0) > 0 && (
+                      <PropRow label="Vertex Count"   value={igesDiagnostics.vertex_count} filter={filter} />
+                    )}
+                    {(igesDiagnostics.triangle_count ?? 0) > 0 && (
+                      <PropRow label="Triangle Count" value={igesDiagnostics.triangle_count} filter={filter} />
                     )}
                     <PropRow label="Note" value="Geometric surfaces rendered; non-geometric records ignored" filter={filter} />
                   </div>

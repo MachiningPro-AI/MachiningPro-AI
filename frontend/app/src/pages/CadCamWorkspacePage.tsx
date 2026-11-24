@@ -495,6 +495,9 @@ export default function CadCamWorkspacePage() {
     file: string; format: string; stage: string; cause: string; action: string
   }
   const [importDiagnostic, setImportDiagnostic] = useState<ImportDiagnostic | null>(null)
+  // MUST 7: non-blocking warning for GEOMETRY_READY_WITH_WARNINGS
+  interface ImportWarning { details: string[] }
+  const [importWarning, setImportWarning] = useState<ImportWarning | null>(null)
   // IGES-specific import diagnostics for properties panel
   const [igesDiagnostics, setIgesDiagnostics] = useState<import('../services/engineeringImport').ImportResult['iges_diagnostics']>(null)
 
@@ -544,6 +547,7 @@ export default function CadCamWorkspacePage() {
     setMesh(null)
     setBackendError(null)
     setImportDiagnostic(null)
+    setImportWarning(null)
     setIgesDiagnostics(null)
     setVtxCount(0)
     setTriCount(0)
@@ -561,6 +565,22 @@ export default function CadCamWorkspacePage() {
           // GEOMETRY_READY_WITH_WARNINGS when non-geometric entities were skipped
           const hasWarnings = result.iges_diagnostics?.iges_import_status === 'PARTIAL'
           setFileLoadStatus(hasWarnings ? 'GEOMETRY_READY_WITH_WARNINGS' : 'GEOMETRY_READY')
+          if (hasWarnings && result.iges_diagnostics) {
+            const diag = result.iges_diagnostics
+            const warnDetails: string[] = [
+              `Parser status: ${diag.parser_status ?? 'PARTIAL'}`,
+            ]
+            if ((diag.cyclic_reference_count ?? 0) > 0) {
+              const des = diag.cyclic_reference_des?.length
+                ? ` (DE: ${diag.cyclic_reference_des.join(', ')})`
+                : ''
+              warnDetails.push(`Cyclic reference detected${des}`)
+            }
+            warnDetails.push(`Renderable geometry: ${diag.renderable_geometry ? 'YES' : 'NO'}`)
+            setImportWarning({ details: warnDetails })
+          } else {
+            setImportWarning(null)
+          }
         } else {
           // MUST 13: structured diagnostic from real API data
           const firstError = result.fidelity_events?.find(ev => ev.class === 'LOST' || ev.class === 'UNSUPPORTED')
@@ -609,6 +629,7 @@ export default function CadCamWorkspacePage() {
     setLoadingBackend(false)
     setBackendError(null)
     setImportDiagnostic(null)
+    setImportWarning(null)
     setIgesDiagnostics(null)
     setFileLoadStatus('IDLE')
     setVtxCount(0)
@@ -865,6 +886,33 @@ export default function CadCamWorkspacePage() {
           {/* Center: 3D viewport */}
           <div className="flex-1 overflow-hidden relative min-w-0">
             {/* MUST 13: Structured error diagnostic panel */}
+            {/* MUST 7: Non-blocking warning notification for GEOMETRY_READY_WITH_WARNINGS */}
+            {!importDiagnostic && importWarning && fileLoadStatus === 'GEOMETRY_READY_WITH_WARNINGS' && (
+              <div className="absolute top-2 left-2 right-2 z-10 max-w-lg mx-auto
+                              bg-tp-surface border border-yellow-500/60 rounded shadow-lg shadow-black/40
+                              text-[11px]">
+                <div className="flex items-center gap-2 px-3 py-2 bg-yellow-500/10 border-b border-yellow-500/30">
+                  <AlertTriangle size={12} className="text-yellow-400 shrink-0" aria-hidden="true" />
+                  <span className="font-semibold text-yellow-300 uppercase tracking-wider text-[10px]">
+                    Geometry loaded with warnings
+                  </span>
+                  <button
+                    type="button"
+                    className="ml-auto text-tp-text-3 hover:text-tp-text"
+                    onClick={() => setImportWarning(null)}
+                    aria-label="Dismiss"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+                <div className="px-3 py-2 space-y-0.5">
+                  {importWarning.details.map((line, i) => (
+                    <div key={i} className="text-tp-text-2 font-mono">{line}</div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {importDiagnostic ? (
               <div className="absolute top-2 left-2 right-2 z-10 max-w-lg mx-auto
                               bg-tp-surface border border-tp-error/60 rounded shadow-lg shadow-black/40

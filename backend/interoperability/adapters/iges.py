@@ -274,6 +274,14 @@ class IgesTokenAdapter(FormatAdapter):
             return session.build()
 
         session.mark_parsed()
+        # Cyclic references in the entity graph are non-fatal: the reference
+        # graph validator skips the offending edge and returns a warning string
+        # for each cycle found.  Record them as LOST fidelity events so the
+        # import reports PARTIAL rather than SUCCESS.
+        for _warning in model.cyclic_reference_warnings:
+            session.record(FidelityClass.LOST, _warning)
+        if model.cyclic_reference_warnings:
+            session.set_fidelity_completeness(FidelityReportCompleteness.PARTIAL)
         session.set_source_entity_count(len(model.entities))
         entity_counts: dict[int, int] = {}
         for entity in model.entities:

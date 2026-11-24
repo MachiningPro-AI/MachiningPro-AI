@@ -39,6 +39,7 @@ class EntitySpec:
     structure_pointer: int = 0
     status_number: str = "00000000"
     label: str = ""
+    color_number: int = 0  # negative = pointer to type-314 Color Definition entity
 
 
 def _chunks(value: str, width: int) -> list[str]:
@@ -122,7 +123,7 @@ def make_iges(
         second_fields = (
             entity.entity_type,
             0,
-            0,
+            entity.color_number,
             len(parameter_chunks),
             entity.form_number,
             0,
@@ -193,5 +194,33 @@ def make_iges_presentation_and_geometry() -> bytes:
         entities=(
             EntitySpec(314, "314,1.0,0.0,0.0;", label="RED"),
             EntitySpec(110, "110,0,0,0,10,0,0;", label="LINE"),
+        ),
+    )
+
+
+def make_iges_cyclic_no_geometry() -> bytes:
+    """Return a valid IGES file with a deliberate cyclic color reference but no geometry.
+
+    Entity at DE 1 (type 314 Color Definition) has color_number = -1, which
+    makes it reference its own DE pointer — a self-loop cycle.  No geometric
+    entities are present, so iges_import_status must be NO_RENDERABLE_GEOMETRY
+    (not a crash, not fake geometry).
+
+    Used for MUST 13 (negative test): cyclic reference is detected, no crash,
+    no fabricated geometry, correct status.
+    """
+    # DE pointer for the single entity is 1; color_number=-1 → pointer 1 → itself.
+    return make_iges(
+        entities=(
+            EntitySpec(314, "314,0.0,100.0,0.0;", label="GREEN", color_number=-1),
+        ),
+    )
+
+
+def make_iges_simple_line() -> bytes:
+    """Return a minimal valid IGES file with a single Line entity — no cycles."""
+    return make_iges(
+        entities=(
+            EntitySpec(110, "110,0,0,0,5,0,0;", label="LINE"),
         ),
     )

@@ -792,3 +792,336 @@ class TestSmoke09IgesDiagnostics:
         assert diag is not None
         assert diag["iges_import_status"] == "PARTIAL"
         assert diag["renderable_geometry"] is True
+
+
+class TestSmoke10IgesCyclicRecovery:
+    """Cyclic IGES entity references must NOT abort the import when tessellation succeeds.
+
+    Root cause: _validate_reference_graph raised IgesParseError on the first
+    cycle detected, which aborted ALL entity processing.  The fix records a
+    cyclic-reference warning and continues, leaving geometry extraction intact.
+    """
+
+    @staticmethod
+    def _run_import(data: bytes, filename: str = "fixture.igs") -> dict:
+        import io
+
+        from backend.api.engineering_import import import_file
+
+        class _Upload:
+            file = io.BytesIO(data)
+        up = _Upload()
+        up.filename = filename  # type: ignore[attr-defined]
+        return import_file(up)
+
+    # ------------------------------------------------------------------
+    # MUST 2 — cycle detection
+    # ------------------------------------------------------------------
+
+    def test_parser_returns_cyclic_warnings_not_raises(self):
+        """Parser must return cyclic-reference warnings, not raise IgesParseError."""
+        from backend.interoperability.iges_parser import parse_iges_bytes
+        from tests.unit.interoperability.iges_fixtures import make_iges_cyclic_no_geometry
+
+        model = parse_iges_bytes(make_iges_cyclic_no_geometry())
+        assert len(model.cyclic_reference_warnings) >= 1
+        assert any("cyclic" in w.lower() for w in model.cyclic_reference_warnings)
+
+    def test_cyclic_warnings_contain_de_pointer(self):
+        """Each cyclic-reference warning must name the offending DE pointer."""
+        from backend.interoperability.iges_parser import parse_iges_bytes
+        from tests.unit.interoperability.iges_fixtures import make_iges_cyclic_no_geometry
+
+        model = parse_iges_bytes(make_iges_cyclic_no_geometry())
+        assert all("DE" in w for w in model.cyclic_reference_warnings)
+
+    def test_clean_file_has_empty_cyclic_warnings(self):
+        """A file with no cycles produces an empty warnings tuple."""
+        from backend.interoperability.iges_parser import parse_iges_bytes
+        from tests.unit.interoperability.iges_fixtures import make_iges_simple_line
+
+        model = parse_iges_bytes(make_iges_simple_line())
+        assert model.cyclic_reference_warnings == ()
+
+    # ------------------------------------------------------------------
+    # MUST 3 — cycle branch isolation
+    # ------------------------------------------------------------------
+
+    def test_cyclic_entity_does_not_abort_independent_entity(self):
+        """Entities unrelated to a cycle are still present in the parsed model."""
+        from backend.interoperability.iges_parser import parse_iges_bytes
+        from tests.unit.interoperability.iges_fixtures import EntitySpec, make_iges
+
+        transform = "124,1,0,0,0,1,0,0,0,1,0,0;"
+        line = "110,0,0,0,5,0,0;"
+        model = parse_iges_bytes(
+            make_iges(
+                (
+                    EntitySpec(124, transform, transform_pointer=3),  # DE 1 → DE 3
+                    EntitySpec(124, transform, transform_pointer=1),  # DE 3 → DE 1
+                    EntitySpec(110, line),                            # DE 5 (independent)
+                )
+            )
+        )
+        assert len(model.entities) == 3
+        de5 = model.entities_by_pointer.get(5)
+        assert de5 is not None and de5.directory.entity_type == 110
+
+    # ------------------------------------------------------------------
+    # MUST 4 — fallback tessellation / MUST 5 — canonical decision
+    # ------------------------------------------------------------------
+
+    def test_cyclic_fixture_import_status_is_no_renderable_geometry_not_crashed(self):
+        """Cyclic fixture with NO geometry → NO_RENDERABLE_GEOMETRY (not crash, not fake)."""
+        from tests.unit.interoperability.iges_fixtures import make_iges_cyclic_no_geometry
+
+        result = self._run_import(make_iges_cyclic_no_geometry(), "cyclic_no_geom.igs")
+        diag = result.get("iges_diagnostics")
+        assert diag is not None
+        # No geometry entity → no preview mesh
+        assert result.get("preview_mesh") is None
+        assert diag["iges_import_status"] == "NO_RENDERABLE_GEOMETRY"
+        assert diag["renderable_geometry"] is False
+
+    def test_fidelity_event_recorded_for_cyclic_reference(self):
+        """A LOST fidelity event is recorded when a cyclic reference is detected."""
+        from tests.unit.interoperability.iges_fixtures import make_iges_cyclic_no_geometry
+
+        result = self._run_import(make_iges_cyclic_no_geometry())
+        events = result.get("fidelity_events", [])
+        cyclic_events = [
+            ev for ev in events
+            if "cyclic" in ev.get("description", "").lower()
+        ]
+        assert len(cyclic_events) >= 1
+        assert all(ev["class"] == "LOST" for ev in cyclic_events)
+
+    # ------------------------------------------------------------------
+    # MUST 11 — three IGES file test (sample_iges_2.igs cyclic sub-test)
+    # ------------------------------------------------------------------
+
+    def test_sample_iges2_parser_no_longer_raises(self):
+        """sample_iges_2.igs: parser now succeeds; cyclic warning recorded."""
+        from pathlib import Path
+
+        from backend.interoperability.iges_parser import parse_iges_bytes
+
+        path = Path("D:/makina_ogrenmesi/olcum_denemeleri/sample_iges_2.igs")
+        if not path.exists():
+            pytest.skip("sample_iges_2.igs not present")
+
+        model = parse_iges_bytes(path.read_bytes())
+        assert len(model.cyclic_reference_warnings) >= 1
+        assert len(model.entities) > 0  # all 7552 entities still present
+
+    def test_sample_iges2_cyclic_fidelity_event(self):
+        """sample_iges_2.igs cyclic ref → LOST fidelity event in full pipeline."""
+        import io
+        from pathlib import Path
+
+        from backend.api.engineering_import import import_file
+
+        path = Path("D:/makina_ogrenmesi/olcum_denemeleri/sample_iges_2.igs")
+        if not path.exists():
+            pytest.skip("sample_iges_2.igs not present")
+
+        class _Upload:
+            filename = "sample_iges_2.igs"
+            file = io.BytesIO(path.read_bytes())
+
+        result = import_file(_Upload())
+        events = result.get("fidelity_events", [])
+        cyclic_events = [
+            ev for ev in events
+            if "cyclic" in ev.get("description", "").lower() and ev.get("class") == "LOST"
+        ]
+        assert len(cyclic_events) >= 1
+
+    def test_sample_iges2_canonical_geometry_now_extracted(self):
+        """sample_iges_2.igs: after fix, adapter-level geometry is extracted (not just gmsh)."""
+        from pathlib import Path
+
+        from backend.interoperability.iges_mapping import map_iges_model
+        from backend.interoperability.iges_parser import parse_iges_bytes
+
+        path = Path("D:/makina_ogrenmesi/olcum_denemeleri/sample_iges_2.igs")
+        if not path.exists():
+            pytest.skip("sample_iges_2.igs not present")
+
+        model = parse_iges_bytes(path.read_bytes())
+        mapping = map_iges_model(model)
+        assert mapping.geometry is not None
+        geom = mapping.geometry
+        assert len(geom.curves) + len(geom.surfaces) > 0
+
+    # ------------------------------------------------------------------
+    # MUST 12 — presentation entity regression
+    # ------------------------------------------------------------------
+
+    def test_presentation_entity_still_produces_no_renderable_geometry(self):
+        """type-314-only file → NO_RENDERABLE_GEOMETRY (regression guard)."""
+        from tests.unit.interoperability.iges_fixtures import make_iges_presentation_only
+
+        result = self._run_import(make_iges_presentation_only())
+        diag = result.get("iges_diagnostics")
+        assert diag is not None
+        assert diag["iges_import_status"] == "NO_RENDERABLE_GEOMETRY"
+
+    def test_presentation_plus_geometry_still_produces_partial(self):
+        """type-314 + line → PARTIAL (regression guard)."""
+        from tests.unit.interoperability.iges_fixtures import make_iges_presentation_and_geometry
+
+        result = self._run_import(make_iges_presentation_and_geometry())
+        diag = result.get("iges_diagnostics")
+        assert diag is not None
+        assert diag["iges_import_status"] == "PARTIAL"
+
+    # ------------------------------------------------------------------
+    # MUST 13 — negative test: cyclic ref + no geometry
+    # ------------------------------------------------------------------
+
+    def test_cyclic_ref_no_geometry_no_crash_no_fake(self):
+        """Cyclic reference with no renderable geometry: no crash, no fabricated mesh."""
+        from tests.unit.interoperability.iges_fixtures import make_iges_cyclic_no_geometry
+
+        result = self._run_import(make_iges_cyclic_no_geometry(), "cyclic.igs")
+        # Must not crash
+        assert result is not None
+        # Must not fabricate geometry
+        assert result.get("preview_mesh") is None
+        # Correct diagnostic
+        diag = result.get("iges_diagnostics")
+        assert diag is not None
+        assert diag["iges_import_status"] == "NO_RENDERABLE_GEOMETRY"
+        assert diag["renderable_geometry"] is False
+
+    # ------------------------------------------------------------------
+    # MUST 16 — new iges_diagnostics fields: parser_status,
+    #           cyclic_reference_count, cyclic_reference_des,
+    #           tessellation_status, vertex_count, triangle_count
+    # ------------------------------------------------------------------
+
+    def test_parser_status_field_present_for_iges(self):
+        """parser_status must be present in iges_diagnostics."""
+        data = make_iges()
+        result = self._run_import(data)
+        diag = result["iges_diagnostics"]
+        assert "parser_status" in diag, "parser_status missing from iges_diagnostics"
+        assert diag["parser_status"] in ("SUCCESS", "PARTIAL")
+
+    def test_parser_status_success_for_clean_file(self):
+        """Clean IGES file (no cycles) → parser_status=SUCCESS."""
+        from tests.unit.interoperability.iges_fixtures import make_iges_simple_line
+
+        result = self._run_import(make_iges_simple_line(), "clean.igs")
+        diag = result["iges_diagnostics"]
+        assert diag["parser_status"] == "SUCCESS"
+
+    def test_parser_status_partial_for_cyclic_file(self):
+        """IGES file with cyclic reference → parser_status=PARTIAL."""
+        from tests.unit.interoperability.iges_fixtures import make_iges_cyclic_no_geometry
+
+        result = self._run_import(make_iges_cyclic_no_geometry(), "cyclic.igs")
+        diag = result["iges_diagnostics"]
+        assert diag["parser_status"] == "PARTIAL"
+
+    def test_cyclic_reference_count_zero_for_clean_file(self):
+        """Clean IGES file → cyclic_reference_count=0."""
+        from tests.unit.interoperability.iges_fixtures import make_iges_simple_line
+
+        result = self._run_import(make_iges_simple_line(), "clean.igs")
+        diag = result["iges_diagnostics"]
+        assert diag["cyclic_reference_count"] == 0
+
+    def test_cyclic_reference_count_nonzero_for_cyclic_file(self):
+        """Cyclic IGES file → cyclic_reference_count >= 1."""
+        from tests.unit.interoperability.iges_fixtures import make_iges_cyclic_no_geometry
+
+        result = self._run_import(make_iges_cyclic_no_geometry(), "cyclic.igs")
+        diag = result["iges_diagnostics"]
+        assert diag["cyclic_reference_count"] >= 1
+
+    def test_cyclic_reference_des_list_for_cyclic_file(self):
+        """cyclic_reference_des must be a list of DE numbers for a cyclic file."""
+        from tests.unit.interoperability.iges_fixtures import make_iges_cyclic_no_geometry
+
+        result = self._run_import(make_iges_cyclic_no_geometry(), "cyclic.igs")
+        diag = result["iges_diagnostics"]
+        assert isinstance(diag["cyclic_reference_des"], list)
+        assert len(diag["cyclic_reference_des"]) >= 1
+        assert all(isinstance(de, int) for de in diag["cyclic_reference_des"])
+
+    def test_cyclic_reference_des_empty_for_clean_file(self):
+        """Clean IGES → cyclic_reference_des is an empty list."""
+        from tests.unit.interoperability.iges_fixtures import make_iges_simple_line
+
+        result = self._run_import(make_iges_simple_line(), "clean.igs")
+        diag = result["iges_diagnostics"]
+        assert diag["cyclic_reference_des"] == []
+
+    def test_tessellation_status_field_present(self):
+        """tessellation_status must be present in iges_diagnostics."""
+        data = make_iges()
+        result = self._run_import(data)
+        diag = result["iges_diagnostics"]
+        assert "tessellation_status" in diag
+        assert diag["tessellation_status"] in ("SUCCESS", "FAILED", "NOT_ATTEMPTED")
+
+    def test_tessellation_status_failed_for_no_geometry(self):
+        """Presentation-only IGES (no tessellatable geometry) → tessellation_status=FAILED."""
+        from tests.unit.interoperability.iges_fixtures import make_iges_presentation_only
+
+        result = self._run_import(make_iges_presentation_only(), "pres.igs")
+        diag = result["iges_diagnostics"]
+        # No mesh produced from a presentation-only file
+        assert result.get("preview_mesh") is None
+        assert diag["tessellation_status"] == "FAILED"
+
+    def test_vertex_count_zero_for_no_geometry(self):
+        """vertex_count must be 0 when tessellation fails (no mesh)."""
+        from tests.unit.interoperability.iges_fixtures import make_iges_presentation_only
+
+        result = self._run_import(make_iges_presentation_only(), "pres.igs")
+        diag = result["iges_diagnostics"]
+        assert diag["vertex_count"] == 0
+
+    def test_triangle_count_zero_for_no_geometry(self):
+        """triangle_count must be 0 when tessellation fails (no mesh)."""
+        from tests.unit.interoperability.iges_fixtures import make_iges_presentation_only
+
+        result = self._run_import(make_iges_presentation_only(), "pres.igs")
+        diag = result["iges_diagnostics"]
+        assert diag["triangle_count"] == 0
+
+    @pytest.mark.parametrize("iges_path", [
+        "D:/makina_ogrenmesi/olcum_denemeleri/sample_iges_2.igs",
+    ])
+    def test_sample_iges2_new_diagnostic_fields(self, iges_path: str):
+        """sample_iges_2.igs: parser_status=PARTIAL, cyclic_reference_count>=1, tessellation=SUCCESS."""
+        import io
+
+        path = Path(iges_path)
+        if not path.exists():
+            pytest.skip(f"Real IGES file not present: {iges_path}")
+
+        from backend.api.engineering_import import import_file
+
+        class _Upload:
+            file = io.BytesIO(path.read_bytes())
+        up = _Upload()
+        up.filename = path.name  # type: ignore[attr-defined]
+        result = import_file(up)
+
+        diag = result.get("iges_diagnostics")
+        assert diag is not None
+
+        assert diag["parser_status"] == "PARTIAL", (
+            "sample_iges_2.igs cyclic ref must yield parser_status=PARTIAL"
+        )
+        assert diag["cyclic_reference_count"] >= 1, "Must detect at least one cyclic reference"
+        assert 1 in diag["cyclic_reference_des"], "DE 1 must appear in cyclic_reference_des"
+        assert diag["tessellation_status"] == "SUCCESS", (
+            "sample_iges_2.igs must tessellate successfully despite cyclic ref"
+        )
+        assert diag["vertex_count"] > 0
+        assert diag["triangle_count"] > 0

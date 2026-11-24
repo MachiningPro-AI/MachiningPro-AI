@@ -19,6 +19,7 @@ Level 0–1 metadata for ALL supported formats.
 from __future__ import annotations
 
 import os
+import re
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -543,6 +544,26 @@ def import_file(
             _iges_status = "PARTIAL"
         else:
             _iges_status = "COMPLETE"
+        # Cyclic reference diagnostics derived from LOST fidelity events.
+        _cyclic_events = [
+            ev for ev in fidelity_events
+            if ev.get("class") == "LOST"
+            and "cyclic iges entity reference" in ev.get("description", "").lower()
+        ]
+        _cyclic_des: list[int] = []
+        for _ev in _cyclic_events:
+            for _m in re.findall(r"\bDE\s+(\d+)", _ev.get("description", "")):
+                _de = int(_m)
+                if _de not in _cyclic_des:
+                    _cyclic_des.append(_de)
+        _parser_status = "PARTIAL" if _cyclic_events else "SUCCESS"
+        # Tessellation outcome derived from mesh presence and tessellate flag.
+        if not _can_tessellate:
+            _tess_status = "NOT_ATTEMPTED"
+        elif _has_iges_mesh:
+            _tess_status = "SUCCESS"
+        else:
+            _tess_status = "FAILED"
         iges_diagnostics = {
             "renderable_geometry": _has_iges_mesh,
             "iges_import_status": _iges_status,
@@ -551,6 +572,12 @@ def import_file(
             "skipped_metadata_count": _skipped_meta,
             "unsupported_geometric_count": _unsup_geom,
             "total_skipped_non_geometric": _total_non_geom,
+            "parser_status": _parser_status,
+            "cyclic_reference_count": len(_cyclic_events),
+            "cyclic_reference_des": _cyclic_des,
+            "tessellation_status": _tess_status,
+            "vertex_count": preview_mesh["vertex_count"] if preview_mesh else 0,
+            "triangle_count": preview_mesh["triangle_count"] if preview_mesh else 0,
         }
 
     # Separated status model: individual concern statuses preserved for

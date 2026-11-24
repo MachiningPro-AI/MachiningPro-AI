@@ -310,17 +310,55 @@ def test_rejects_wrong_analytic_surface_reference_type() -> None:
         )
 
 
-def test_rejects_cyclic_directory_transform_references() -> None:
+def test_cyclic_directory_transform_references_produce_warning_not_error() -> None:
+    # Cyclic transform references are non-fatal at the parse level.
+    # The mapping step (_matrix_for_entity) has its own cycle guard.
     transform = "124,1,0,0,0,1,0,0,0,1,0,0;"
-    with pytest.raises(IgesParseError, match="cyclic.*reference"):
-        parse_iges_bytes(
-            make_iges(
-                (
-                    EntitySpec(124, transform, transform_pointer=3),
-                    EntitySpec(124, transform, transform_pointer=1),
-                )
+    model = parse_iges_bytes(
+        make_iges(
+            (
+                EntitySpec(124, transform, transform_pointer=3),
+                EntitySpec(124, transform, transform_pointer=1),
             )
         )
+    )
+    assert len(model.cyclic_reference_warnings) >= 1
+    assert any("cyclic" in w.lower() for w in model.cyclic_reference_warnings)
+    assert len(model.entities) == 2
+
+
+def test_cyclic_color_reference_produces_warning_and_entity_survives() -> None:
+    # Cyclic color-number reference (entity references itself as its own color).
+    from tests.unit.interoperability.iges_fixtures import make_iges_cyclic_no_geometry
+    model = parse_iges_bytes(make_iges_cyclic_no_geometry())
+    assert len(model.cyclic_reference_warnings) == 1
+    assert "DE 1" in model.cyclic_reference_warnings[0]
+    assert len(model.entities) == 1  # entity still present
+
+
+def test_no_cyclic_reference_on_clean_file() -> None:
+    model = parse_iges_bytes(make_iges((EntitySpec(110, "110,0,0,0,10,0,0;"),)))
+    assert model.cyclic_reference_warnings == ()
+
+
+def test_cycle_does_not_abort_unrelated_entities() -> None:
+    # A cyclic entity plus an independent line entity.
+    # After fix: both are present in the model, cycle recorded as warning.
+    transform = "124,1,0,0,0,1,0,0,0,1,0,0;"
+    line = "110,0,0,0,5,0,0;"
+    model = parse_iges_bytes(
+        make_iges(
+            (
+                EntitySpec(124, transform, transform_pointer=3),  # DE 1 → DE 3 (cycle)
+                EntitySpec(124, transform, transform_pointer=1),  # DE 3 → DE 1 (cycle)
+                EntitySpec(110, line),                            # DE 5 (independent)
+            )
+        )
+    )
+    assert len(model.entities) == 3                        # all three present
+    assert len(model.cyclic_reference_warnings) >= 1      # cycle recorded
+    de_types = {e.directory.de_pointer: e.directory.entity_type for e in model.entities}
+    assert de_types[5] == 110                             # line entity intact
 
 
 def test_rejects_dangling_schema_specific_boundary_reference() -> None:
