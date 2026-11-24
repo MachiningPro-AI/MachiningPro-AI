@@ -2247,5 +2247,60 @@ export interface TranslationDictionary {
   ws_ribbonGrid: string
   ws_ribbonMeasure: string
   ws_ribbonSection: string
+  ws_ribbonGenCam: string
+  ws_camGenerating: string
+  ws_camPlanError: string
   nav_camWorkspace: string
+
+  // Selection & measurement (MUST 40)
+  sel_modeBody: string
+  sel_modeFace: string
+  sel_modeEdge: string
+  sel_modeFeature: string
+  sel_filterLabel: string
+  sel_clearSelection: string
+  sel_noSelection: string
+  sel_body: string
+  sel_face: string
+  sel_meshFace: string
+  sel_edge: string
+  sel_meshEdge: string
+  sel_cadFace: string
+  sel_entityId: string
+  sel_entityType: string
+  sel_provenance: string
+  sel_boundingBox: string
+  sel_surfaceType: string
+  sel_estimatedArea: string
+  sel_normal: string
+  sel_centroid: string
+  sel_edgeLength: string
+  sel_associatedFace: string
+  sel_fitSelected: string
+  sel_hideSelected: string
+  sel_showAll: string
+  sel_isolate: string
+  sel_measureDistance: string
+  sel_selectFirstPoint: string
+  sel_selectSecondPoint: string
+  sel_unknown: string
+  sel_provenanceOcc: string
+  sel_provenanceMesh: string
+
+  // Measurement panel (MUST 24)
+  meas_title: string
+  meas_clear: string
+  meas_remove: string
+  meas_type: string
+  meas_value: string
+  meas_status: string
+  meas_pointDistance: string
+  meas_edgeLength: string
+  meas_radius: string
+  meas_diameter: string
+  meas_angle: string
+  meas_approximate: string
+  meas_ok: string
+  meas_noData: string
+  meas_unit_mm: string
 }

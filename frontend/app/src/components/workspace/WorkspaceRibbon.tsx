@@ -13,7 +13,7 @@
 import {
   FolderOpen, Maximize2, LayoutGrid, Box, Eye, Grid3x3,
   Ruler, Scissors, Layers, GitBranch, AlertTriangle,
-  Play, Pause, Square, ChevronRight, Sun,
+  Play, Pause, Square, ChevronRight, Sun, Cpu, Loader2,
 } from 'lucide-react'
 import { useLocale } from '../../i18n'
 import { ANIM_SPEEDS, BACKGROUND_PRESETS, PART_OPACITY_PRESETS } from './WorkspaceTypes'
@@ -117,6 +117,8 @@ export interface RibbonProps {
   onToggleStock:  () => void
   onToggleToolpath: () => void
   onConnectWorkflow: () => void
+  onGenerateCam:  () => void
+  camLoading?:    boolean
   onAnimPlay:     () => void
   onAnimPause:    () => void
   onAnimStop:     () => void
@@ -137,7 +139,7 @@ export default function WorkspaceRibbon({
   animPlaying, animFrames, animSpeed,
   onOpenFile, onFitAll, onViewPreset, onDisplayMode,
   onToggleGrid, onToggleWcs, onToggleStock, onToggleToolpath,
-  onConnectWorkflow,
+  onConnectWorkflow, onGenerateCam, camLoading,
   onAnimPlay, onAnimPause, onAnimStop, onAnimSpeed,
   layoutPreset, onLayoutPreset,
   bgPresetId, onBgPreset,
@@ -169,6 +171,13 @@ export default function WorkspaceRibbon({
           icon={<GitBranch size={15} />}
           label="Workflow"
           onClick={onConnectWorkflow}
+        />
+        <RibbonBtn
+          icon={camLoading ? <Loader2 size={15} className="animate-spin" /> : <Cpu size={15} />}
+          label={camLoading ? t('ws_camGenerating') : t('ws_ribbonGenCam')}
+          onClick={onGenerateCam}
+          disabled={!hasFile || camLoading}
+          title="Generate CAM plan from loaded part geometry"
         />
       </Group>
 

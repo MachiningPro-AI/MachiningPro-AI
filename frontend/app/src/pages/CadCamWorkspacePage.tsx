@@ -27,6 +27,8 @@ import WorkspaceRibbon from '../components/workspace/WorkspaceRibbon'
 import WorkspaceCamPanel from '../components/workspace/WorkspaceCamPanel'
 import WorkspaceStatusBar from '../components/workspace/WorkspaceStatusBar'
 import WorkspaceViewerToolbar from '../components/workspace/WorkspaceViewerToolbar'
+import WorkspaceSelectionFilter from '../components/workspace/WorkspaceSelectionFilter'
+import { useSelectionState } from '../hooks/useSelectionState'
 import {
   detectFormat,
   DEFAULT_SIMULATION_STATE,
@@ -68,6 +70,7 @@ import {
   SimulationApiError,
 } from '../services/simulationService'
 import type { SimulationResultFE } from '../services/simulationService'
+import { generateWorkspaceCamPlan } from '../services/workspaceCam'
 
 // ---------------------------------------------------------------------------
 // Menu bar
@@ -517,6 +520,9 @@ export default function CadCamWorkspacePage() {
   const [showConnectDialog, setShowConnectDialog] = useState(false)
   const [connectLoading,    setConnectLoading]    = useState(false)
   const [connectError,      setConnectError]      = useState<string | null>(null)
+  // ── CAM generation (from loaded mesh) ────────────────────────────────────
+  const [camLoading, setCamLoading] = useState(false)
+  const [camError,   setCamError]   = useState<string | null>(null)
 
   // ── Stock bbox ─────────────────────────────────────────────────────────────
   const [stockBbox, setStockBbox] = useState<StockBbox | null>(null)
@@ -698,6 +704,40 @@ export default function CadCamWorkspacePage() {
     }
   }, [t, token])
 
+  // ── Generate CAM Plan from loaded mesh ───────────────────────────────────
+
+  const handleGenerateCamPlan = useCallback(async () => {
+    if (!mesh || !wsFile) return
+    const auth = getStoredAuth()
+    const tok = auth.token ?? token
+    if (!tok) { setCamError('Authentication required'); return }
+
+    setCamLoading(true)
+    setCamError(null)
+    try {
+      const { workflow: wf, warnings } = await generateWorkspaceCamPlan({
+        bbox: mesh.bounding_box,
+        fileRef: wsFile.name,
+        token: tok,
+      })
+      setWorkflow(wf)
+      const frames = toolpathGroupsToAnimFrames(wf.toolpathGroups)
+      setAnimFrames(frames)
+      setAnimFrame(0)
+      setAnimPlaying(false)
+      setSimState(DEFAULT_SIMULATION_STATE)
+      if (warnings.length > 0) {
+        setCamError(`CAM warnings: ${warnings.slice(0, 2).join('; ')}`)
+      }
+      // Switch to CAM layout to show toolpaths immediately
+      updateLayout({ ...LAYOUT_PRESETS.CAM, activePreset: 'CAM' })
+    } catch (err) {
+      setCamError(err instanceof Error ? err.message : t('ws_camPlanError'))
+    } finally {
+      setCamLoading(false)
+    }
+  }, [mesh, wsFile, token, t, updateLayout])
+
   // ── Animation loop ────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -837,6 +877,8 @@ export default function CadCamWorkspacePage() {
         onToggleStock={() => setShowStock(v => !v)}
         onToggleToolpath={() => setShowToolpath(v => !v)}
         onConnectWorkflow={() => setShowConnectDialog(true)}
+        onGenerateCam={handleGenerateCamPlan}
+        camLoading={camLoading}
         onAnimPlay={handleAnimPlay}
         onAnimPause={handleAnimPause}
         onAnimStop={handleAnimStop}
@@ -848,6 +890,23 @@ export default function CadCamWorkspacePage() {
         partOpacity={layout.partOpacity}
         onPartOpacity={handlePartOpacity}
       />
+
+      {/* CAM generation error banner */}
+      {camError && (
+        <div className="shrink-0 flex items-center gap-2 px-3 py-1.5
+                        bg-tp-surface-2 border-b border-tp-border">
+          <AlertTriangle size={12} className="text-yellow-400 shrink-0" />
+          <span className="text-[11px] text-tp-text-2 flex-1 truncate">{camError}</span>
+          <button
+            type="button"
+            onClick={() => setCamError(null)}
+            className="text-tp-text-3 hover:text-tp-text shrink-0"
+            aria-label="Dismiss"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      )}
 
       {/* Inner layout — flex col, flex-1 */}
       <div className="flex-1 overflow-hidden flex flex-col min-h-0">
