@@ -280,12 +280,29 @@ interface SimulationTabProps {
   onSeek:      (frame: number) => void
   onSpeed:     (s: AnimSpeed) => void
   onRunSim:    () => void
+  // Visibility toggles (MUST 32)
+  showTool?:        boolean
+  showHolder?:      boolean
+  showFixture?:     boolean
+  showGouge?:       boolean
+  showCollision?:   boolean
+  stockOpacity?:    number
+  onToggleTool?:    () => void
+  onToggleHolder?:  () => void
+  onToggleFixture?: () => void
+  onToggleGouge?:   () => void
+  onToggleCollision?: () => void
+  onStockOpacity?:  (v: number) => void
 }
 
 function SimulationTab({
   workflow, animFrames, animFrame, animPlaying, animSpeed,
   simState, simRunning,
   onPlay, onPause, onStop, onStepFwd, onStepBack, onSeek, onSpeed, onRunSim,
+  showTool = true, showHolder = false, showFixture = false,
+  showGouge = true, showCollision = true, stockOpacity = 1,
+  onToggleTool, onToggleHolder, onToggleFixture,
+  onToggleGouge, onToggleCollision, onStockOpacity,
 }: SimulationTabProps) {
   const { t } = useLocale()
   const hasFrames = animFrames > 0
@@ -365,6 +382,46 @@ function SimulationTab({
         )}
       </div>
 
+      {/* Visibility toggles */}
+      <div className="rounded border border-tp-border bg-tp-surface-2 p-2.5">
+        <div className="text-[9px] font-semibold uppercase tracking-widest text-tp-text-3 mb-2">
+          Viewport Visibility
+        </div>
+        <div className="flex flex-wrap gap-1 mb-2">
+          {[
+            { label: 'Tool', val: showTool, fn: onToggleTool },
+            { label: 'Holder', val: showHolder, fn: onToggleHolder },
+            { label: 'Fixture', val: showFixture, fn: onToggleFixture },
+            { label: 'Gouge pts', val: showGouge, fn: onToggleGouge },
+            { label: 'Collision pts', val: showCollision, fn: onToggleCollision },
+          ].map(({ label, val, fn }) => (
+            <button
+              key={label}
+              type="button"
+              onClick={fn}
+              className={`px-2 py-0.5 rounded text-[9px] border transition-colors
+                ${val
+                  ? 'border-tp-accent/40 bg-tp-accent/10 text-tp-accent-light'
+                  : 'border-tp-border text-tp-text-3 hover:bg-tp-surface'
+                }`}
+            >
+              {val ? <Eye size={8} className="inline mr-1" /> : <EyeOff size={8} className="inline mr-1" />}
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] text-tp-text-3">Stock opacity:</span>
+          <input
+            type="range" min={0} max={1} step={0.05}
+            value={stockOpacity}
+            onChange={e => onStockOpacity?.(Number(e.target.value))}
+            className="flex-1 h-1 accent-tp-accent"
+          />
+          <span className="text-[9px] font-mono text-tp-text-3 w-8">{Math.round(stockOpacity * 100)}%</span>
+        </div>
+      </div>
+
       {/* Run Simulation */}
       <div className="rounded border border-tp-border bg-tp-surface-2 p-2.5">
         <div className="text-[9px] font-semibold uppercase tracking-widest text-tp-text-3 mb-2">
@@ -406,6 +463,34 @@ function SimulationTab({
             <p className="text-[9px] text-tp-text-3">
               Stock removal fidelity: {simState.stockRemovalFidelity}
             </p>
+            {/* Verification state */}
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-[9px] text-tp-text-3">Verification state:</span>
+              <span className={`text-[9px] font-mono px-1 rounded ${
+                simState.verificationState === 'VERIFIED'
+                  ? 'bg-green-900/20 text-green-400'
+                  : simState.verificationState === 'FAILED'
+                    ? 'bg-tp-error/10 text-tp-error'
+                    : 'bg-tp-surface-3 text-tp-text-3'
+              }`}>
+                {simState.verificationState}
+              </span>
+            </div>
+            {/* Collision + gouge point counts */}
+            {(simState.collisionPoints.length > 0 || simState.gougePoints.length > 0) && (
+              <div className="flex gap-3 mt-1">
+                {simState.collisionPoints.length > 0 && (
+                  <span className="text-[9px] text-tp-error">
+                    Collision pts: {simState.collisionPoints.length}
+                  </span>
+                )}
+                {simState.gougePoints.length > 0 && (
+                  <span className="text-[9px] text-tp-warning">
+                    Gouge pts: {simState.gougePoints.length}
+                  </span>
+                )}
+              </div>
+            )}
             {/* Checks */}
             {Object.keys(simState.checks).length > 0 && (
               <div className="mt-2">
@@ -576,6 +661,19 @@ export interface CamPanelProps {
   opVisibility:           Record<string, boolean>
   onToggleOpVisibility:   (id: string) => void
   onDeleteOperation:      (id: string) => void
+  // Viewport visibility toggles (MUST 32)
+  showTool?:          boolean
+  showHolder?:        boolean
+  showFixture?:       boolean
+  showGouge?:         boolean
+  showCollision?:     boolean
+  stockOpacity?:      number
+  onToggleTool?:      () => void
+  onToggleHolder?:    () => void
+  onToggleFixture?:   () => void
+  onToggleGouge?:     () => void
+  onToggleCollision?: () => void
+  onStockOpacity?:    (v: number) => void
   // Layout — MUST 3: collapse support
   panelHeight?:  number
   collapsed?:    boolean
@@ -588,6 +686,8 @@ export default function WorkspaceCamPanel({
   simState, simRunning,
   onPlay, onPause, onStop, onStepFwd, onStepBack, onSeek, onSpeed, onRunSim,
   onNewOperation, opVisibility, onToggleOpVisibility, onDeleteOperation,
+  showTool, showHolder, showFixture, showGouge, showCollision, stockOpacity,
+  onToggleTool, onToggleHolder, onToggleFixture, onToggleGouge, onToggleCollision, onStockOpacity,
   panelHeight,
   collapsed = false,
   onCollapse,
@@ -727,6 +827,18 @@ export default function WorkspaceCamPanel({
               onSeek={onSeek}
               onSpeed={onSpeed}
               onRunSim={onRunSim}
+              showTool={showTool}
+              showHolder={showHolder}
+              showFixture={showFixture}
+              showGouge={showGouge}
+              showCollision={showCollision}
+              stockOpacity={stockOpacity}
+              onToggleTool={onToggleTool}
+              onToggleHolder={onToggleHolder}
+              onToggleFixture={onToggleFixture}
+              onToggleGouge={onToggleGouge}
+              onToggleCollision={onToggleCollision}
+              onStockOpacity={onStockOpacity}
             />
           )}
           {activeTab === 'verification' && <VerificationTab simState={simState} />}

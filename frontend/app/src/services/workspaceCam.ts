@@ -227,6 +227,264 @@ export async function generateWorkspaceCamPlan(
 }
 
 // ---------------------------------------------------------------------------
+// Feature-aware CAM plan (from /api/workspace-cam/feature-cam)
+// ---------------------------------------------------------------------------
+
+export interface FeatureCamFeatureInput {
+  feature_id: string
+  feature_type: string  // HOLE | POCKET | SLOT
+  center_x?: number | null
+  center_y?: number | null
+  center_z_top?: number | null
+  depth_mm?: number | null
+  diameter_mm?: number | null
+  width_mm?: number | null
+  length_mm?: number | null
+  clearance_z?: number | null
+  boundary_points?: Array<[number, number]> | null
+}
+
+export interface FeatureCamRequest {
+  file_ref: string
+  features: FeatureCamFeatureInput[]
+  stock_bbox?: {
+    min_x: number; min_y: number; min_z: number
+    max_x: number; max_y: number; max_z: number
+  } | null
+  material_grade?: string | null
+  wcs_ref?: string
+  setup_ref?: string
+}
+
+export interface FeatureCamToolInfo {
+  tool_id: string | null
+  tool_type: string | null
+  tool_diameter_mm: number | null
+  tool_status: string
+  tool_provenance: string
+}
+
+export interface FeatureCamOpResult {
+  operation_ref: string
+  operation_index: number
+  feature_id: string
+  feature_type: string
+  operation_type: string
+  cam_strategy: string
+  wcs_ref: string
+  tool: FeatureCamToolInfo
+  toolpath_status: string
+  toolpath_id: string | null
+  segment_count: number
+  point_count: number
+  warnings: string[]
+  missing_inputs: string[]
+  simulation_required: boolean
+}
+
+export interface FeatureCamToolpathGroup {
+  motion_type: string
+  points: number[]  // flat [x0,y0,z0,x1,y1,z1,...]
+  operation_ref: string
+}
+
+export interface FeatureCamApiResult {
+  file_ref: string
+  operations: FeatureCamOpResult[]
+  toolpath_groups: FeatureCamToolpathGroup[]
+  warnings: string[]
+  safety: Record<string, unknown>
+}
+
+function featureCamGroupsToLineGroups(groups: FeatureCamToolpathGroup[]): ToolpathLineGroup[] {
+  return groups.map(g => {
+    const mt = g.motion_type
+    const motionType: ToolpathLineGroup['motionType'] =
+      mt === 'RAPID'   ? 'RAPID'   :
+      mt === 'FEED'    ? 'FEED'    :
+      mt === 'PLUNGE'  ? 'PLUNGE'  :
+      mt === 'RETRACT' ? 'RETRACT' : 'LINK'
+    return { motionType, points: g.points, operationRef: g.operation_ref }
+  }).filter(g => g.points.length >= 6)
+}
+
+export interface FeatureAwareCamResult {
+  workflow: ConnectedWorkflow
+  apiResult: FeatureCamApiResult
+  warnings: string[]
+}
+
+export async function generateFeatureAwareCamPlan(
+  req: FeatureCamRequest,
+  token?: string,
+): Promise<FeatureAwareCamResult> {
+  const authToken = token ?? tok()
+  if (!authToken) throw new Error('Authentication required')
+
+  const resp = await fetch('/api/workspace-cam/feature-cam', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${authToken}`,
+    },
+    body: JSON.stringify(req),
+  })
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => resp.statusText)
+    throw new Error(`Feature CAM API error (${resp.status}): ${text}`)
+  }
+  const data = (await resp.json()) as FeatureCamApiResult
+
+  const groups = featureCamGroupsToLineGroups(data.toolpath_groups)
+  const warnings = [...(data.warnings ?? [])]
+
+  const operations: OperationSummary[] = data.operations
+    .filter(op => op.toolpath_status !== 'BLOCKED')
+    .map((op, i) => ({
+      operationId: op.operation_ref,
+      name: `${op.operation_type} ${i + 1} — ${op.feature_id}`,
+      type: op.operation_type,
+      setupRef: op.wcs_ref,
+      toolRef: op.tool.tool_id,
+      sequenceNumber: op.operation_index,
+      status: op.toolpath_status,
+      toolDiameterMm: op.tool.tool_diameter_mm,
+    }))
+
+  if (operations.length === 0 && data.operations.length > 0) {
+    data.operations.forEach(op => {
+      if (op.warnings.length) warnings.push(...op.warnings)
+    })
+    warnings.push('All operations were BLOCKED — missing geometry or tool data')
+  }
+
+  const workflow: ConnectedWorkflow = {
+    workflowId: `WS_FEAT_CAM_${Date.now()}`,
+    partName: req.file_ref,
+    drawingNumber: null,
+    operations,
+    toolpathGroups: groups,
+    planStatus: groups.length > 0 ? 'TOOLPATH_READY' : 'BLOCKED',
+  }
+
+  return { workflow, apiResult: data, warnings }
+}
+
+// ---------------------------------------------------------------------------
+// Workspace simulation (/api/workspace-sim/run)
+// ---------------------------------------------------------------------------
+
+export interface WsSimSegmentInput {
+  start_x: number; start_y: number; start_z: number
+  end_x: number; end_y: number; end_z: number
+  motion_type?: string
+  is_cutting?: boolean
+  operation_id?: string | null
+}
+
+export interface WsSimRequest {
+  toolpath_id: string
+  segments: WsSimSegmentInput[]
+  profile?: string
+  tool_diameter_mm?: number | null
+  tool_length_mm?: number | null
+  tool_flute_length_mm?: number | null
+  stock_bbox?: { min_x: number; min_y: number; min_z: number; max_x: number; max_y: number; max_z: number } | null
+  part_bbox_min?: [number, number, number] | null
+  part_bbox_max?: [number, number, number] | null
+}
+
+export interface WsSimCheckResult {
+  status: string
+  severity: string
+  warnings: string[]
+  errors: string[]
+  issues: Array<{ issue_id: string; check_type: string; severity: string; message: string }>
+}
+
+export interface WsSimVisualization {
+  cutting_points: Array<[number, number, number]>
+  rapid_points: Array<[number, number, number]>
+  stock_bbox: Record<string, number> | null
+  part_bbox: Record<string, number> | null
+  collision_points: Array<[number, number, number]>
+  gouge_points: Array<[number, number, number]>
+  remaining_stock_note: string | null
+}
+
+export interface WsSimApiResult {
+  session_id: string
+  toolpath_id: string
+  simulation_status: string
+  verification_state: string
+  is_verified: boolean
+  profile: string
+  checks: Record<string, WsSimCheckResult>
+  initial_stock_volume_mm3: number | null
+  remaining_stock_volume_mm3: number | null
+  removed_volume_mm3: number | null
+  stock_removal_fidelity: string
+  visualization: WsSimVisualization
+  warnings: string[]
+  errors: string[]
+  resource_limit_hit: boolean
+  safety: Record<string, unknown>
+  offline_only: boolean
+  simulation_result_is_not_machining_approval: boolean
+}
+
+export async function runWorkspaceSimulation(
+  req: WsSimRequest,
+  token?: string,
+): Promise<WsSimApiResult> {
+  const authToken = token ?? tok()
+  if (!authToken) throw new Error('Authentication required')
+
+  const resp = await fetch('/api/workspace-sim/run', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${authToken}`,
+    },
+    body: JSON.stringify(req),
+  })
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => resp.statusText)
+    throw new Error(`Workspace simulation API error (${resp.status}): ${text}`)
+  }
+  return resp.json() as Promise<WsSimApiResult>
+}
+
+// ---------------------------------------------------------------------------
+// Convert ToolpathLineGroup points to WsSimSegmentInput array
+// ---------------------------------------------------------------------------
+
+export function toolpathGroupsToSimSegments(
+  groups: ToolpathLineGroup[],
+  operationRef?: string,
+): WsSimSegmentInput[] {
+  const segs: WsSimSegmentInput[] = []
+  for (const g of groups) {
+    const pts = g.points
+    const isCutting = g.motionType === 'FEED' || g.motionType === 'PLUNGE'
+    for (let i = 0; i + 5 < pts.length; i += 3) {
+      segs.push({
+        start_x: pts[i]!,
+        start_y: pts[i + 1]!,
+        start_z: pts[i + 2]!,
+        end_x: pts[i + 3]!,
+        end_y: pts[i + 4]!,
+        end_z: pts[i + 5]!,
+        motion_type: g.motionType,
+        is_cutting: isCutting,
+        operation_id: operationRef ?? g.operationRef,
+      })
+    }
+  }
+  return segs
+}
+
+// ---------------------------------------------------------------------------
 // Single operation generation (from wizard inputs)
 // ---------------------------------------------------------------------------
 

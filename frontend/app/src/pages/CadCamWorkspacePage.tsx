@@ -548,6 +548,14 @@ export default function CadCamWorkspacePage() {
   const [simState,   setSimState]   = useState<SimulationState>(DEFAULT_SIMULATION_STATE)
   const [simRunning, setSimRunning] = useState(false)
 
+  // ── Viewport visibility toggles ────────────────────────────────────────────
+  const [showTool,      setShowTool]      = useState(true)
+  const [showHolder,    setShowHolder]    = useState(false)
+  const [showFixture,   setShowFixture]   = useState(false)
+  const [showGouge,     setShowGouge]     = useState(true)
+  const [showCollision, setShowCollision] = useState(true)
+  const [stockOpacity,  setStockOpacity]  = useState(1)
+
   // ── File open ─────────────────────────────────────────────────────────────
 
   const handleOpenFile = useCallback(() => fileInputRef.current?.click(), [])
@@ -1257,6 +1265,18 @@ export default function CadCamWorkspacePage() {
             opVisibility={opVisibility}
             onToggleOpVisibility={handleToggleOpVisibility}
             onDeleteOperation={handleDeleteOperation}
+            showTool={showTool}
+            showHolder={showHolder}
+            showFixture={showFixture}
+            showGouge={showGouge}
+            showCollision={showCollision}
+            stockOpacity={stockOpacity}
+            onToggleTool={() => setShowTool(v => !v)}
+            onToggleHolder={() => setShowHolder(v => !v)}
+            onToggleFixture={() => setShowFixture(v => !v)}
+            onToggleGouge={() => setShowGouge(v => !v)}
+            onToggleCollision={() => setShowCollision(v => !v)}
+            onStockOpacity={setStockOpacity}
             panelHeight={layout.bottomHeight}
             collapsed={layout.collapsedBottom}
             onCollapse={handleCollapseBottom}
