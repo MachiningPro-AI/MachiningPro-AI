@@ -63,7 +63,7 @@ export interface SelectedFace {
 
 export interface SelectedEdge {
   kind: 'EDGE'
-  entityClass: 'MESH_EDGE'
+  entityClass: EntityClass
   edgeId: string   // "mesh_edge_<hash>"
   label: string
   /** Polyline points [[x,y,z], ...] */
@@ -105,6 +105,7 @@ export interface HoverTarget {
   edgeId?: string
   triIndex?: number
   hitPoint?: [number,number,number]
+  normal?: [number,number,number]
 }
 
 /** Entity visibility override — visualization state only, not engineering data. */
@@ -307,6 +308,16 @@ export interface SimulationState {
   remainingStockVolumeMm3: number | null
   removedVolumeMm3: number | null
   stockRemovalFidelity: string
+  // Phase B: gouge semantics
+  gougeExact: string
+  gougeConservativeWarning: string
+  // Phase C: stock volume label
+  stockVolumeMethod: string
+  approxRemainingVolumeMm3: number | null
+  approxRemovedVolumeMm3: number | null
+  // Phase D: missing geometry blockers
+  holderGeometryRequired: boolean
+  fixtureGeometryRequired: boolean
   collisionPoints: Array<[number, number, number]>
   gougePoints: Array<[number, number, number]>
   errorMessage: string | null
@@ -321,6 +332,13 @@ export const DEFAULT_SIMULATION_STATE: SimulationState = {
   remainingStockVolumeMm3: null,
   removedVolumeMm3: null,
   stockRemovalFidelity: 'UNKNOWN',
+  gougeExact: 'NOT_VERIFIABLE',
+  gougeConservativeWarning: 'NOT_PERFORMED',
+  stockVolumeMethod: 'NOT_VERIFIABLE',
+  approxRemainingVolumeMm3: null,
+  approxRemovedVolumeMm3: null,
+  holderGeometryRequired: true,
+  fixtureGeometryRequired: true,
   collisionPoints: [],
   gougePoints: [],
   errorMessage: null,

@@ -246,14 +246,24 @@ def _try_parse_iges_or_step(
             pass
 
     if format_id == "STEP":
-        # Attempt via pythonocc-core if available
+        # Phase A: gmsh OCC topology recognition (no pythonocc-core needed)
+        try:
+            from backend.step_brep.step_feature_recognizer import (
+                recognize_features_from_bytes as _step_gmsh,
+            )
+            result = _step_gmsh(content_bytes, file_name)
+            if result is not None:
+                return result
+        except Exception:
+            pass
+
+        # Fallback: attempt via pythonocc-core if available
         try:
             from backend.interoperability.adapters.step import StepTokenAdapter
 
             # Level 2 requires pythonocc-core; gracefully fails if absent
             adapter = StepTokenAdapter()
             adapter.ingest(content_bytes, pathlib.Path(file_name))
-            # Even if STEP Level 2 topology is unavailable, return empty result
         except Exception:
             pass
 

@@ -17,7 +17,8 @@
  */
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import { AlertTriangle, X, ChevronDown, Check } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { AlertTriangle, X, ChevronDown, Check, BarChart2 } from 'lucide-react'
 import { useLocale } from '../i18n'
 import { useAuth } from '../hooks/useAuth'
 import WorkspaceViewport from '../components/workspace/WorkspaceViewport'
@@ -82,6 +83,7 @@ interface MenuBarProps {
   onOpenFile: () => void
   onConnectWorkflow: () => void
   onCloseFile: () => void
+  onReports: () => void
   hasFile: boolean
   // Layout — MUST 4, 6, 7, 9
   layout: WorkspaceLayout
@@ -94,7 +96,7 @@ interface MenuBarProps {
 }
 
 function MenuBar({
-  onOpenFile, onConnectWorkflow, onCloseFile, hasFile,
+  onOpenFile, onConnectWorkflow, onCloseFile, onReports, hasFile,
   layout, onTogglePanel, onLayoutPreset,
   onSaveLayout, onRestoreLayout, onResetLayout, onViewerMaximize,
 }: MenuBarProps) {
@@ -211,6 +213,18 @@ function MenuBar({
           )}
         </div>
       ))}
+
+      <button
+        type="button"
+        onClick={onReports}
+        className="ml-auto flex items-center gap-1.5 h-8 px-3 text-[11px]
+                   text-tp-text-2 hover:bg-tp-surface hover:text-tp-accent-light
+                   transition-colors shrink-0"
+        title={t('ws_reports_btn')}
+      >
+        <BarChart2 size={12} />
+        {t('ws_reports_btn')}
+      </button>
     </div>
   )
 }
@@ -350,6 +364,13 @@ function simResultToState(result: SimulationResultFE): SimulationState {
     remainingStockVolumeMm3: result.remaining_stock_volume_mm3,
     removedVolumeMm3:        result.removed_volume_mm3,
     stockRemovalFidelity:    result.stock_removal_fidelity,
+    gougeExact:              result.gouge_exact ?? 'NOT_VERIFIABLE',
+    gougeConservativeWarning: result.gouge_conservative_warning ?? 'NOT_PERFORMED',
+    stockVolumeMethod:       result.stock_volume_method ?? 'NOT_VERIFIABLE',
+    approxRemainingVolumeMm3: result.approx_remaining_volume_mm3 ?? null,
+    approxRemovedVolumeMm3:  result.approx_removed_volume_mm3 ?? null,
+    holderGeometryRequired:  result.holder_geometry_required ?? true,
+    fixtureGeometryRequired: result.fixture_geometry_required ?? true,
     collisionPoints:         (viz?.collision_points ?? []) as Array<[number, number, number]>,
     gougePoints:             (viz?.gouge_points     ?? []) as Array<[number, number, number]>,
     errorMessage:            null,
@@ -363,6 +384,7 @@ function simResultToState(result: SimulationResultFE): SimulationState {
 export default function CadCamWorkspacePage() {
   const { t } = useLocale()
   const { token } = useAuth()
+  const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // ── Workspace layout state — MUST 2,3,4,6,7,8,9 ─────────────────────────
@@ -938,6 +960,7 @@ export default function CadCamWorkspacePage() {
         onOpenFile={handleOpenFile}
         onConnectWorkflow={() => setShowConnectDialog(true)}
         onCloseFile={handleCloseFile}
+        onReports={() => navigate('/app/planning-quality/reports')}
         hasFile={hasFile}
         layout={layout}
         onTogglePanel={handleTogglePanel}

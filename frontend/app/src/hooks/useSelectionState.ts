@@ -19,7 +19,6 @@ import type {
   SelectionMode,
   HoverTarget,
   MeasurementEntry,
-  MeasurementType,
   VisibilityOverride,
 } from '../components/workspace/WorkspaceTypes'
 

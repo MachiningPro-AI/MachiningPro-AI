@@ -544,14 +544,29 @@ function VolumeCard({ label, mm3 }: { label: string; mm3: number | null }) {
   )
 }
 
+function checkStatusColor(status: string): string {
+  switch (status) {
+    case 'PASS':                 return 'text-green-500'
+    case 'FAIL':                 return 'text-red-500'
+    case 'PARTIAL':              return 'text-amber-500'
+    case 'WARNING':              return 'text-amber-400'
+    case 'CONSERVATIVE_PASS':    return 'text-green-400'
+    case 'CONSERVATIVE_WARNING': return 'text-amber-400'
+    case 'CONSERVATIVE_FAIL':    return 'text-red-400'
+    case 'NOT_VERIFIABLE':       return 'text-purple-400'
+    case 'NOT_PERFORMED':        return 'text-gray-400'
+    case 'INSUFFICIENT_DATA':    return 'text-orange-400'
+    case 'VOXEL_APPROXIMATE':    return 'text-sky-400'
+    case 'NOT_IMPLEMENTED':      return 'text-tp-text-3 line-through'
+    default:                     return 'text-tp-text-3'
+  }
+}
+
 function CheckRow({ name, status, severity }: { name: string; status: string; severity: string }) {
-  const color = status === 'PASS' ? 'text-green-400'
-    : status === 'FAIL' ? 'text-tp-error'
-    : status === 'INSUFFICIENT_DATA' ? 'text-tp-text-3'
-    : 'text-tp-text-3'
+  const color = checkStatusColor(status)
   return (
     <div className="flex items-center gap-2 py-0.5">
-      <span className={`text-[9px] font-mono w-16 shrink-0 ${color}`}>{status}</span>
+      <span className={`text-[9px] font-mono w-20 shrink-0 ${color}`}>{status}</span>
       <span className="text-[9px] text-tp-text-3 truncate">{name}</span>
       {severity !== 'NONE' && severity !== '' && (
         <span className="text-[8px] text-tp-text-3 ml-auto">[{severity}]</span>
@@ -601,6 +616,58 @@ function VerificationTab({ simState }: { simState: SimulationState }) {
         </div>
       )}
 
+      {hasRealResults && (
+        <div className="mt-3 p-2 rounded bg-tp-surface-3 border border-tp-border/50 space-y-1">
+          <p className="text-[9px] text-tp-text-3 uppercase tracking-wider mb-1">Verification Semantics:</p>
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] text-tp-text-3 w-36 shrink-0">Gouge (Exact):</span>
+            <span className={`text-[9px] font-mono ${checkStatusColor(simState.gougeExact)}`}>
+              {simState.gougeExact}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] text-tp-text-3 w-36 shrink-0">Gouge (Conservative):</span>
+            <span className={`text-[9px] font-mono ${checkStatusColor(simState.gougeConservativeWarning)}`}>
+              {simState.gougeConservativeWarning}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] text-tp-text-3 w-36 shrink-0">Stock Volume Method:</span>
+            <span className={`text-[9px] font-mono ${checkStatusColor(simState.stockVolumeMethod)}`}>
+              {simState.stockVolumeMethod}
+            </span>
+          </div>
+          {simState.approxRemainingVolumeMm3 !== null && (
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] text-tp-text-3 w-36 shrink-0">Remaining (APPROX):</span>
+              <span className="text-[9px] font-mono text-tp-text-2">
+                {simState.approxRemainingVolumeMm3.toFixed(1)} mm³
+              </span>
+            </div>
+          )}
+          {simState.approxRemovedVolumeMm3 !== null && (
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] text-tp-text-3 w-36 shrink-0">Removed (APPROX):</span>
+              <span className="text-[9px] font-mono text-tp-text-2">
+                {simState.approxRemovedVolumeMm3.toFixed(1)} mm³
+              </span>
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] text-tp-text-3 w-36 shrink-0">Holder Geometry:</span>
+            <span className={`text-[9px] font-mono ${simState.holderGeometryRequired ? 'text-orange-400' : 'text-tp-text-3'}`}>
+              {simState.holderGeometryRequired ? 'NOT_PROVIDED' : 'PROVIDED'}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] text-tp-text-3 w-36 shrink-0">Fixture Geometry:</span>
+            <span className={`text-[9px] font-mono ${simState.fixtureGeometryRequired ? 'text-orange-400' : 'text-tp-text-3'}`}>
+              {simState.fixtureGeometryRequired ? 'NOT_PROVIDED' : 'PROVIDED'}
+            </span>
+          </div>
+        </div>
+      )}
+
       <div className="mt-3 p-2 rounded bg-tp-surface-3 border border-tp-border/50">
         <p className="text-[10px] text-tp-text-3 leading-relaxed">{t('ws_safetyNote')}</p>
       </div>
@@ -622,12 +689,10 @@ function Stat({ label, value }: { label: string; value: string | number }) {
 }
 
 function StatCard({ label, value }: { label: string; value: string }) {
-  const isOk = value === 'NOT_PERFORMED' || value === 'TRUE' || value === 'YES' || value === 'PASS'
-  const isFail = value === 'FAIL'
   return (
     <div className="p-2 rounded border border-tp-border bg-tp-surface-2">
       <div className="text-[9px] text-tp-text-3 mb-1">{label}</div>
-      <div className={`text-[11px] font-mono ${isFail ? 'text-tp-error' : isOk ? 'text-tp-text-3' : 'text-tp-text-2'}`}>
+      <div className={`text-[11px] font-mono ${checkStatusColor(value)}`}>
         {value}
       </div>
     </div>

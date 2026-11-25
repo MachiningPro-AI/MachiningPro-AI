@@ -22,7 +22,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from backend.api.auth import verify_token
 from backend.verification.enums import (
@@ -78,6 +78,13 @@ class WsSimSegment(BaseModel):
     is_cutting: bool = True
     operation_id: str | None = None
     tool_id: str | None = None
+
+    @model_validator(mode='after')
+    def _derive_is_cutting(self) -> WsSimSegment:
+        _NON_CUTTING = {"RAPID", "RETRACT", "DWELL", "TOOL_CHANGE"}
+        if self.motion_type.upper() in _NON_CUTTING:
+            self.is_cutting = False
+        return self
 
 
 class WsStockBbox(BaseModel):
@@ -144,6 +151,16 @@ class WsSimResponse(BaseModel):
     remaining_stock_volume_mm3: float | None
     removed_volume_mm3: float | None
     stock_removal_fidelity: str
+    # Phase B: gouge semantics split
+    gouge_exact: str = "NOT_VERIFIABLE"
+    gouge_conservative_warning: str = "NOT_PERFORMED"
+    # Phase C: stock volume label
+    stock_volume_method: str = "NOT_VERIFIABLE"
+    approx_remaining_volume_mm3: float | None = None
+    approx_removed_volume_mm3: float | None = None
+    # Phase D: missing geometry blockers
+    holder_geometry_required: bool = True
+    fixture_geometry_required: bool = True
     visualization: VisualizationFE
     warnings: list[str]
     errors: list[str]
@@ -206,6 +223,29 @@ def _adapt_result(res: SimulationResult) -> WsSimResponse:
                 for iss in v.issues
             ],
         )
+    # Phase B: derive gouge_conservative_warning from part_gouge check status
+    part_gouge_chk = res.checks.get("part_gouge")
+    if part_gouge_chk is not None:
+        pg_status = _sv(part_gouge_chk.status)
+        if pg_status in {"PASS"}:
+            gouge_conservative = "CONSERVATIVE_PASS"
+        elif pg_status in {"PARTIAL"}:
+            gouge_conservative = "CONSERVATIVE_WARNING"
+        elif pg_status in {"FAIL"}:
+            gouge_conservative = "CONSERVATIVE_FAIL"
+        elif pg_status in {"INSUFFICIENT_DATA", "NOT_PERFORMED"}:
+            gouge_conservative = pg_status
+        else:
+            gouge_conservative = pg_status
+    else:
+        gouge_conservative = "NOT_PERFORMED"
+
+    # Phase C: stock volume method
+    if res.remaining_stock_volume_mm3 is not None:
+        stock_vol_method = "VOXEL_APPROXIMATE"
+    else:
+        stock_vol_method = "NOT_VERIFIABLE"
+
     return WsSimResponse(
         session_id=res.session_id,
         toolpath_id=res.toolpath_id,
@@ -218,6 +258,13 @@ def _adapt_result(res: SimulationResult) -> WsSimResponse:
         remaining_stock_volume_mm3=res.remaining_stock_volume_mm3,
         removed_volume_mm3=res.removed_volume_mm3,
         stock_removal_fidelity=_sv(res.stock_removal_fidelity),
+        gouge_exact="NOT_VERIFIABLE",
+        gouge_conservative_warning=gouge_conservative,
+        stock_volume_method=stock_vol_method,
+        approx_remaining_volume_mm3=res.remaining_stock_volume_mm3,
+        approx_removed_volume_mm3=res.removed_volume_mm3,
+        holder_geometry_required=True,
+        fixture_geometry_required=True,
         visualization=viz,
         warnings=list(res.warnings),
         errors=list(res.errors),

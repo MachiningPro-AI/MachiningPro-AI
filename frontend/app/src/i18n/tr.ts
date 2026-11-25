@@ -2182,6 +2182,7 @@ export const trTranslations: TranslationDictionary = {
   ws_showStock: 'Stok Göster',
   ws_showToolpath: 'Takım Yolu Göster',
   ws_modelTree: 'Model Ağacı',
+  ws_reports_btn: 'Raporlar',
   ws_properties: 'Özellikler',
   ws_verification: 'Doğrulama',
   ws_camOperations: 'Operasyonlar',

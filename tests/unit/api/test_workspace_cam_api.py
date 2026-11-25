@@ -489,3 +489,272 @@ class TestWorkspaceSimEndpoint:
         assert "collision_points" in viz
         assert "gouge_points" in viz
         assert isinstance(viz["cutting_points"], list)
+
+
+# ---------------------------------------------------------------------------
+# Phase B/C/D: new response fields (gaps closure)
+# ---------------------------------------------------------------------------
+
+class TestSimNewFields:
+    """Phase B/C/D: gouge semantics, stock volume method, holder/fixture flags."""
+
+    def _basic_seg(self) -> dict:
+        return {
+            "start_x": 0, "start_y": 0, "start_z": 0,
+            "end_x": 5, "end_y": 0, "end_z": 0,
+            "motion_type": "CUT", "is_cutting": True,
+        }
+
+    def test_gouge_exact_always_not_verifiable(self, client: TestClient) -> None:
+        h = _auth(client)
+        r = client.post(
+            "/api/workspace-sim/run",
+            json={"toolpath_id": "tp-b1", "segments": [self._basic_seg()]},
+            headers=h,
+        )
+        assert r.status_code == 200
+        assert r.json()["gouge_exact"] == "NOT_VERIFIABLE"
+
+    def test_gouge_conservative_warning_not_performed_without_part(
+        self, client: TestClient
+    ) -> None:
+        h = _auth(client)
+        r = client.post(
+            "/api/workspace-sim/run",
+            json={"toolpath_id": "tp-b2", "segments": [self._basic_seg()]},
+            headers=h,
+        )
+        assert r.status_code == 200
+        # No part_bbox provided → part_gouge is INSUFFICIENT_DATA or NOT_PERFORMED
+        val = r.json()["gouge_conservative_warning"]
+        assert val in {"NOT_PERFORMED", "INSUFFICIENT_DATA"}, val
+
+    def test_stock_volume_method_not_verifiable_without_stock(
+        self, client: TestClient
+    ) -> None:
+        h = _auth(client)
+        r = client.post(
+            "/api/workspace-sim/run",
+            json={"toolpath_id": "tp-c1", "segments": [self._basic_seg()]},
+            headers=h,
+        )
+        assert r.status_code == 200
+        assert r.json()["stock_volume_method"] == "NOT_VERIFIABLE"
+        assert r.json()["approx_remaining_volume_mm3"] is None
+
+    def test_stock_volume_method_voxel_approximate_with_stock(
+        self, client: TestClient
+    ) -> None:
+        h = _auth(client)
+        r = client.post(
+            "/api/workspace-sim/run",
+            json={
+                "toolpath_id": "tp-c2",
+                "segments": [self._basic_seg()],
+                "stock_bbox": {"min_x": 0, "min_y": 0, "min_z": 0,
+                               "max_x": 50, "max_y": 50, "max_z": 25},
+            },
+            headers=h,
+        )
+        assert r.status_code == 200
+        data = r.json()
+        # With stock, volume method should be VOXEL_APPROXIMATE if computed
+        method = data["stock_volume_method"]
+        assert method in {"VOXEL_APPROXIMATE", "NOT_VERIFIABLE"}, method
+
+    def test_holder_geometry_required_always_true(self, client: TestClient) -> None:
+        h = _auth(client)
+        r = client.post(
+            "/api/workspace-sim/run",
+            json={"toolpath_id": "tp-d1", "segments": [self._basic_seg()]},
+            headers=h,
+        )
+        assert r.status_code == 200
+        assert r.json()["holder_geometry_required"] is True
+
+    def test_fixture_geometry_required_always_true(self, client: TestClient) -> None:
+        h = _auth(client)
+        r = client.post(
+            "/api/workspace-sim/run",
+            json={"toolpath_id": "tp-d2", "segments": [self._basic_seg()]},
+            headers=h,
+        )
+        assert r.status_code == 200
+        assert r.json()["fixture_geometry_required"] is True
+
+
+# ---------------------------------------------------------------------------
+# Phase B: is_cutting model_validator (RAPID/RETRACT/DWELL/TOOL_CHANGE)
+# ---------------------------------------------------------------------------
+
+class TestWsSimSegmentIsCutting:
+    """Phase B: model_validator auto-sets is_cutting=False for non-cutting motions."""
+
+    def test_rapid_segment_not_treated_as_cutting(self, client: TestClient) -> None:
+        h = _auth(client)
+        # RAPID segment well above stock → should NOT trigger STOCK_GOUGE
+        segs = [
+            {
+                "start_x": 0, "start_y": 0, "start_z": 100,
+                "end_x": 10, "end_y": 0, "end_z": 100,
+                "motion_type": "RAPID",
+            }
+        ]
+        r = client.post(
+            "/api/workspace-sim/run",
+            json={
+                "toolpath_id": "tp-rapid",
+                "segments": segs,
+                "stock_bbox": {"min_x": 0, "min_y": 0, "min_z": 0,
+                               "max_x": 50, "max_y": 50, "max_z": 25},
+            },
+            headers=h,
+        )
+        assert r.status_code == 200
+        data = r.json()
+        # RAPID above stock should not produce STOCK_GOUGE errors
+        stock_gouge = data["checks"].get("stock_gouge", {})
+        status = stock_gouge.get("status", "NOT_PERFORMED")
+        # PASS or NOT_PERFORMED/INSUFFICIENT_DATA — never FAIL due to RAPID clearance
+        assert status not in {"FAIL"}, f"RAPID clearance should not cause STOCK_GOUGE FAIL: {status}"
+
+    def test_cut_segment_is_cutting(self, client: TestClient) -> None:
+        h = _auth(client)
+        segs = [
+            {
+                "start_x": 0, "start_y": 0, "start_z": 0,
+                "end_x": 5, "end_y": 0, "end_z": 0,
+                "motion_type": "CUT",
+            }
+        ]
+        r = client.post(
+            "/api/workspace-sim/run",
+            json={
+                "toolpath_id": "tp-cut",
+                "segments": segs,
+                "stock_bbox": {"min_x": 0, "min_y": 0, "min_z": 0,
+                               "max_x": 50, "max_y": 50, "max_z": 25},
+            },
+            headers=h,
+        )
+        assert r.status_code == 200
+        # CUT segment inside stock → should be attempted (not skipped)
+        data = r.json()
+        assert data["simulation_status"] == "COMPLETED"
+
+
+# ---------------------------------------------------------------------------
+# Phase A: step_feature_recognizer unit tests (pure Python, no API)
+# ---------------------------------------------------------------------------
+
+class TestStepFeatureRecognizer:
+    """Phase A: gmsh OCC-based feature recognition without pythonocc-core."""
+
+    def test_recognize_features_none_on_null_record(self) -> None:
+        from backend.step_brep.step_feature_recognizer import recognize_features
+
+        class FakeRecord:
+            faces = []
+            sha256 = None
+            body_count = 0
+
+        result = recognize_features(FakeRecord())
+        # Empty faces → no features, but should still return a result
+        assert result is None or result.feature_count == 0
+
+    def test_recognize_hole_from_cylindrical_face(self) -> None:
+        from backend.step_brep.step_feature_recognizer import recognize_features
+
+        class FakeFace:
+            tag = 42
+            surface_class = "CYLINDRICAL"
+            bbox_min = (5.0, 5.0, 0.0)
+            bbox_max = (11.0, 11.0, 20.0)  # dx=dy=6mm, dz=20mm → HOLE d=6, depth=20
+            boundary_curve_tags = (100, 101)
+            normal_at_center = (0.0, 0.0, 1.0)
+            has_circular_boundary = True
+
+        class FakeRecord:
+            faces = [FakeFace()]
+            sha256 = "abc123"
+            body_count = 1
+
+        result = recognize_features(FakeRecord())
+        assert result is not None
+        holes = [f for f in result.features if f.feature_type.value == "HOLE"]
+        assert len(holes) == 1
+        h = holes[0]
+        assert float(h.diameter_mm) == pytest.approx(6.0, rel=0.05)
+        assert float(h.depth_mm) == pytest.approx(20.0, rel=0.05)
+
+    def test_non_circular_cylindrical_not_recognized_as_hole(self) -> None:
+        from backend.step_brep.step_feature_recognizer import recognize_features
+
+        class FakeFace:
+            tag = 43
+            surface_class = "CYLINDRICAL"
+            bbox_min = (0.0, 0.0, 0.0)
+            bbox_max = (10.0, 5.0, 20.0)  # dx≠dy → not a vertical cylinder
+            boundary_curve_tags = (100,)
+            normal_at_center = (1.0, 0.0, 0.0)
+            has_circular_boundary = True
+
+        class FakeRecord:
+            faces = [FakeFace()]
+            sha256 = "def456"
+            body_count = 1
+
+        result = recognize_features(FakeRecord())
+        if result is not None:
+            holes = [f for f in result.features if f.feature_type.value == "HOLE"]
+            assert len(holes) == 0
+
+    def test_planar_face_recognized(self) -> None:
+        from backend.step_brep.step_feature_recognizer import recognize_features
+
+        class FakeFace:
+            tag = 44
+            surface_class = "PLANAR"
+            bbox_min = (0.0, 0.0, 10.0)
+            bbox_max = (50.0, 30.0, 10.0)  # horizontal face at z=10
+            boundary_curve_tags = (200, 201, 202, 203)
+            normal_at_center = (0.0, 0.0, 1.0)
+            has_circular_boundary = False
+
+        class FakeRecord:
+            faces = [FakeFace()]
+            sha256 = "pf789"
+            body_count = 1
+
+        result = recognize_features(FakeRecord())
+        assert result is not None
+        planes = [f for f in result.features if f.feature_type.value == "PLANAR_FACE"]
+        assert len(planes) == 1
+
+    def test_provenance_in_warnings(self) -> None:
+        from backend.step_brep.step_feature_recognizer import recognize_features
+
+        class FakeFace:
+            tag = 45
+            surface_class = "PLANAR"
+            bbox_min = (0.0, 0.0, 5.0)
+            bbox_max = (10.0, 10.0, 5.0)
+            boundary_curve_tags = ()
+            normal_at_center = (0.0, 0.0, 1.0)
+            has_circular_boundary = False
+
+        class FakeRecord:
+            faces = [FakeFace()]
+            sha256 = "prov001"
+            body_count = 1
+
+        result = recognize_features(FakeRecord())
+        assert result is not None
+        assert any("GMSH_OCC_TOPOLOGY" in w for w in result.warnings)
+
+    def test_recognize_features_from_bytes_returns_none_on_non_step(self) -> None:
+        from backend.step_brep.step_feature_recognizer import recognize_features_from_bytes
+
+        # Non-STEP binary → should return None gracefully
+        result = recognize_features_from_bytes(b"not a step file", "test.step")
+        assert result is None

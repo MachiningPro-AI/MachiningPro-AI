@@ -2182,6 +2182,7 @@ export const enTranslations: TranslationDictionary = {
   ws_showStock: 'Show Stock',
   ws_showToolpath: 'Show Toolpath',
   ws_modelTree: 'Model Tree',
+  ws_reports_btn: 'Reports',
   ws_properties: 'Properties',
   ws_verification: 'Verification',
   ws_camOperations: 'Operations',

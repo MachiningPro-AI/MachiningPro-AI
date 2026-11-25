@@ -27,7 +27,7 @@ import { useLocale } from '../../i18n'
 import type { PreviewMesh } from '../../services/engineeringImport'
 import type { BackgroundPreset, DisplayMode, ToolPose, StockBbox, ToolpathLineGroup, ViewPreset, WorkspaceFile, SelectionMode, SelectedEntity, HoverTarget } from './WorkspaceTypes'
 import { CLIENT_RENDER_FORMATS, DEFAULT_BG_PRESET, SERVER_RENDER_FORMATS } from './WorkspaceTypes'
-import { resolveFace, buildFaceHighlightGeometry, buildMeasurementLineGeometry } from './selectionUtils'
+import { resolveFace, buildFaceHighlightGeometry } from './selectionUtils'
 
 // ---------------------------------------------------------------------------
 // Scene constants (defaults — overridable via bgPreset prop)
@@ -134,7 +134,6 @@ function buildEdgeMaterial(): THREE.LineBasicMaterial {
 
 // Selection highlight colors
 const SEL_FACE_COLOR   = 0x00aaff  // selected face emissive
-const HOVER_FACE_COLOR = 0x0066cc  // hover face emissive
 const MEAS_POINT_COLOR = 0xffdd00  // measurement anchor marker
 
 // ---------------------------------------------------------------------------
@@ -473,7 +472,7 @@ export default function WorkspaceViewport({
       if (hits.length === 0) return
 
       const hit = hits[0]
-      if (hit.faceIndex === undefined) return
+      if (hit.faceIndex == null) return
       const mode = selectionModeRef.current
 
       if (mode === 'BODY') {

@@ -2184,6 +2184,7 @@ export interface TranslationDictionary {
   ws_showStock: string
   ws_showToolpath: string
   ws_modelTree: string
+  ws_reports_btn: string
   ws_properties: string
   ws_verification: string
   ws_camOperations: string

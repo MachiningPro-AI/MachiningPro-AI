@@ -78,6 +78,13 @@ export interface SimulationResultFE {
   remaining_stock_volume_mm3: number | null
   removed_volume_mm3: number | null
   stock_removal_fidelity: string
+  gouge_exact: string
+  gouge_conservative_warning: string
+  stock_volume_method: string
+  approx_remaining_volume_mm3: number | null
+  approx_removed_volume_mm3: number | null
+  holder_geometry_required: boolean
+  fixture_geometry_required: boolean
   visualization: SimulationVisualizationFE | null
 }
 
