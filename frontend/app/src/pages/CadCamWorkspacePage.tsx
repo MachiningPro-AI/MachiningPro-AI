@@ -16,7 +16,7 @@
  *   SIMULATION_ENGINEERING_STATE_CHANGED=NO — simulation is offline, offline only
  */
 
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { AlertTriangle, X, ChevronDown, Check } from 'lucide-react'
 import { useLocale } from '../i18n'
 import { useAuth } from '../hooks/useAuth'
@@ -25,6 +25,7 @@ import WorkspaceModelTree from '../components/workspace/WorkspaceModelTree'
 import WorkspacePropertiesPanel from '../components/workspace/WorkspacePropertiesPanel'
 import WorkspaceRibbon from '../components/workspace/WorkspaceRibbon'
 import WorkspaceCamPanel from '../components/workspace/WorkspaceCamPanel'
+import WorkspaceCamWizard from '../components/workspace/WorkspaceCamWizard'
 import WorkspaceStatusBar from '../components/workspace/WorkspaceStatusBar'
 import WorkspaceViewerToolbar from '../components/workspace/WorkspaceViewerToolbar'
 import WorkspaceSelectionFilter from '../components/workspace/WorkspaceSelectionFilter'
@@ -528,6 +529,10 @@ export default function CadCamWorkspacePage() {
   // ── CAM generation (from loaded mesh) ────────────────────────────────────
   const [camLoading, setCamLoading] = useState(false)
   const [camError,   setCamError]   = useState<string | null>(null)
+  // ── CAM wizard ────────────────────────────────────────────────────────────
+  const [showCamWizard, setShowCamWizard] = useState(false)
+  // ── Per-operation visibility ───────────────────────────────────────────────
+  const [opVisibility, setOpVisibility] = useState<Record<string, boolean>>({})
 
   // ── Stock bbox ─────────────────────────────────────────────────────────────
   const [stockBbox, setStockBbox] = useState<StockBbox | null>(null)
@@ -743,6 +748,80 @@ export default function CadCamWorkspacePage() {
     }
   }, [mesh, wsFile, token, t, updateLayout])
 
+  // ── Operation wizard and per-op handlers ─────────────────────────────────
+
+  const handleAddOperation = useCallback((op: OperationSummary, groups: ToolpathLineGroup[]) => {
+    setWorkflow(prev => {
+      const next: ConnectedWorkflow = prev
+        ? { ...prev, operations: [...prev.operations, op], toolpathGroups: [...prev.toolpathGroups, ...groups] }
+        : {
+            workflowId: `WS_CAM_${Date.now()}`,
+            partName: wsFile?.name ?? null,
+            drawingNumber: null,
+            operations: [op],
+            toolpathGroups: groups,
+            planStatus: 'TOOLPATH_READY',
+          }
+      const frames = toolpathGroupsToAnimFrames(next.toolpathGroups)
+      setAnimFrames(frames)
+      setAnimFrame(0)
+      setAnimPlaying(false)
+      setSimState(DEFAULT_SIMULATION_STATE)
+      return next
+    })
+    setOpVisibility(prev => ({ ...prev, [op.operationId]: true }))
+  }, [wsFile])
+
+  const handleDeleteOperation = useCallback((opId: string) => {
+    setWorkflow(prev => {
+      if (!prev) return prev
+      const next = {
+        ...prev,
+        operations: prev.operations.filter(o => o.operationId !== opId),
+        toolpathGroups: prev.toolpathGroups.filter(g => g.operationRef !== opId),
+      }
+      const frames = toolpathGroupsToAnimFrames(next.toolpathGroups)
+      setAnimFrames(frames)
+      setAnimFrame(0)
+      setAnimPlaying(false)
+      setSimState(DEFAULT_SIMULATION_STATE)
+      return next
+    })
+    setOpVisibility(prev => {
+      const next = { ...prev }
+      delete next[opId]
+      return next
+    })
+  }, [])
+
+  const handleToggleOpVisibility = useCallback((opId: string) => {
+    setOpVisibility(prev => ({ ...prev, [opId]: prev[opId] === false ? true : false }))
+  }, [])
+
+  // Filtered toolpaths for viewport — per-operation visibility
+  const visibleToolpaths = useMemo(() => {
+    if (!workflow) return []
+    return workflow.toolpathGroups.filter(g => opVisibility[g.operationRef] !== false)
+  }, [workflow, opVisibility])
+
+  // Animation frame token = visible-only point, but we still use full frames for timeline
+  const currentOpName = useMemo(() => {
+    if (!workflow || animFrames.length === 0) return null
+    const pt = animFrames[animFrame]
+    if (!pt) return null
+    // Find operation whose group contains this frame index
+    let idx = 0
+    for (const g of workflow.toolpathGroups) {
+      const pts = g.points.length / 3
+      if (animFrame < idx + pts) return workflow.operations.find(o => o.operationId === g.operationRef)?.name ?? null
+      idx += pts
+    }
+    return null
+  }, [workflow, animFrames, animFrame])
+
+  // Expose currentOpName for MUST 13 — displayed in SimulationTab via animFrame
+  void currentOpName  // used by future simulation display (MUST 13)
+
   // ── Animation loop ────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -828,9 +907,10 @@ export default function CadCamWorkspacePage() {
   const hasFile      = !!wsFile || !!mesh
   const hasToolpaths = (workflow?.toolpathGroups.length ?? 0) > 0
   const hasStock     = !!stockBbox
-  const toolpaths    = workflow?.toolpathGroups ?? []
+  // viewport uses visibility-filtered toolpaths (per-operation toggle)
+  const toolpaths    = visibleToolpaths
   const opCount      = workflow?.operations.length ?? 0
-  const tpSegCount   = toolpaths.reduce((s, g) => s + Math.floor(g.points.length / 3), 0)
+  const tpSegCount   = (workflow?.toolpathGroups ?? []).reduce((s, g) => s + Math.floor(g.points.length / 3), 0)
 
   const toolPose: ToolPose | null = (animFrames.length > 0 && animFrame < animFrames.length)
     ? { x: animFrames[animFrame]![0], y: animFrames[animFrame]![1], z: animFrames[animFrame]![2] }
@@ -1173,12 +1253,27 @@ export default function CadCamWorkspacePage() {
             onSeek={handleAnimSeek}
             onSpeed={handleAnimSpeed}
             onRunSim={handleRunSimulation}
+            onNewOperation={() => setShowCamWizard(true)}
+            opVisibility={opVisibility}
+            onToggleOpVisibility={handleToggleOpVisibility}
+            onDeleteOperation={handleDeleteOperation}
             panelHeight={layout.bottomHeight}
             collapsed={layout.collapsedBottom}
             onCollapse={handleCollapseBottom}
           />
         )}
       </div>
+
+      {/* CAM Operation Wizard modal */}
+      {showCamWizard && (
+        <WorkspaceCamWizard
+          bbox={mesh?.bounding_box ?? null}
+          token={(() => { const auth = getStoredAuth(); return auth.token ?? token })()}
+          nextSequence={(workflow?.operations.length ?? 0) + 1}
+          onAdd={handleAddOperation}
+          onClose={() => setShowCamWizard(false)}
+        />
+      )}
 
       {/* Status bar */}
       {statusVisible && (

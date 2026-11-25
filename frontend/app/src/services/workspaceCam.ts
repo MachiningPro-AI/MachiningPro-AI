@@ -11,7 +11,7 @@
  */
 
 import { getStoredAuth } from './apiClient'
-import type { ConnectedWorkflow, ToolpathLineGroup } from '../components/workspace/WorkspaceTypes'
+import type { ConnectedWorkflow, OperationSummary, ToolpathLineGroup } from '../components/workspace/WorkspaceTypes'
 
 // ---------------------------------------------------------------------------
 // Types matching backend ToolpathSegment serialization
@@ -224,4 +224,165 @@ export async function generateWorkspaceCamPlan(
   }
 
   return { workflow, warnings }
+}
+
+// ---------------------------------------------------------------------------
+// Single operation generation (from wizard inputs)
+// ---------------------------------------------------------------------------
+
+export type SingleOpType = 'FACE_MILL' | 'POCKET' | 'PROFILE' | 'DRILL'
+
+export interface SingleOpInput {
+  opType: SingleOpType
+  bbox: { min: [number, number, number]; max: [number, number, number] }
+  fileRef: string
+  token: string
+  sequenceNumber: number
+  // Tool
+  toolDiameterMm: number | null
+  // Common
+  clearanceZ: number | null
+  // Face mill / Profile
+  profileSide?: string
+  compensationSide?: string
+  // Pocket
+  stepdownMm?: number | null
+  stepoverMm?: number | null
+  pocketDepthMm?: number | null
+  pocketStrategy?: string
+  // Profile
+  contourZ?: number | null
+  // Drill
+  drillX?: number | null
+  drillY?: number | null
+  drillDepthMm?: number | null
+  peckDepthMm?: number | null
+}
+
+export interface SingleOpResult {
+  operation: OperationSummary
+  toolpathGroups: ToolpathLineGroup[]
+  warnings: string[]
+}
+
+function opRefFromInput(input: SingleOpInput): string {
+  const safe = input.fileRef.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 16)
+  return `${input.opType}_${safe}_${input.sequenceNumber}_${Date.now()}`
+}
+
+export async function generateSingleOperation(input: SingleOpInput): Promise<SingleOpResult> {
+  const { opType, bbox, token } = input
+  if (!token) throw new Error('Authentication required')
+
+  const [xMin, yMin, zMin] = bbox.min
+  const [xMax, yMax, zMax] = bbox.max
+  const height = zMax - zMin
+  const autoClr = zMax + Math.max(height * 0.15, 5)
+  const clearZ = input.clearanceZ ?? autoClr
+
+  const opRef = opRefFromInput(input)
+  const warnings: string[] = []
+  let resp: ToolpathApiResponse
+
+  if (opType === 'FACE_MILL') {
+    resp = await postToolpath('face-mill', {
+      operation_ref: opRef,
+      region_x_min: xMin,
+      region_x_max: xMax,
+      region_y_min: yMin,
+      region_y_max: yMax,
+      face_z: zMax,
+      tool_diameter_mm: input.toolDiameterMm,
+      stepover_mm: input.stepoverMm ?? null,
+      clearance_z: clearZ,
+      clearance_source: 'USER_DEFINED',
+    }, token)
+
+  } else if (opType === 'POCKET') {
+    const depth = input.pocketDepthMm ?? height * 0.5
+    const pocketBtm = zMax - depth
+    resp = await postToolpath('pocket', {
+      operation_ref: opRef,
+      boundary_points: [[xMin, yMin], [xMax, yMin], [xMax, yMax], [xMin, yMax]],
+      pocket_top_z: zMax,
+      pocket_bottom_z: pocketBtm,
+      tool_diameter_mm: input.toolDiameterMm,
+      stepdown_mm: input.stepdownMm ?? null,
+      stepover_mm: input.stepoverMm ?? null,
+      strategy: input.pocketStrategy ?? 'OFFSET',
+      clearance_z: clearZ,
+      clearance_source: 'USER_DEFINED',
+    }, token)
+
+  } else if (opType === 'PROFILE') {
+    const profZ = input.contourZ ?? (zMax - height * 0.1)
+    resp = await postToolpath('profile', {
+      operation_ref: opRef,
+      contour_points: [[xMin, yMin], [xMax, yMin], [xMax, yMax], [xMin, yMax]],
+      contour_z: profZ,
+      tool_diameter_mm: input.toolDiameterMm,
+      profile_side: input.profileSide ?? 'OUTER',
+      compensation_side: input.compensationSide ?? 'CENTERLINE',
+      clearance_z: clearZ,
+      clearance_source: 'USER_DEFINED',
+      closed: true,
+    }, token)
+
+  } else if (opType === 'DRILL') {
+    const drillX = input.drillX ?? (xMin + xMax) / 2
+    const drillY = input.drillY ?? (yMin + yMax) / 2
+    const drillDepth = input.drillDepthMm ?? height * 0.5
+    resp = await postToolpath('drill', {
+      operation_ref: opRef,
+      hole_x: drillX,
+      hole_y: drillY,
+      hole_top_z: zMax,
+      hole_depth_mm: drillDepth,
+      peck_depth_mm: input.peckDepthMm ?? null,
+      clearance_z: clearZ,
+      clearance_source: 'USER_DEFINED',
+    }, token)
+
+  } else {
+    throw new Error(`Unsupported operation type: ${opType as string}`)
+  }
+
+  if (resp.warnings?.length) warnings.push(...resp.warnings)
+  const groups = segmentsToGroups(resp.toolpaths)
+
+  if (groups.length === 0) {
+    throw new Error(
+      `Toolpath API returned no drawable segments for ${opType}. ` +
+      (warnings.length ? `Warnings: ${warnings.join('; ')}` : 'No geometry produced.')
+    )
+  }
+
+  // Estimate cut length from segments
+  const totalPts = groups.reduce((s, g) => s + g.points.length / 3, 0)
+  const estCutLen = totalPts > 0 ? totalPts * 2 : null  // rough mm estimate
+
+  const opTypeLabels: Record<SingleOpType, string> = {
+    FACE_MILL: 'Face Mill',
+    POCKET: 'Pocket',
+    PROFILE: 'Profile',
+    DRILL: 'Drill',
+  }
+  const strategyLabel = opType === 'POCKET' ? (input.pocketStrategy ?? 'OFFSET')
+    : opType === 'PROFILE' ? (input.profileSide ?? 'OUTER')
+    : undefined
+
+  const operation: OperationSummary = {
+    operationId: opRef,
+    name: `${opTypeLabels[opType]} ${input.sequenceNumber}`,
+    type: opType,
+    setupRef: 'SETUP_1',
+    toolRef: input.toolDiameterMm ? `D${input.toolDiameterMm}` : null,
+    sequenceNumber: input.sequenceNumber,
+    status: 'TOOLPATH_READY',
+    strategy: strategyLabel ?? null,
+    estimatedCutLengthMm: estCutLen,
+    toolDiameterMm: input.toolDiameterMm,
+  }
+
+  return { operation, toolpathGroups: groups, warnings }
 }

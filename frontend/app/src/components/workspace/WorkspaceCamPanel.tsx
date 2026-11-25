@@ -15,6 +15,7 @@ import {
   ChevronDown, ChevronUp, AlertTriangle,
   Play, Pause, Square, SkipBack, SkipForward,
   StepBack, StepForward, Loader2,
+  Eye, EyeOff, Trash2, RefreshCw, Plus,
 } from 'lucide-react'
 import { useLocale } from '../../i18n'
 import { SAFETY, ANIM_SPEEDS } from './WorkspaceTypes'
@@ -40,59 +41,132 @@ const TABS: Array<{ id: CamTab; labelKey: string }> = [
 // Operations tab
 // ---------------------------------------------------------------------------
 
-function OperationsTab({ workflow, selectedId, onSelect }: {
+function OperationsTab({
+  workflow, selectedId, onSelect, opVisibility, onNewOperation, onToggleOpVisibility, onDeleteOperation,
+}: {
   workflow: ConnectedWorkflow | null
   selectedId: string | null
   onSelect: (id: string) => void
+  opVisibility: Record<string, boolean>
+  onNewOperation: () => void
+  onToggleOpVisibility: (id: string) => void
+  onDeleteOperation: (id: string) => void
 }) {
   const { t } = useLocale()
 
   if (!workflow || workflow.operations.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full text-[11px] text-tp-text-3 italic px-4">
-        {t('ws_noOperations')}
+      <div className="flex flex-col items-center justify-center h-full gap-3 px-4">
+        <p className="text-[11px] text-tp-text-3 italic">{t('ws_noOperations')}</p>
+        <button
+          type="button"
+          onClick={onNewOperation}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[11px]
+                     bg-tp-accent/10 text-tp-accent-light border border-tp-accent/30
+                     hover:bg-tp-accent/20 transition-colors"
+        >
+          <Plus size={12} />
+          {t('ws_newOperationBtn')}
+        </button>
       </div>
     )
   }
 
   return (
-    <div className="h-full overflow-y-auto [scrollbar-width:thin]
-                    [scrollbar-color:theme(colors.tp-border)_transparent]">
-      <table className="w-full text-[11px]">
-        <thead className="sticky top-0 bg-tp-surface-2 border-b border-tp-border">
-          <tr>
-            <th className="text-left px-3 py-1 text-tp-text-3 font-medium w-8">#</th>
-            <th className="text-left px-2 py-1 text-tp-text-3 font-medium">Name</th>
-            <th className="text-left px-2 py-1 text-tp-text-3 font-medium">Type</th>
-            <th className="text-left px-2 py-1 text-tp-text-3 font-medium">Tool</th>
-            <th className="text-left px-2 py-1 text-tp-text-3 font-medium">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {workflow.operations.map((op: OperationSummary, i: number) => (
-            <tr
-              key={op.operationId}
-              onClick={() => onSelect(op.operationId)}
-              className={`border-b border-tp-border/40 cursor-pointer
-                         ${selectedId === op.operationId
-                           ? 'bg-tp-accent/10'
-                           : i % 2 === 0 ? 'hover:bg-tp-surface-2' : 'bg-tp-surface/50 hover:bg-tp-surface-2'
-                         }`}
-            >
-              <td className="px-3 py-1 text-tp-text-3">{op.sequenceNumber}</td>
-              <td className="px-2 py-1 text-tp-text font-medium truncate max-w-[200px]">{op.name}</td>
-              <td className="px-2 py-1 text-tp-text-2 font-mono text-[10px]">{op.type}</td>
-              <td className="px-2 py-1 text-tp-text-3 truncate max-w-[120px]">{op.toolRef ?? '—'}</td>
-              <td className="px-2 py-1">
-                <span className="text-[9px] font-mono px-1 py-px rounded
-                                bg-tp-surface-3 text-tp-text-3 border border-tp-border">
-                  {op.status}
-                </span>
-              </td>
+    <div className="h-full flex flex-col overflow-hidden">
+      {/* toolbar */}
+      <div className="shrink-0 flex items-center justify-end px-2 py-1 border-b border-tp-border/40">
+        <button
+          type="button"
+          onClick={onNewOperation}
+          className="flex items-center gap-1 px-2 py-1 rounded text-[10px]
+                     text-tp-text-2 border border-tp-border hover:bg-tp-surface-2 transition-colors"
+        >
+          <Plus size={11} />
+          {t('ws_newOperationBtn')}
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto [scrollbar-width:thin]
+                      [scrollbar-color:theme(colors.tp-border)_transparent]">
+        <table className="w-full text-[11px]">
+          <thead className="sticky top-0 bg-tp-surface-2 border-b border-tp-border">
+            <tr>
+              <th className="text-left px-3 py-1 text-tp-text-3 font-medium w-8">#</th>
+              <th className="text-left px-2 py-1 text-tp-text-3 font-medium">Name</th>
+              <th className="text-left px-2 py-1 text-tp-text-3 font-medium">Type</th>
+              <th className="text-left px-2 py-1 text-tp-text-3 font-medium">{t('ws_strategyLabel')}</th>
+              <th className="text-left px-2 py-1 text-tp-text-3 font-medium">Tool</th>
+              <th className="text-left px-2 py-1 text-tp-text-3 font-medium">{t('ws_estCutLength')}</th>
+              <th className="text-left px-2 py-1 text-tp-text-3 font-medium">Status</th>
+              <th className="text-left px-2 py-1 text-tp-text-3 font-medium w-20">Actions</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {workflow.operations.map((op: OperationSummary, i: number) => {
+              const visible = opVisibility[op.operationId] !== false
+              return (
+                <tr
+                  key={op.operationId}
+                  onClick={() => onSelect(op.operationId)}
+                  className={`border-b border-tp-border/40 cursor-pointer
+                             ${selectedId === op.operationId
+                               ? 'bg-tp-accent/10'
+                               : i % 2 === 0 ? 'hover:bg-tp-surface-2' : 'bg-tp-surface/50 hover:bg-tp-surface-2'
+                             } ${visible ? '' : 'opacity-50'}`}
+                >
+                  <td className="px-3 py-1 text-tp-text-3">{op.sequenceNumber}</td>
+                  <td className="px-2 py-1 text-tp-text font-medium truncate max-w-[160px]">{op.name}</td>
+                  <td className="px-2 py-1 text-tp-text-2 font-mono text-[10px]">{op.type}</td>
+                  <td className="px-2 py-1 text-tp-text-3 font-mono text-[10px]">{op.strategy ?? '—'}</td>
+                  <td className="px-2 py-1 text-tp-text-3 truncate max-w-[80px]">
+                    {op.toolDiameterMm ? `Ø${op.toolDiameterMm}mm` : (op.toolRef ?? '—')}
+                  </td>
+                  <td className="px-2 py-1 text-tp-text-3 font-mono text-[10px]">
+                    {op.estimatedCutLengthMm != null ? `${op.estimatedCutLengthMm.toFixed(0)}mm` : '—'}
+                  </td>
+                  <td className="px-2 py-1">
+                    <span className="text-[9px] font-mono px-1 py-px rounded
+                                    bg-tp-surface-3 text-tp-text-3 border border-tp-border">
+                      {op.status}
+                    </span>
+                  </td>
+                  <td className="px-2 py-1">
+                    <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => onToggleOpVisibility(op.operationId)}
+                        title={visible ? t('ws_opVisible') : t('ws_opVisible')}
+                        className="w-5 h-5 flex items-center justify-center rounded
+                                   text-tp-text-3 hover:text-tp-text hover:bg-tp-surface-3"
+                      >
+                        {visible ? <Eye size={11} /> : <EyeOff size={11} />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={onNewOperation}
+                        title={t('ws_opRegenerateBtn')}
+                        className="w-5 h-5 flex items-center justify-center rounded
+                                   text-tp-text-3 hover:text-tp-text hover:bg-tp-surface-3"
+                      >
+                        <RefreshCw size={10} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDeleteOperation(op.operationId)}
+                        title={t('ws_opDeleteBtn')}
+                        className="w-5 h-5 flex items-center justify-center rounded
+                                   text-tp-text-3 hover:text-tp-error hover:bg-tp-error/10"
+                      >
+                        <Trash2 size={10} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
@@ -101,13 +175,24 @@ function OperationsTab({ workflow, selectedId, onSelect }: {
 // Toolpaths tab
 // ---------------------------------------------------------------------------
 
-function ToolpathsTab({ workflow }: { workflow: ConnectedWorkflow | null }) {
+function ToolpathsTab({
+  workflow, onNewOperation,
+}: { workflow: ConnectedWorkflow | null; onNewOperation: () => void }) {
   const { t } = useLocale()
 
   if (!workflow || workflow.toolpathGroups.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full text-[11px] text-tp-text-3 italic px-4">
-        {t('ws_noToolpaths')}
+      <div className="flex flex-col items-center justify-center h-full gap-3 px-4">
+        <p className="text-[11px] text-tp-text-3 italic">{t('ws_noToolpaths')}</p>
+        <button
+          type="button"
+          onClick={onNewOperation}
+          className="flex items-center gap-1.5 px-4 py-2 rounded text-[11px]
+                     bg-tp-accent text-white hover:bg-tp-accent/80 transition-colors"
+        >
+          <Plus size={12} />
+          {t('ws_genToolpath')}
+        </button>
       </div>
     )
   }
@@ -115,7 +200,19 @@ function ToolpathsTab({ workflow }: { workflow: ConnectedWorkflow | null }) {
   const totalPoints = workflow.toolpathGroups.reduce((sum, g) => sum + g.points.length / 3, 0)
 
   return (
-    <div className="h-full overflow-y-auto [scrollbar-width:thin]
+    <div className="h-full flex flex-col overflow-hidden">
+      <div className="shrink-0 flex items-center justify-end px-2 py-1 border-b border-tp-border/40">
+        <button
+          type="button"
+          onClick={onNewOperation}
+          className="flex items-center gap-1 px-2 py-1 rounded text-[10px]
+                     text-tp-text-2 border border-tp-border hover:bg-tp-surface-2 transition-colors"
+        >
+          <Plus size={11} />
+          {t('ws_newOperationBtn')}
+        </button>
+      </div>
+    <div className="flex-1 overflow-y-auto [scrollbar-width:thin]
                     [scrollbar-color:theme(colors.tp-border)_transparent] p-3">
       <div className="flex gap-4 mb-3">
         <Stat label={t('ws_toolpathCount')} value={totalPoints.toFixed(0)} />
@@ -147,6 +244,7 @@ function ToolpathsTab({ workflow }: { workflow: ConnectedWorkflow | null }) {
           ))}
         </tbody>
       </table>
+    </div>
     </div>
   )
 }
@@ -192,6 +290,17 @@ function SimulationTab({
   const { t } = useLocale()
   const hasFrames = animFrames > 0
   const pct = hasFrames ? (animFrame / (animFrames - 1)) * 100 : 0
+
+  // MUST 12: gate simulation until toolpaths exist
+  const hasToolpaths = (workflow?.toolpathGroups?.length ?? 0) > 0
+  if (!hasToolpaths) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-3 px-6 text-center">
+        <AlertTriangle size={20} className="text-tp-text-3" />
+        <p className="text-[11px] text-tp-text-3 leading-relaxed">{t('ws_simNeedsToolpath')}</p>
+      </div>
+    )
+  }
 
   return (
     <div className="p-3 h-full overflow-y-auto space-y-3">
@@ -462,6 +571,11 @@ export interface CamPanelProps {
   onSeek:      (frame: number) => void
   onSpeed:     (s: AnimSpeed) => void
   onRunSim:    () => void
+  // Operation controls (MUST 7, 8)
+  onNewOperation:         () => void
+  opVisibility:           Record<string, boolean>
+  onToggleOpVisibility:   (id: string) => void
+  onDeleteOperation:      (id: string) => void
   // Layout — MUST 3: collapse support
   panelHeight?:  number
   collapsed?:    boolean
@@ -473,6 +587,7 @@ export default function WorkspaceCamPanel({
   animFrames, animFrame, animPlaying, animSpeed,
   simState, simRunning,
   onPlay, onPause, onStop, onStepFwd, onStepBack, onSeek, onSpeed, onRunSim,
+  onNewOperation, opVisibility, onToggleOpVisibility, onDeleteOperation,
   panelHeight,
   collapsed = false,
   onCollapse,
@@ -582,9 +697,19 @@ export default function WorkspaceCamPanel({
       {expanded && (
         <div className="flex-1 overflow-hidden">
           {activeTab === 'operations'   && (
-            <OperationsTab workflow={workflow} selectedId={selectedId} onSelect={onSelect} />
+            <OperationsTab
+              workflow={workflow}
+              selectedId={selectedId}
+              onSelect={onSelect}
+              opVisibility={opVisibility}
+              onNewOperation={onNewOperation}
+              onToggleOpVisibility={onToggleOpVisibility}
+              onDeleteOperation={onDeleteOperation}
+            />
           )}
-          {activeTab === 'toolpaths'    && <ToolpathsTab workflow={workflow} />}
+          {activeTab === 'toolpaths'    && (
+            <ToolpathsTab workflow={workflow} onNewOperation={onNewOperation} />
+          )}
           {activeTab === 'simulation'   && (
             <SimulationTab
               workflow={workflow}
