@@ -28,6 +28,7 @@ import WorkspaceCamPanel from '../components/workspace/WorkspaceCamPanel'
 import WorkspaceStatusBar from '../components/workspace/WorkspaceStatusBar'
 import WorkspaceViewerToolbar from '../components/workspace/WorkspaceViewerToolbar'
 import WorkspaceSelectionFilter from '../components/workspace/WorkspaceSelectionFilter'
+import WorkspaceMeasurementPanel from '../components/workspace/WorkspaceMeasurementPanel'
 import { useSelectionState } from '../hooks/useSelectionState'
 import {
   detectFormat,
@@ -515,6 +516,10 @@ export default function CadCamWorkspacePage() {
   const [units,        setUnits]        = useState<'mm' | 'inch'>('mm')
   const [selectedId,   setSelectedId]   = useState<string | null>(null)
 
+  // ── Selection state — MUST 2–15, 38 ──────────────────────────────────────
+  // HARD RULE 7: selection state is viewer state only — does NOT alter engineering state
+  const [selState, selActions] = useSelectionState()
+
   // ── Workflow ─────────────────────────────────────────────────────────────
   const [workflow,          setWorkflow]         = useState<ConnectedWorkflow | null>(null)
   const [showConnectDialog, setShowConnectDialog] = useState(false)
@@ -943,9 +948,21 @@ export default function CadCamWorkspacePage() {
           )}
 
           {/* Center: 3D viewport */}
-          <div className="flex-1 overflow-hidden relative min-w-0">
+          <div className="flex-1 overflow-hidden relative min-w-0 flex flex-col">
             {/* MUST 13: Structured error diagnostic panel */}
             {/* MUST 7: Non-blocking warning notification for GEOMETRY_READY_WITH_WARNINGS */}
+            {/* Selection filter toolbar — MUST 26 */}
+            {(wsFile || mesh) && (
+              <WorkspaceSelectionFilter
+                mode={selState.mode}
+                onMode={selActions.setMode}
+                onClear={selActions.clearSelection}
+              />
+            )}
+
+            {/* Relative container for overlays + viewport canvas */}
+            <div className="flex-1 overflow-hidden relative min-w-0">
+
             {!importDiagnostic && importWarning && fileLoadStatus === 'GEOMETRY_READY_WITH_WARNINGS' && (
               <div className="absolute top-2 left-2 right-2 z-10 max-w-lg mx-auto
                               bg-tp-surface border border-yellow-500/60 rounded shadow-lg shadow-black/40
@@ -1033,6 +1050,14 @@ export default function CadCamWorkspacePage() {
               loadingBackend={loadingBackend}
               bgPreset={bgPreset}
               partOpacity={layout.partOpacity}
+              selectionMode={selState.mode}
+              selectedEntities={selState.selected}
+              hover={selState.hover}
+              pendingMeasurePoint={selState.pendingMeasurePoint}
+              onEntitySelect={selActions.selectEntity}
+              onEntityHover={selActions.setHover}
+              onMeasurePoint={selActions.addMeasurePoint}
+              onClearSelection={selActions.clearSelection}
             />
 
             {/* Viewer toolbar overlay — MUST 14 */}
@@ -1071,6 +1096,7 @@ export default function CadCamWorkspacePage() {
                 Restore
               </button>
             )}
+            </div>{/* end relative overlay container */}
           </div>
 
           {/* Right resize handle — MUST 2 */}
@@ -1084,18 +1110,35 @@ export default function CadCamWorkspacePage() {
             />
           )}
 
-          {/* Right: Properties panel */}
+          {/* Right: Properties + Measurement panels */}
           {rightVisible && (
-            <WorkspacePropertiesPanel
-              wsFile={wsFile}
-              mesh={mesh}
-              workflow={workflow}
-              selectedId={selectedId}
-              igesDiagnostics={igesDiagnostics}
-              collapsed={layout.collapsedRight}
-              onCollapse={handleCollapseRight}
+            <div
+              className="flex flex-col overflow-hidden"
               style={!layout.collapsedRight ? { width: layout.rightWidth, minWidth: layout.rightWidth } : undefined}
-            />
+            >
+              <WorkspacePropertiesPanel
+                wsFile={wsFile}
+                mesh={mesh}
+                workflow={workflow}
+                selectedId={selectedId}
+                igesDiagnostics={igesDiagnostics}
+                collapsed={layout.collapsedRight}
+                onCollapse={handleCollapseRight}
+                style={{ width: '100%', minWidth: 0, flex: 1 }}
+                selectedEntities={selState.selected}
+              />
+              {!layout.collapsedRight && selState.measurements.length > 0 && (
+                <div className="shrink-0 border-t border-tp-border" style={{ maxHeight: 200, minHeight: 80 }}>
+                  <WorkspaceMeasurementPanel
+                    measurements={selState.measurements}
+                    pendingPoint={selState.pendingMeasurePoint}
+                    onClear={selActions.clearMeasurements}
+                    onRemove={selActions.removeMeasurement}
+                    onMeasureMode={() => selActions.setMode('FACE')}
+                  />
+                </div>
+              )}
+            </div>
           )}
         </div>
 
@@ -1146,6 +1189,8 @@ export default function CadCamWorkspacePage() {
           onToggleUnits={() => setUnits(u => u === 'mm' ? 'inch' : 'mm')}
           operationCount={opCount}
           toolpathCount={tpSegCount}
+          selectionMode={selState.mode}
+          selectedEntities={selState.selected}
         />
       )}
 

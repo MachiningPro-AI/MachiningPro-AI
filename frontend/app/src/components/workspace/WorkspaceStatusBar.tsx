@@ -7,7 +7,7 @@
 
 import { useLocale } from '../../i18n'
 import { SAFETY } from './WorkspaceTypes'
-import type { WorkspaceFile } from './WorkspaceTypes'
+import type { WorkspaceFile, SelectionMode, SelectedEntity } from './WorkspaceTypes'
 
 function coord(val: number): string {
   return val.toFixed(3).padStart(9)
@@ -20,6 +20,8 @@ export interface StatusBarProps {
   onToggleUnits: () => void
   operationCount: number
   toolpathCount:  number
+  selectionMode?:    SelectionMode
+  selectedEntities?: SelectedEntity[]
 }
 
 export default function WorkspaceStatusBar({
@@ -29,6 +31,8 @@ export default function WorkspaceStatusBar({
   onToggleUnits,
   operationCount,
   toolpathCount,
+  selectionMode,
+  selectedEntities = [],
 }: StatusBarProps) {
   const { t } = useLocale()
 
@@ -68,6 +72,29 @@ export default function WorkspaceStatusBar({
       {/* File name */}
       {wsFile && (
         <span className="truncate max-w-[180px] text-tp-text-2">{wsFile.name}</span>
+      )}
+
+      {/* Selection mode + entity info — MUST 28 */}
+      {selectionMode && (
+        <>
+          <div className="w-px h-3 bg-tp-border/40 shrink-0" />
+          <span className="shrink-0 text-tp-accent-light">
+            {selectionMode}
+          </span>
+          {selectedEntities.length > 0 && (
+            <span className="shrink-0 text-tp-text-2">
+              {selectedEntities.length === 1
+                ? (() => {
+                    const e = selectedEntities[0]!
+                    if (e.kind === 'FACE') return `${e.entityClass}:${e.faceId}`
+                    if (e.kind === 'EDGE') return `${e.entityClass}:${e.edgeId}`
+                    return 'BODY:0'
+                  })()
+                : `${selectedEntities.length} selected`
+              }
+            </span>
+          )}
+        </>
       )}
 
       <div className="flex-1" />

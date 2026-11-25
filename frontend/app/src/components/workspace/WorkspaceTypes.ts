@@ -8,9 +8,110 @@
  *   simulationState=NOT_PERFORMED    — no fabricated sim results
  *   NO_MACHINE_WRITE=YES        — workspace has no machine write controls
  *   NO_DISPATCH=YES             — no CNC dispatch from this workspace
+ *
+ * Selection safety contract:
+ *   SELECTION_ENGINEERING_STATE_CHANGED=NO — select/hover/measure/hide never
+ *   alter feature confirmation, WCS, tool selection, CAM state, or production release.
  */
 
 import type { PreviewMesh } from '../../services/engineeringImport'
+
+// ---------------------------------------------------------------------------
+// Selection
+// ---------------------------------------------------------------------------
+
+/** Active selection filter — controls which entity type a click selects. */
+export type SelectionMode = 'BODY' | 'FACE' | 'EDGE' | 'FEATURE'
+
+/**
+ * Entity class — MUST 5, 9, 34:
+ * Use CAD_FACE only when provenance is OCC_ENTITY_TAG.
+ * Use MESH_FACE / MESH_EDGE when no canonical B-Rep mapping exists.
+ */
+export type EntityClass =
+  | 'BODY'
+  | 'CAD_FACE'    // entity_tag from OCC (STEP/IGES via gmsh)
+  | 'MESH_FACE'   // triangle group without canonical B-Rep provenance
+  | 'CAD_EDGE'    // future: OCC edge tag
+  | 'MESH_EDGE'   // boundary edge derived from mesh
+  | 'FEATURE'
+
+export interface SelectedBody {
+  kind: 'BODY'
+  id: 'mesh_body_0'
+  boundingBox: { min: [number,number,number]; max: [number,number,number] }
+}
+
+export interface SelectedFace {
+  kind: 'FACE'
+  entityClass: 'CAD_FACE' | 'MESH_FACE'
+  /** OCC entity_tag for CAD_FACE; tri_start index for MESH_FACE. */
+  faceId: number
+  /** Label shown in UI — "Face <n>" or "Mesh Face <n>". */
+  label: string
+  /** Index of the first triangle that was hit by the raycast. */
+  triIndex: number
+  /** World-space hit point. */
+  hitPoint: [number,number,number]
+  /** Surface normal at hit point. */
+  normal: [number,number,number]
+  triStart: number
+  triCount: number
+  /** Approx area in model units² (sum of triangle areas). */
+  estimatedAreaUnits2: number
+}
+
+export interface SelectedEdge {
+  kind: 'EDGE'
+  entityClass: 'MESH_EDGE'
+  edgeId: string   // "mesh_edge_<hash>"
+  label: string
+  /** Polyline points [[x,y,z], ...] */
+  points: [number,number,number][]
+  /** Sum of segment lengths in model units. */
+  lengthUnits: number
+}
+
+export type SelectedEntity = SelectedBody | SelectedFace | SelectedEdge
+
+/** Measurement entry — session-only, never stored in engineering records. */
+export type MeasurementType =
+  | 'POINT_DISTANCE'
+  | 'EDGE_LENGTH'
+  | 'RADIUS'
+  | 'DIAMETER'
+  | 'ANGLE'
+
+export interface MeasurementEntry {
+  id: string
+  type: MeasurementType
+  label: string
+  value: number
+  unit: string
+  /** Pretty-printed value with units. */
+  display: string
+  /** World-space anchor for annotation glyph. */
+  anchorA: [number,number,number]
+  anchorB?: [number,number,number]
+  /** True while computing (future async support). */
+  pending: boolean
+  status: 'OK' | 'APPROXIMATE' | 'INSUFFICIENT_DATA'
+}
+
+/** Hover preview — lighter than a full selection. */
+export interface HoverTarget {
+  entityClass: EntityClass
+  faceId?: number
+  edgeId?: string
+  triIndex?: number
+  hitPoint?: [number,number,number]
+}
+
+/** Entity visibility override — visualization state only, not engineering data. */
+export interface VisibilityOverride {
+  entityId: string    // body / face / edge id
+  hidden: boolean
+}
 
 // ---------------------------------------------------------------------------
 // Display & rendering
@@ -140,6 +241,10 @@ export interface OperationSummary {
   toolRef: string | null
   sequenceNumber: number
   status: string
+  // Extended CAM fields (optional — set when created via wizard or toolpath API)
+  strategy?: string | null
+  estimatedCutLengthMm?: number | null
+  toolDiameterMm?: number | null
 }
 
 // ---------------------------------------------------------------------------

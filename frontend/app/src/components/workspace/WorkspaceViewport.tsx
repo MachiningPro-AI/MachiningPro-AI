@@ -25,8 +25,9 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { LoaderCircle, Maximize2, RotateCcw } from 'lucide-react'
 import { useLocale } from '../../i18n'
 import type { PreviewMesh } from '../../services/engineeringImport'
-import type { BackgroundPreset, DisplayMode, ToolPose, StockBbox, ToolpathLineGroup, ViewPreset, WorkspaceFile } from './WorkspaceTypes'
+import type { BackgroundPreset, DisplayMode, ToolPose, StockBbox, ToolpathLineGroup, ViewPreset, WorkspaceFile, SelectionMode, SelectedEntity, HoverTarget } from './WorkspaceTypes'
 import { CLIENT_RENDER_FORMATS, DEFAULT_BG_PRESET, SERVER_RENDER_FORMATS } from './WorkspaceTypes'
+import { resolveFace, buildFaceHighlightGeometry, buildMeasurementLineGeometry } from './selectionUtils'
 
 // ---------------------------------------------------------------------------
 // Scene constants (defaults — overridable via bgPreset prop)
@@ -131,6 +132,11 @@ function buildEdgeMaterial(): THREE.LineBasicMaterial {
   return new THREE.LineBasicMaterial({ color: EDGE_COL })
 }
 
+// Selection highlight colors
+const SEL_FACE_COLOR   = 0x00aaff  // selected face emissive
+const HOVER_FACE_COLOR = 0x0066cc  // hover face emissive
+const MEAS_POINT_COLOR = 0xffdd00  // measurement anchor marker
+
 // ---------------------------------------------------------------------------
 // Props
 // ---------------------------------------------------------------------------
@@ -157,6 +163,15 @@ export interface ViewportProps {
   // Appearance — MUST 15, 17, 18, 20 — never alter engineering data
   bgPreset?:    BackgroundPreset
   partOpacity?: number
+  // Selection (MUST 2–11)
+  selectionMode?:     SelectionMode
+  selectedEntities?:  SelectedEntity[]
+  hover?:             HoverTarget | null
+  pendingMeasurePoint?: [number,number,number] | null
+  onEntitySelect?:    (entity: SelectedEntity, additive: boolean) => void
+  onEntityHover?:     (target: HoverTarget | null) => void
+  onMeasurePoint?:    (pt: [number,number,number]) => void
+  onClearSelection?:  () => void
 }
 
 // ---------------------------------------------------------------------------
@@ -184,6 +199,13 @@ export default function WorkspaceViewport({
   loadingBackend,
   bgPreset,
   partOpacity,
+  selectionMode,
+  selectedEntities,
+  pendingMeasurePoint,
+  onEntitySelect,
+  onEntityHover,
+  onMeasurePoint,
+  onClearSelection,
 }: ViewportProps) {
   const { t } = useLocale()
   const containerRef   = useRef<HTMLDivElement>(null)
@@ -209,6 +231,30 @@ export default function WorkspaceViewport({
   const [loading,    setLoading]    = useState(false)
   const [parseError, setParseError] = useState<string | null>(null)
   const [meshLoaded, setMeshLoaded] = useState(false)
+
+  // Selection / measurement scene objects
+  const selHighlightGroupRef  = useRef<THREE.Group | null>(null)  // face highlight overlays
+  const measMarkersGroupRef   = useRef<THREE.Group | null>(null)  // measurement anchor spheres
+  const measLinesGroupRef     = useRef<THREE.Group | null>(null)  // measurement lines
+  // Raw mesh data refs — required for raycasting hit resolution
+  const meshPositionsRef      = useRef<number[]>([])
+  const meshIndicesRef        = useRef<number[]>([])
+  const meshFaceGroupsRef     = useRef<typeof mesh extends null ? undefined : NonNullable<typeof mesh>['face_groups']>(undefined)
+  // Live selection/mode refs (avoid stale closures in event handlers)
+  const selectionModeRef      = useRef<SelectionMode>(selectionMode ?? 'FACE')
+  const onEntitySelectRef     = useRef(onEntitySelect)
+  const onEntityHoverRef      = useRef(onEntityHover)
+  const onMeasurePointRef     = useRef(onMeasurePoint)
+  const onClearSelectionRef   = useRef(onClearSelection)
+  const pendingMeasureRef     = useRef<[number,number,number] | null>(pendingMeasurePoint ?? null)
+
+  // Keep callback & state refs current
+  onEntitySelectRef.current   = onEntitySelect
+  onEntityHoverRef.current    = onEntityHover
+  onMeasurePointRef.current   = onMeasurePoint
+  onClearSelectionRef.current = onClearSelection
+  selectionModeRef.current    = selectionMode ?? 'FACE'
+  pendingMeasureRef.current   = pendingMeasurePoint ?? null
 
   // Track current display mode & show flags without re-mounting the entire scene
   const displayModeRef  = useRef(displayMode)
@@ -342,23 +388,125 @@ export default function WorkspaceViewport({
     scene.add(groundMesh)
     disposeListRef.current.push(groundGeo, groundMat)
 
-    // Raycaster for cursor
+    // Selection highlight group
+    const selGroup = new THREE.Group()
+    selGroup.name = 'selHighlight'
+    scene.add(selGroup)
+    selHighlightGroupRef.current = selGroup
+
+    // Measurement markers group
+    const measMarkersGroup = new THREE.Group()
+    measMarkersGroup.name = 'measMarkers'
+    scene.add(measMarkersGroup)
+    measMarkersGroupRef.current = measMarkersGroup
+
+    // Measurement lines group
+    const measLinesGroup = new THREE.Group()
+    measLinesGroup.name = 'measLines'
+    scene.add(measLinesGroup)
+    measLinesGroupRef.current = measLinesGroup
+
+    // Raycaster (shared for cursor + selection)
     const raycaster = new THREE.Raycaster()
     const mouse     = new THREE.Vector2()
-    const onMouseMove = (e: MouseEvent) => {
+
+    const getNDC = (e: PointerEvent | MouseEvent) => {
       const rect = container.getBoundingClientRect()
-      mouse.x =  ((e.clientX - rect.left)  / rect.width)  * 2 - 1
-      mouse.y = -((e.clientY - rect.top)   / rect.height) * 2 + 1
+      return {
+        x:  ((e.clientX - rect.left) / rect.width)  * 2 - 1,
+        y: -((e.clientY - rect.top)  / rect.height) * 2 + 1,
+      }
+    }
+
+    const onMouseMove = (e: MouseEvent) => {
+      const ndc = getNDC(e)
+      mouse.x = ndc.x; mouse.y = ndc.y
       raycaster.setFromCamera(mouse, camera)
       const hits = raycaster.intersectObject(groundMesh)
       if (hits.length > 0) {
         const p = hits[0].point
         onCursorPos([p.x, p.y, p.z])
       }
+
+      // Hover raycasting — MUST 9
+      const meshGroup = meshGroupRef.current
+      if (meshGroup && onEntityHoverRef.current && meshGroup.children.length > 0) {
+        const meshHits = raycaster.intersectObjects(meshGroup.children, false)
+        if (meshHits.length > 0 && meshHits[0].faceIndex !== undefined) {
+          const hit = meshHits[0]
+          const face = resolveFace(
+            hit.faceIndex!,
+            meshFaceGroupsRef.current as import('../../services/engineeringImport').MeshFaceGroup[] | undefined,
+            meshPositionsRef.current,
+            meshIndicesRef.current,
+            hit,
+          )
+          onEntityHoverRef.current({
+            entityClass: face.entityClass,
+            faceId: face.faceId,
+            edgeId: undefined,
+            triIndex: face.triIndex,
+            hitPoint: face.hitPoint,
+            normal: face.normal,
+          })
+        } else {
+          onEntityHoverRef.current(null)
+        }
+      }
     }
     container.addEventListener('mousemove', onMouseMove)
-    const onMouseLeave = () => onCursorPos(null)
+    const onMouseLeave = () => {
+      onCursorPos(null)
+      onEntityHoverRef.current?.(null)
+    }
     container.addEventListener('mouseleave', onMouseLeave)
+
+    // Click → selection raycasting — MUST 4–8
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.button !== 0) return  // left click only
+      const ndc = getNDC(e)
+      mouse.x = ndc.x; mouse.y = ndc.y
+      raycaster.setFromCamera(mouse, camera)
+      const meshGroup = meshGroupRef.current
+      if (!meshGroup || meshGroup.children.length === 0) return
+      const hits = raycaster.intersectObjects(meshGroup.children, false)
+      if (hits.length === 0) return
+
+      const hit = hits[0]
+      if (hit.faceIndex === undefined) return
+      const mode = selectionModeRef.current
+
+      if (mode === 'BODY') {
+        const box = fitBoxRef.current
+        const bMin: [number,number,number] = box ? [box.min.x, box.min.y, box.min.z] : [0,0,0]
+        const bMax: [number,number,number] = box ? [box.max.x, box.max.y, box.max.z] : [0,0,0]
+        const entity: import('./WorkspaceTypes').SelectedBody = {
+          kind: 'BODY',
+          id: 'mesh_body_0',
+          boundingBox: { min: bMin, max: bMax },
+        }
+        onEntitySelectRef.current?.(entity, e.shiftKey || e.ctrlKey || e.metaKey)
+        return
+      }
+
+      if (mode === 'FACE') {
+        const face = resolveFace(
+          hit.faceIndex,
+          meshFaceGroupsRef.current as import('../../services/engineeringImport').MeshFaceGroup[] | undefined,
+          meshPositionsRef.current,
+          meshIndicesRef.current,
+          hit,
+        )
+        onEntitySelectRef.current?.(face, e.shiftKey || e.ctrlKey || e.metaKey)
+      }
+    }
+    container.addEventListener('pointerdown', onPointerDown)
+
+    // Esc → clear selection — MUST 11
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClearSelectionRef.current?.()
+    }
+    window.addEventListener('keydown', onKeyDown)
 
     // Render loop
     let animId = 0
@@ -434,6 +582,8 @@ export default function WorkspaceViewport({
       ro.disconnect()
       container.removeEventListener('mousemove', onMouseMove)
       container.removeEventListener('mouseleave', onMouseLeave)
+      container.removeEventListener('pointerdown', onPointerDown)
+      window.removeEventListener('keydown', onKeyDown)
       controls.dispose()
       for (const d of disposeListRef.current) d.dispose()
       disposeListRef.current = []
@@ -444,6 +594,7 @@ export default function WorkspaceViewport({
       gridRef.current = wcsRef.current = null
       toolMarkerRef.current = stockBoxRef.current = null
       collisionGroupRef.current = gougeGroupRef.current = null
+      selHighlightGroupRef.current = measMarkersGroupRef.current = measLinesGroupRef.current = null
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])  // scene mounts once
@@ -501,7 +652,10 @@ export default function WorkspaceViewport({
     }
 
     if (mesh) {
-      // Backend PreviewMesh
+      // Backend PreviewMesh — store raw data for raycasting hit resolution — MUST 3
+      meshPositionsRef.current  = mesh.positions
+      meshIndicesRef.current    = mesh.indices
+      meshFaceGroupsRef.current = mesh.face_groups as never
       try {
         const geo = new THREE.BufferGeometry()
         geo.setAttribute('position', new THREE.Float32BufferAttribute(mesh.positions, 3))
@@ -514,6 +668,11 @@ export default function WorkspaceViewport({
       }
       return () => { alive = false }
     }
+
+    // Clear mesh data refs when file changes
+    meshPositionsRef.current  = []
+    meshIndicesRef.current    = []
+    meshFaceGroupsRef.current = undefined as never
 
     if (!wsFile || !CLIENT_RENDER_FORMATS.includes(wsFile.format)) {
       setLoading(false)
@@ -585,6 +744,85 @@ export default function WorkspaceViewport({
       })
     }
   }, [displayMode])
+
+  // ── Selection highlight overlays — MUST 7 ───────────────────────────────
+
+  useEffect(() => {
+    const group = selHighlightGroupRef.current
+    if (!group) return
+
+    // Clear previous highlights
+    while (group.children.length > 0) {
+      const child = group.children[0] as THREE.Mesh
+      child.geometry?.dispose()
+      ;(child.material as THREE.Material | undefined)?.dispose()
+      group.remove(child)
+    }
+
+    if (!selectedEntities || selectedEntities.length === 0) return
+
+    for (const entity of selectedEntities) {
+      if (entity.kind !== 'FACE') continue
+      const face = entity
+      if (meshPositionsRef.current.length === 0 || meshIndicesRef.current.length === 0) continue
+
+      try {
+        const geo = buildFaceHighlightGeometry(
+          face.triStart,
+          face.triCount,
+          meshPositionsRef.current,
+          meshIndicesRef.current,
+        )
+        const mat = new THREE.MeshBasicMaterial({
+          color: SEL_FACE_COLOR,
+          transparent: true,
+          opacity: 0.35,
+          depthTest: true,
+          side: THREE.DoubleSide,
+          polygonOffset: true,
+          polygonOffsetFactor: -1,
+          polygonOffsetUnits: -1,
+        })
+        const overlay = new THREE.Mesh(geo, mat)
+        overlay.name = `sel_${face.faceId}`
+        group.add(overlay)
+      } catch {
+        // Silently ignore geometry build errors for invalid triangle ranges
+      }
+    }
+  }, [selectedEntities])
+
+  // ── Measurement markers (pending point + completed measurements) — MUST 24
+
+  useEffect(() => {
+    const markerGroup = measMarkersGroupRef.current
+    const lineGroup   = measLinesGroupRef.current
+    if (!markerGroup || !lineGroup) return
+
+    // Clear previous markers
+    while (markerGroup.children.length > 0) {
+      const child = markerGroup.children[0] as THREE.Mesh
+      child.geometry?.dispose()
+      ;(child.material as THREE.Material | undefined)?.dispose()
+      markerGroup.remove(child)
+    }
+    while (lineGroup.children.length > 0) {
+      const child = lineGroup.children[0] as THREE.Line
+      child.geometry?.dispose()
+      ;(child.material as THREE.Material | undefined)?.dispose()
+      lineGroup.remove(child)
+    }
+
+    // Pending measure point marker
+    if (pendingMeasurePoint) {
+      const geo = new THREE.SphereGeometry(0.8, 8, 8)
+      const mat = new THREE.MeshBasicMaterial({ color: MEAS_POINT_COLOR })
+      const sphere = new THREE.Mesh(geo, mat)
+      sphere.position.set(...pendingMeasurePoint)
+      sphere.name = 'meas_pending'
+      markerGroup.add(sphere)
+    }
+  }, [pendingMeasurePoint])
 
   // ── Grid visibility ──────────────────────────────────────────────────────
 

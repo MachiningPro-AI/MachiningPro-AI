@@ -94,6 +94,10 @@ def _tessellate_brep(data: bytes, suffix: str) -> dict[str, Any] | None:
 
     ``suffix`` must be ".step"/".stp" for STEP or ".igs"/".iges" for IGES.
     gmsh derives the CAD kernel from the file extension.
+
+    face_groups: list of {entity_tag, tri_start, tri_count} mapping OCC 2-D
+    entity tags (real B-Rep face IDs from the CAD kernel) to triangle ranges in
+    the flat indices array.  PROVENANCE=OCC_ENTITY_TAG.
     """
     try:
         import gmsh  # noqa: PLC0415
@@ -118,18 +122,53 @@ def _tessellate_brep(data: bytes, suffix: str) -> dict[str, Any] | None:
 
             tag_to_idx: dict[int, int] = {int(t): i for i, t in enumerate(node_tags)}
 
-            elem_types, elem_tags_list, elem_node_tags = gmsh.model.mesh.getElements(dim=2)
+            # Build indices per OCC 2-D entity so we can emit face_groups.
+            # Iterating per-entity preserves the entity→triangle mapping.
             indices: list[int] = []
-            for _etype, etags, enodes in zip(  # noqa: B905
-                elem_types, elem_tags_list, elem_node_tags
-            ):
-                nodes_per = len(enodes) // max(len(etags), 1)
-                if nodes_per == 3:
-                    for i in range(len(etags)):
-                        t = enodes[i * 3 : (i + 1) * 3]
-                        indices.extend(
-                            [tag_to_idx[int(t[0])], tag_to_idx[int(t[1])], tag_to_idx[int(t[2])]]
+            face_groups: list[dict[str, int]] = []
+            entities_2d = gmsh.model.getEntities(dim=2)
+            if entities_2d:
+                for _dim, entity_tag in entities_2d:
+                    tri_start = len(indices) // 3
+                    try:
+                        etypes, _etags, enodes_list = gmsh.model.mesh.getElements(
+                            dim=2, tag=entity_tag
                         )
+                    except Exception:  # noqa: BLE001
+                        continue
+                    for _etype, enodes in zip(etypes, enodes_list):  # noqa: B905
+                        nodes_per = len(enodes) // max(len(enodes) // 3, 1)
+                        if nodes_per == 3:
+                            count = len(enodes) // 3
+                            for i in range(count):
+                                t = enodes[i * 3 : (i + 1) * 3]
+                                indices.extend([
+                                    tag_to_idx[int(t[0])],
+                                    tag_to_idx[int(t[1])],
+                                    tag_to_idx[int(t[2])],
+                                ])
+                    tri_end = len(indices) // 3
+                    if tri_end > tri_start:
+                        face_groups.append({
+                            "entity_tag": int(entity_tag),
+                            "tri_start": tri_start,
+                            "tri_count": tri_end - tri_start,
+                        })
+            else:
+                # Fallback: global element fetch (no entity grouping)
+                elem_types, elem_tags_list, elem_node_tags = gmsh.model.mesh.getElements(dim=2)
+                for _etype, etags, enodes in zip(  # noqa: B905
+                    elem_types, elem_tags_list, elem_node_tags
+                ):
+                    nodes_per = len(enodes) // max(len(etags), 1)
+                    if nodes_per == 3:
+                        for i in range(len(etags)):
+                            t = enodes[i * 3 : (i + 1) * 3]
+                            indices.extend([
+                                tag_to_idx[int(t[0])],
+                                tag_to_idx[int(t[1])],
+                                tag_to_idx[int(t[2])],
+                            ])
 
             if not indices:
                 return None
@@ -147,6 +186,7 @@ def _tessellate_brep(data: bytes, suffix: str) -> dict[str, Any] | None:
                 },
                 "vertex_count": len(node_tags),
                 "triangle_count": len(indices) // 3,
+                "face_groups": face_groups,  # OCC entity tag → triangle range
             }
         finally:
             gmsh.finalize()

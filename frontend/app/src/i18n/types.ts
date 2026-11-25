@@ -2250,6 +2250,24 @@ export interface TranslationDictionary {
   ws_ribbonGenCam: string
   ws_camGenerating: string
   ws_camPlanError: string
+  // CAM wizard
+  ws_genToolpath: string
+  ws_opWizardTitle: string
+  ws_opType: string
+  ws_toolDiam: string
+  ws_clearanceZ: string
+  ws_stepdownMm: string
+  ws_stepoverMm: string
+  ws_pocketDepthMm: string
+  ws_profileSide: string
+  ws_strategyLabel: string
+  ws_generateOpBtn: string
+  ws_simNeedsToolpath: string
+  ws_estCutLength: string
+  ws_newOperationBtn: string
+  ws_opRegenerateBtn: string
+  ws_opDeleteBtn: string
+  ws_opVisible: string
   nav_camWorkspace: string
 
   // Selection & measurement (MUST 40)

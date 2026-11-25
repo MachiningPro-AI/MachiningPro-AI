@@ -14,7 +14,7 @@ import type { CSSProperties } from 'react'
 import { ChevronRight, Pin, Search, X, Copy, Database } from 'lucide-react'
 import { useLocale } from '../../i18n'
 import { SAFETY, formatFileSize, COLLAPSED_STRIP_W } from './WorkspaceTypes'
-import type { WorkspaceFile, ConnectedWorkflow, OperationSummary } from './WorkspaceTypes'
+import type { WorkspaceFile, ConnectedWorkflow, OperationSummary, SelectedEntity } from './WorkspaceTypes'
 import type { PreviewMesh, ImportResult } from '../../services/engineeringImport'
 
 type IgesDiagnostics = ImportResult['iges_diagnostics']
@@ -167,6 +167,69 @@ function VerificationSection({ filter }: { filter?: string }) {
 }
 
 // ---------------------------------------------------------------------------
+// Selection Properties — MUST 13–15
+// ---------------------------------------------------------------------------
+
+function SelectionProperties({ entities, filter }: {
+  entities: SelectedEntity[]
+  filter?: string
+}) {
+  const { t } = useLocale()
+  if (entities.length === 0) return null
+
+  return (
+    <div className="px-3 pb-2">
+      <SectionHeader label={t('ws_properties')} />
+      {entities.map((entity, idx) => {
+        if (entity.kind === 'BODY') {
+          return (
+            <div key={`body-${idx}`} className="mb-1">
+              <PropRow label={t('sel_entityType')}  value={t('sel_body')} filter={filter} />
+              <PropRow label={t('sel_provenance')}  value="BODY" filter={filter} />
+            </div>
+          )
+        }
+        if (entity.kind === 'FACE') {
+          const provenanceLabel = entity.entityClass === 'CAD_FACE' ? t('sel_provenanceOcc') : t('sel_provenanceMesh')
+          const typeLabel       = entity.entityClass === 'CAD_FACE' ? t('sel_cadFace') : t('sel_meshFace')
+          return (
+            <div key={`face-${entity.faceId}-${idx}`} className="mb-1">
+              <PropRow label={t('sel_entityType')}    value={typeLabel} filter={filter} />
+              <PropRow label={t('sel_entityId')}      value={String(entity.faceId)} filter={filter} />
+              <PropRow label={t('sel_provenance')}    value={provenanceLabel} filter={filter} />
+              {entity.estimatedAreaUnits2 > 0 && (
+                <PropRow label={t('sel_estimatedArea')} value={`${entity.estimatedAreaUnits2.toFixed(4)} mm²`} filter={filter} />
+              )}
+              <PropRow
+                label={t('sel_normal')}
+                value={`${entity.normal[0].toFixed(3)}, ${entity.normal[1].toFixed(3)}, ${entity.normal[2].toFixed(3)}`}
+                filter={filter}
+              />
+              <PropRow
+                label={t('sel_centroid')}
+                value={`${entity.hitPoint[0].toFixed(3)}, ${entity.hitPoint[1].toFixed(3)}, ${entity.hitPoint[2].toFixed(3)}`}
+                filter={filter}
+              />
+            </div>
+          )
+        }
+        if (entity.kind === 'EDGE') {
+          const typeLabel = entity.entityClass === 'CAD_EDGE' ? t('sel_edge') : t('sel_meshEdge')
+          return (
+            <div key={`edge-${entity.edgeId}-${idx}`} className="mb-1">
+              <PropRow label={t('sel_entityType')}  value={typeLabel} filter={filter} />
+              <PropRow label={t('sel_entityId')}    value={String(entity.edgeId)} filter={filter} />
+              <PropRow label={t('sel_edgeLength')}  value={`${entity.lengthUnits.toFixed(3)} mm`} filter={filter} />
+            </div>
+          )
+        }
+        return null
+      })}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // WorkspacePropertiesPanel
 // ---------------------------------------------------------------------------
 
@@ -179,6 +242,7 @@ export interface PropertiesPanelProps {
   collapsed?:      boolean
   onCollapse?:     () => void
   style?:          CSSProperties
+  selectedEntities?: SelectedEntity[]
 }
 
 export default function WorkspacePropertiesPanel({
@@ -190,6 +254,7 @@ export default function WorkspacePropertiesPanel({
   collapsed = false,
   onCollapse,
   style,
+  selectedEntities = [],
 }: PropertiesPanelProps) {
   const { t } = useLocale()
   const [searchTerm, setSearchTerm] = useState('')
@@ -315,6 +380,10 @@ export default function WorkspacePropertiesPanel({
               <OperationProperties op={selectedOp} filter={filter} />
             ) : (
               <>
+                {/* Selection context — MUST 13 */}
+                {selectedEntities.length > 0 && (
+                  <SelectionProperties entities={selectedEntities} filter={filter} />
+                )}
                 <FileProperties wsFile={wsFile} mesh={mesh} filter={filter} />
                 {/* IGES import diagnostics — shown when non-geometric entities were skipped */}
                 {igesDiagnostics && igesDiagnostics.iges_import_status !== 'COMPLETE' && (

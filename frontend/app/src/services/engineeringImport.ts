@@ -17,7 +17,14 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
-/** Browser-safe tessellated mesh from backend STEP processing */
+/** OCC B-Rep entity tag → triangle range in the flat indices array. */
+export interface MeshFaceGroup {
+  entity_tag: number   // real OCC 2-D entity tag (provenance: OCC_ENTITY_TAG)
+  tri_start: number    // first triangle index (0-based) in the indices array
+  tri_count: number    // number of consecutive triangles
+}
+
+/** Browser-safe tessellated mesh from backend STEP/IGES processing */
 export interface PreviewMesh {
   positions: number[]
   indices: number[]
@@ -27,6 +34,8 @@ export interface PreviewMesh {
   }
   vertex_count: number
   triangle_count: number
+  /** OCC entity-to-triangle groups (present for STEP/IGES via gmsh OCC). */
+  face_groups?: MeshFaceGroup[]
 }
 
 /** CAD bounding box */
