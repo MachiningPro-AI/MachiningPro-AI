@@ -63,6 +63,8 @@ from .toolpath import router as toolpath_router
 from .verification import router as verification_router
 from .workflow import router as workflow_router
 from .reports import router as reports_router
+from .workspace_cam import router as workspace_cam_router
+from .workspace_simulation import router as workspace_simulation_router
 
 configure_logging(os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger(__name__)
@@ -127,6 +129,8 @@ app.include_router(export_router)
 app.include_router(missing_data_router)
 app.include_router(setup_stock_router)
 app.include_router(reports_router)
+app.include_router(workspace_cam_router)
+app.include_router(workspace_simulation_router)
 
 
 # ---------------------------------------------------------------------------
