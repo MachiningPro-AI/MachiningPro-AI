@@ -142,7 +142,7 @@ class Provenance:
             raise ValidationError("provenance.timestamp must be a datetime or None")
         if self.confidence is not None:
             if isinstance(self.confidence, bool) or not isinstance(
-                self.confidence, (int, float)
+                self.confidence, int | float
             ):
                 raise ValidationError(
                     "provenance.confidence must be a number between 0 and 1"
@@ -185,7 +185,7 @@ def json_safe(value: Any) -> Any:
         return value.isoformat()
     if isinstance(value, Mapping):
         return {key: json_safe(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, list | tuple):
         return [json_safe(item) for item in value]
     return value
 
