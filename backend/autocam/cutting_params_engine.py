@@ -61,6 +61,13 @@ def _get_registry() -> CuttingParameterRegistry:
     return _registry
 
 
+def _set_registry(reg: CuttingParameterRegistry | None) -> None:
+    """Inject a pre-seeded registry. Used in tests only. Pass None to reset."""
+    global _registry, _seeded_path
+    _registry = reg
+    _seeded_path = None  # allow env-var override after injection
+
+
 # ---------------------------------------------------------------------------
 # Feature → operation type mapping
 # ---------------------------------------------------------------------------

@@ -68,6 +68,7 @@ from .models import (
     ToolResult,
     VerificationSummaryResult,
 )
+from .plan_store import AutoCamPlanStore
 
 # ---------------------------------------------------------------------------
 # Supported feature types
@@ -359,8 +360,28 @@ def _gen_toolpath_for_op(
 # Main orchestration entry point
 # ---------------------------------------------------------------------------
 
-# In-memory plan store (plan_id → AutoCamPlan)
-_plan_store: dict[str, AutoCamPlan] = {}
+# Persistent plan store — backed by SQLite via AutoCamPlanStore
+# AUTOCAM_PLAN_SURVIVES_BACKEND_RESTART=YES
+_plan_store: AutoCamPlanStore | None = None
+
+
+def _get_store() -> AutoCamPlanStore:
+    """Return the active AutoCamPlanStore, initialising if needed.
+
+    Tests inject a store via _set_plan_store(); production uses the
+    singleton from the persistence layer.
+    """
+    global _plan_store
+    if _plan_store is None:
+        from backend.persistence import get_autocam_plan_store
+        _plan_store = get_autocam_plan_store()
+    return _plan_store
+
+
+def _set_plan_store(store: AutoCamPlanStore) -> None:
+    """Inject a test store; used only in tests to avoid touching data/."""
+    global _plan_store
+    _plan_store = store
 
 
 def run_auto_cam(request: AutoCamRequest) -> AutoCamPlan:  # noqa: C901
@@ -971,12 +992,12 @@ def run_auto_cam(request: AutoCamRequest) -> AutoCamPlan:  # noqa: C901
         created_at=datetime.now(UTC).isoformat(),
     )
 
-    _plan_store[plan.plan_id] = plan
+    _get_store().save(plan)
     return plan
 
 
 def get_plan(plan_id: str) -> AutoCamPlan | None:
-    return _plan_store.get(plan_id)
+    return _get_store().get(plan_id)
 
 
 # ---------------------------------------------------------------------------
@@ -1008,7 +1029,7 @@ def _make_blocked_plan(
         report_status="NOT_PERFORMED",
         created_at=datetime.now(UTC).isoformat(),
     )
-    _plan_store[plan.plan_id] = plan
+    _get_store().save(plan)
     return plan
 
 

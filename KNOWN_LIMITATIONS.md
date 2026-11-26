@@ -1,8 +1,8 @@
 # MachiningPro AI — Known Limitations
 
-**Qualification:** V1_0_0_BETA_2_RELEASE_CANDIDATE_QUALIFICATION_01  
+**Qualification:** BETA3_FINAL_GATE_CLOSURE_01  
 **Date:** 2026-11-26  
-**Commit:** cf06487  
+**Commit:** ff527fd (prior) + this commit  
 
 ---
 
@@ -35,8 +35,11 @@ Pocket milling (PLANAR_FACE), contouring, and tapping require additional CAM str
 **KL-5B — Auto CAM tool catalog ±10% diameter tolerance allows slightly undersized tools**  
 The Auto CAM tool search uses a ±10% diameter tolerance window. For a Ø10mm hole, a 9mm drill may be selected if no exact match exists. Undersized tools are within search tolerance but may produce undersized bores. User review is required. Applies to drill operations only; slot operations are constrained by width (BL-SLOT-01 fix).
 
-**KL-12b — Auto CAM → PDF/XLSX/CSV report bridge not yet implemented**  
-`POST /api/autocam/run` produces an `AUTO_CAM_SUMMARY_ONLY` plan report. The existing `/api/reports/generate` endpoint requires a `workflow_id` from the manufacturing workflow store. Auto CAM plans use a separate store. PDF/XLSX/CSV generation from Auto CAM plan_id is deferred to a future release. All plan data is persisted and retrievable via `GET /api/autocam/{plan_id}`.
+**KL-12b — RESOLVED** ~~Auto CAM → PDF/XLSX/CSV report bridge not yet implemented~~  
+Resolved in beta.3: `GET /api/autocam/{plan_id}/report/{fmt}` generates PDF/XLSX/CSV/JSON/ZIP reports. Auto CAM plan persistence is now SQLite-backed (`data/autocam_plans.db`). Plans survive backend restart.
+
+**KL-19 — `other_cost` always NOT_PROVIDED; max completeness 87.5%**  
+The `AutoCamCostInput` model has no `other_cost_total` field. The `other_cost` category is structurally always `NOT_PROVIDED`. As a result, `COMPLETE_COST_ESTIMATE` (100% completeness) is never reached; maximum is `PARTIAL_COST_ESTIMATE` at 87.5% (7/8 categories). This is intentional per HR-8 (no fabricated totals). Users requiring a complete total should include other costs in `material_cost_total`.
 
 ---
 

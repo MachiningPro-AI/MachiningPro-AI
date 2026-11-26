@@ -24,7 +24,7 @@ from backend.api.auth import verify_token
 
 from .cost_estimate import compute_autocam_cost
 from .models import AutoCamCostInput, AutoCamPlan, AutoCamRequest
-from .orchestrator import get_plan, run_auto_cam
+from .orchestrator import _get_store, get_plan, run_auto_cam
 from .report_bridge import generate_autocam_report
 
 router = APIRouter(prefix="/api/autocam", tags=["autocam"])
@@ -117,13 +117,11 @@ def submit_cost_input(
         )
     # Recompute cost estimate from existing cycle_time + machine + new inputs
     new_estimate = compute_autocam_cost(plan.cycle_time, plan.machine, cost_input)
-    # Update plan in-place (plan is a Pydantic model with mutable fields)
     updated_plan = plan.model_copy(update={
         "cost_estimate": new_estimate,
         "cost_estimate_status": new_estimate.total_status,
     })
-    from .orchestrator import _plan_store
-    _plan_store[plan_id] = updated_plan
+    _get_store().save(updated_plan)
     return updated_plan
 
 
