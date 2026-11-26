@@ -65,6 +65,7 @@ from .verification import router as verification_router
 from .workflow import router as workflow_router
 from .workspace_cam import router as workspace_cam_router
 from .workspace_simulation import router as workspace_simulation_router
+from ..autocam.api import router as autocam_router
 
 configure_logging(os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger(__name__)
@@ -75,7 +76,7 @@ class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
 
-app = FastAPI(title="MachiningPro AI", version="0.5.0-rc1")
+app = FastAPI(title="MachiningPro AI", version="1.0.0-beta.2")
 
 # Security headers — X-Content-Type-Options, X-Frame-Options, CSP, HSTS(HTTPS only)
 app.add_middleware(SecurityHeadersMiddleware)
@@ -131,6 +132,7 @@ app.include_router(setup_stock_router)
 app.include_router(reports_router)
 app.include_router(workspace_cam_router)
 app.include_router(workspace_simulation_router)
+app.include_router(autocam_router)
 
 
 # ---------------------------------------------------------------------------

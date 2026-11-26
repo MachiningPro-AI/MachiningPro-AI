@@ -2322,4 +2322,60 @@ export interface TranslationDictionary {
   meas_ok: string
   meas_noData: string
   meas_unit_mm: string
+
+  // Auto CAM (MACHININGPRO_AI_AUTO_CAM_END_TO_END_01)
+  autocam_title: string
+  autocam_runBtn: string
+  autocam_running: string
+  autocam_reviewTitle: string
+  autocam_planStatus: string
+  autocam_stagesTitle: string
+  autocam_operationsTitle: string
+  autocam_machineTitle: string
+  autocam_cycleTimeTitle: string
+  autocam_verificationTitle: string
+  autocam_safetyTitle: string
+  autocam_blockedLabel: string
+  autocam_warningLabel: string
+  autocam_passLabel: string
+  autocam_notPerformedLabel: string
+  autocam_notVerifiableLabel: string
+  autocam_dispatchGateBlocked: string
+  autocam_simulationRequired: string
+  autocam_engineerReviewRequired: string
+  autocam_candidateOnly: string
+  autocam_noFeaturesHint: string
+  autocam_fileRef: string
+  autocam_materialGrade: string
+  autocam_featureCount: string
+  autocam_stockDims: string
+  autocam_opType: string
+  autocam_strategy: string
+  autocam_toolDiam: string
+  autocam_segCount: string
+  autocam_cuttingParams: string
+  autocam_notAvailable: string
+  autocam_notImplemented: string
+  autocam_planId: string
+  autocam_createdAt: string
+  autocam_stage_S01: string
+  autocam_stage_S02: string
+  autocam_stage_S03: string
+  autocam_stage_S04: string
+  autocam_stage_S05: string
+  autocam_stage_S06: string
+  autocam_stage_S07: string
+  autocam_stage_S08: string
+  autocam_stage_S09: string
+  autocam_stage_S10: string
+  autocam_stage_S11: string
+  autocam_stage_S12: string
+  autocam_stage_S13: string
+  autocam_stage_S14: string
+  autocam_stage_S15: string
+  autocam_stage_S16: string
+  autocam_stage_S17: string
+  autocam_stage_S18: string
+  autocam_stage_S19: string
+  autocam_stage_S20: string
 }
