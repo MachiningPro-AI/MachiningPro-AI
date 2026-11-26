@@ -1,8 +1,8 @@
 # MachiningPro AI — Known Limitations
 
-**Qualification:** PUBLIC_BETA_DEMO_READINESS_FINAL_QUALIFICATION_01  
-**Date:** 2026-11-25  
-**Commit:** f9047fa  
+**Qualification:** V1_0_0_BETA_2_RELEASE_CANDIDATE_QUALIFICATION_01  
+**Date:** 2026-11-26  
+**Commit:** cf06487  
 
 ---
 
@@ -27,10 +27,16 @@ PDF and image (PNG/JPG) files cannot be imported as 3D geometry via `/api/import
 ## 2. CAM Generation
 
 **KL-05 — Cutting parameters show `NOT_AVAILABLE` for most materials**  
-The catalog tool is selected (GEOMETRY_RULE), but feed/speed (`vc_m_per_min`, `rpm`, `feed_mm_per_min`) may be `NOT_AVAILABLE` when no material-specific cutting data record exists. The user must provide cutting parameters manually or through the material database.
+The catalog tool is selected (GEOMETRY_RULE), but feed/speed (`vc_m_per_min`, `rpm`, `feed_mm_per_min`) may be `NOT_AVAILABLE` when no material-specific cutting data record exists. The user must provide cutting parameters manually or through the material database. Affects both Workspace CAM and Auto CAM (S08 = INSUFFICIENT_DATA).
 
 **KL-06 — Only DRILL_CYCLE strategy is available for HOLE features in this release**  
 Pocket milling (PLANAR_FACE), contouring, and tapping require additional CAM strategy modules not yet integrated into the workspace CAM API.
+
+**KL-5B — Auto CAM tool catalog ±10% diameter tolerance allows slightly undersized tools**  
+The Auto CAM tool search uses a ±10% diameter tolerance window. For a Ø10mm hole, a 9mm drill may be selected if no exact match exists. Undersized tools are within search tolerance but may produce undersized bores. User review is required. Applies to drill operations only; slot operations are constrained by width (BL-SLOT-01 fix).
+
+**KL-12b — Auto CAM → PDF/XLSX/CSV report bridge not yet implemented**  
+`POST /api/autocam/run` produces an `AUTO_CAM_SUMMARY_ONLY` plan report. The existing `/api/reports/generate` endpoint requires a `workflow_id` from the manufacturing workflow store. Auto CAM plans use a separate store. PDF/XLSX/CSV generation from Auto CAM plan_id is deferred to a future release. All plan data is persisted and retrievable via `GET /api/autocam/{plan_id}`.
 
 ---
 

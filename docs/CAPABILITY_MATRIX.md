@@ -1,5 +1,5 @@
 # MachiningPro AI — Capability Matrix
-Version: 1.0.0-beta.1 | Head: 5f3a099 | Date: 2026-11-26
+Version: 1.0.0-beta.2 | Head: cf06487 | Date: 2026-11-26
 
 | Capability | Status | Notes |
 |------------|--------|-------|
@@ -16,6 +16,7 @@ Version: 1.0.0-beta.1 | Head: 5f3a099 | Date: 2026-11-26
 | Drawing Semantic Extraction | BETA_READY | PDF + DXF, 6 parsers |
 | CAD Feature Recognition | BETA_READY | B-Rep engine, DXF, STEP L1 (HOLE + PLANAR_FACE) |
 | CAD Workspace (3D viewer) | BETA_READY | STEP/IGES/STL/DXF; GMSH tessellation; face/edge selection |
+| Auto CAM (20-stage pipeline) | BETA_READY | POST /api/autocam/run; HOLE/POCKET/SLOT/SHOULDER; real catalog tools; real toolpath; safety gate locked |
 | CAM Workspace | BETA_READY | Feature-aware toolpath; DRILL_CYCLE; catalog tool lookup |
 | Simulation Workspace | BETA_READY | Stock removal VOXEL_APPROXIMATE; 7-state verification panel |
 | Process Capability | BETA_READY | IT table, tolerance/surface capability |
