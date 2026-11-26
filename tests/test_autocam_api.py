@@ -139,3 +139,26 @@ def test_s19_always_blocked_in_api(client, auth):
     stages = resp.json()["stages"]
     s19 = next(s for s in stages if s["stage"] == "S19_DISPATCH_SAFETY_GATE")
     assert s19["status"] == "BLOCKED"
+
+
+def test_slot_tool_fits_slot_width(client, auth):
+    """Live fix BL-SLOT-01: tool selected for SLOT must have diameter <= slot width_mm."""
+    body = _body(features=[
+        {"feature_id": "S1", "feature_type": "SLOT",
+         "center_x": 50, "center_y": 50, "center_z_top": 10,
+         "depth_mm": 5, "width_mm": 6, "length_mm": 30},
+    ])
+    resp = client.post("/api/autocam/run", json=body, headers=auth)
+    assert resp.status_code == 200
+    plan = resp.json()
+    op = plan["operations"][0]
+    tool_diam = op["tool"]["tool_diameter_mm"]
+    slot_width = 6.0
+    # Tool must not be wider than slot
+    assert tool_diam <= slot_width, (
+        f"BL-SLOT-01: tool {tool_diam}mm oversized for {slot_width}mm slot"
+    )
+    # Toolpath must not silently fail without explanation
+    assert op["toolpath_status"] != "NOT_PERFORMED" or op["missing_inputs"], (
+        "Silent NOT_PERFORMED with no missing_inputs — must report reason"
+    )

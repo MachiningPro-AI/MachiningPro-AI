@@ -137,18 +137,30 @@ def _find_drill(diameter_mm: float | None) -> ToolResult:
     )
 
 
-def _find_end_mill(diameter_mm: float | None) -> ToolResult:
+def _find_end_mill(
+    diameter_mm: float | None,
+    max_mm: float | None = None,
+) -> ToolResult:
     if diameter_mm is None or diameter_mm <= 0:
         return ToolResult(tool_status="INSUFFICIENT_DATA")
     tol = max(0.5, diameter_mm * 0.1)
+    upper = min(diameter_mm + tol, max_mm) if max_mm else diameter_mm + tol
     results = (
         _tool_lib.query()
         .by_family(ToolFamily.MILLING)
-        .by_diameter(min_mm=diameter_mm - tol, max_mm=diameter_mm + tol)
+        .by_diameter(min_mm=diameter_mm - tol, max_mm=upper)
         .results()
     )
+    if not results and max_mm:
+        # Constrained fallback: any tool that still fits in the slot/pocket
+        results = (
+            _tool_lib.query()
+            .by_family(ToolFamily.MILLING)
+            .by_diameter(min_mm=0.5, max_mm=max_mm)
+            .results()
+        )
     if not results:
-        # Wider search
+        # Unconstrained wider search
         results = _tool_lib.query().by_family(ToolFamily.MILLING).results()
     if not results:
         return ToolResult(tool_status="INSUFFICIENT_DATA")
@@ -296,6 +308,17 @@ def _gen_toolpath_for_op(
             return None, warnings, missing
         if feat.depth_mm is None:
             missing.append("slot_depth_mm")
+            return None, warnings, missing
+        if (
+            feat.width_mm is not None
+            and tool.tool_diameter_mm is not None
+            and tool.tool_diameter_mm > feat.width_mm
+        ):
+            warnings.append(
+                f"slot_tool_oversize: tool {tool.tool_diameter_mm}mm "
+                f"> slot_width {feat.width_mm}mm — toolpath skipped"
+            )
+            missing.append("slot_width_compatible_tool")
             return None, warnings, missing
         d = tool.tool_diameter_mm or 6.0
         stepdown = min(d * 0.4, feat.depth_mm)
@@ -530,7 +553,11 @@ def run_auto_cam(request: AutoCamRequest) -> AutoCamPlan:  # noqa: C901
         ft = feat.feature_type.upper()
         if ft == "HOLE":
             tool_map[feat.feature_id] = _find_drill(feat.diameter_mm)
-        elif ft in ("POCKET", "SLOT", "STEP_SHOULDER", "PLANAR_FACE"):
+        elif ft == "SLOT":
+            # Tool diameter must not exceed slot width — use width as target and hard cap
+            slot_w = feat.width_mm
+            tool_map[feat.feature_id] = _find_end_mill(slot_w or 10.0, max_mm=slot_w)
+        elif ft in ("POCKET", "STEP_SHOULDER", "PLANAR_FACE"):
             tool_map[feat.feature_id] = _find_end_mill(feat.diameter_mm or 10.0)
         if tool_map.get(feat.feature_id, ToolResult()).tool_status == "INSUFFICIENT_DATA":
             tool_warnings.append(
