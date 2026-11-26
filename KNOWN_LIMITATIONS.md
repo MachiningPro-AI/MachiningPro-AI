@@ -41,6 +41,9 @@ Resolved in beta.3: `GET /api/autocam/{plan_id}/report/{fmt}` generates PDF/XLSX
 **KL-19 — `other_cost` always NOT_PROVIDED; max completeness 87.5%**  
 The `AutoCamCostInput` model has no `other_cost_total` field. The `other_cost` category is structurally always `NOT_PROVIDED`. As a result, `COMPLETE_COST_ESTIMATE` (100% completeness) is never reached; maximum is `PARTIAL_COST_ESTIMATE` at 87.5% (7/8 categories). This is intentional per HR-8 (no fabricated totals). Users requiring a complete total should include other costs in `material_cost_total`.
 
+**KL-20 — Auto CAM report does not expose DOCX format**  
+The general report subsystem includes a `docx_exporter.py`. However, `GET /api/autocam/{plan_id}/report/{fmt}` does not wire up DOCX — the `_MIME` map covers JSON, CSV, PDF, XLSX, ZIP only. Requesting `fmt=DOCX` returns HTTP 400. DOCX export from Auto CAM plans is deferred to a future release.
+
 ---
 
 ## 3. Simulation & Verification

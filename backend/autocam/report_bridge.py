@@ -1,8 +1,11 @@
 """Auto CAM report bridge — MACHININGPRO_AI_BETA3_REPORT_BRIDGE_01.
 
 Bridges AutoCamPlan to the existing report exporters (JSON, CSV, PDF,
-DOCX, XLSX, ZIP).  Builds a ReportDocument from plan data and passes
+XLSX, ZIP).  Builds a ReportDocument from plan data and passes
 it to existing exporters — DUPLICATE_ENGINE_CREATED=NO.
+
+DOCX export exists as a general exporter (docx_exporter.py) but is NOT
+wired into the Auto CAM bridge in this release (see KL-20).
 
 Safety invariants (enforced, never bypassed):
   REPORT_GENERATION_ENGINEERING_STATE_CHANGED=False always
@@ -10,7 +13,7 @@ Safety invariants (enforced, never bypassed):
   PRODUCTION_RELEASED=False always
   AUTO_APPROVED=False always
 
-Supported formats: JSON, CSV, PDF, DOCX, XLSX, ZIP
+Supported formats: JSON, CSV, PDF, XLSX, ZIP
 """
 from __future__ import annotations
 
