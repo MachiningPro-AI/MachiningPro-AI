@@ -273,6 +273,9 @@ class TestFailClosed:
         plan = run_auto_cam(_full_request())
         assert plan.verification.collision_check == "NOT_VERIFIABLE"
 
-    def test_cost_always_not_implemented(self):
+    def test_cost_not_provided_without_cost_input(self):
         plan = run_auto_cam(_full_request())
-        assert plan.cost_estimate_status == "NOT_IMPLEMENTED"
+        # cost_input not supplied → NOT_PROVIDED (not fabricated, not NOT_IMPLEMENTED)
+        assert plan.cost_estimate_status == "NOT_PROVIDED"
+        assert plan.cost_estimate is not None
+        assert not plan.cost_estimate.cost_input_received

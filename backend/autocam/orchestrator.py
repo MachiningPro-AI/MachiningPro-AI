@@ -49,6 +49,8 @@ from backend.toolpath.generators import (
 )
 from backend.toolpath.models import Toolpath
 
+from .cost_estimate import compute_autocam_cost
+from .cutting_params_engine import compute_cutting_params
 from .enums import AutoCamPlanStatus, AutoCamStage, BlockerCode, StageStatus
 from .models import (
     AutoCamBlocker,
@@ -576,32 +578,52 @@ def run_auto_cam(request: AutoCamRequest) -> AutoCamPlan:  # noqa: C901
     ))
 
     # ------------------------------------------------------------------
-    # S08: Cutting Parameters
+    # S08: Cutting Parameters (MACHININGPRO_AI_BETA3_PARAMS_01)
     # ------------------------------------------------------------------
     t0 = _now_ms()
-    # CuttingParameterRegistry requires typed records; most materials NOT_AVAILABLE
-    # (KL-05). We report status honestly without fabricating values.
     cp_status_map: dict[str, CuttingParamResult] = {}
+    cp_calculated = 0
+    cp_not_available = 0
     for feat in request.features:
-        cp_status_map[feat.feature_id] = CuttingParamResult(
-            status="NOT_AVAILABLE",
-            provenance="NOT_AVAILABLE",
+        tool_for_feat = tool_map.get(feat.feature_id, ToolResult(tool_status="INSUFFICIENT_DATA"))
+        cp = compute_cutting_params(feat, tool_for_feat, machine)
+        cp_status_map[feat.feature_id] = cp
+        if cp.status in ("CALCULATED", "CLAMPED_TO_MACHINE_LIMIT", "PARTIAL"):
+            cp_calculated += 1
+        else:
+            cp_not_available += 1
+
+    s08_status = (
+        StageStatus.PASS if cp_calculated > 0 and cp_not_available == 0
+        else StageStatus.PARTIAL if cp_calculated > 0
+        else StageStatus.INSUFFICIENT_DATA
+    )
+    s08_warnings = []
+    if cp_not_available > 0:
+        s08_warnings.append(
+            f"Cutting params NOT_AVAILABLE for {cp_not_available} feature(s) "
+            f"(KL-05: set MACHININGPRO_CUTTING_PARAM_REF_PATH)"
         )
     stages.append(_stage(
         AutoCamStage.S08_CUTTING_PARAMETERS,
-        StageStatus.INSUFFICIENT_DATA,
+        s08_status,
         duration_ms=_now_ms() - t0,
         outputs={
-            "status": "NOT_AVAILABLE",
-            "reason": "KL-05: cutting params not available for most materials",
+            "calculated": cp_calculated,
+            "not_available": cp_not_available,
+            "total": len(request.features),
         },
-        warnings=["Cutting params not available (KL-05): proceeding without feed/speed"],
+        warnings=s08_warnings,
     ))
-    plan_warnings.append(AutoCamWarning(
-        stage=AutoCamStage.S08_CUTTING_PARAMETERS,
-        message="Cutting parameters NOT_AVAILABLE (KL-05) — toolpaths without validated feeds",
-        severity="ADVISORY",
-    ))
+    if cp_not_available > 0:
+        plan_warnings.append(AutoCamWarning(
+            stage=AutoCamStage.S08_CUTTING_PARAMETERS,
+            message=(
+                f"Cutting parameters NOT_AVAILABLE for {cp_not_available} feature(s) "
+                f"(KL-05) — toolpaths generated without validated feeds/speeds"
+            ),
+            severity="ADVISORY",
+        ))
 
     # ------------------------------------------------------------------
     # S09: Operation Planning
@@ -832,14 +854,29 @@ def run_auto_cam(request: AutoCamRequest) -> AutoCamPlan:  # noqa: C901
     verification.gouge_check = "NOT_VERIFIABLE"
 
     # ------------------------------------------------------------------
-    # S17: Cost Estimation
+    # S17: Cost Estimation (MACHININGPRO_AI_BETA3_COST_01)
     # ------------------------------------------------------------------
     t0 = _now_ms()
+    cost_estimate = compute_autocam_cost(cycle_time, machine, request.cost_input)
+    s17_status = (
+        StageStatus.PASS if cost_estimate.total_status == "COMPLETE_COST_ESTIMATE"
+        else StageStatus.PARTIAL if cost_estimate.total_status == "PARTIAL_COST_ESTIMATE"
+        else StageStatus.NOT_PERFORMED
+    )
+    s17_warnings = []
+    if not cost_estimate.cost_input_received:
+        s17_warnings.append(
+            "Cost inputs not provided — submit via POST /api/autocam/{plan_id}/cost-input"
+        )
     stages.append(_stage(
-        AutoCamStage.S17_COST_ESTIMATION, StageStatus.NOT_PERFORMED,
+        AutoCamStage.S17_COST_ESTIMATION, s17_status,
         duration_ms=_now_ms() - t0,
-        outputs={"status": "NOT_IMPLEMENTED", "reason": "Cost engine not implemented"},
-        warnings=["Cost estimation NOT_IMPLEMENTED in v1.0.0-beta.1"],
+        outputs={
+            "total_status": cost_estimate.total_status,
+            "cost_input_received": cost_estimate.cost_input_received,
+            "completeness_pct": cost_estimate.completeness_pct,
+        },
+        warnings=s17_warnings + cost_estimate.warnings,
     ))
 
     # ------------------------------------------------------------------
@@ -895,7 +932,8 @@ def run_auto_cam(request: AutoCamRequest) -> AutoCamPlan:  # noqa: C901
             "toolpaths_generated": toolpath_pass,
             "simulation_state": verification.state,
             "safety_gate": "ALWAYS_BLOCKED",
-            "report_status": "AUTO_CAM_SUMMARY_ONLY",
+            "report_status": "REPORT_AVAILABLE",
+            "export_formats": ["JSON", "CSV", "PDF", "XLSX", "ZIP"],
         },
     ))
 
@@ -927,8 +965,9 @@ def run_auto_cam(request: AutoCamRequest) -> AutoCamPlan:  # noqa: C901
         verification=verification,
         blockers=plan_blockers,
         warnings=plan_warnings,
-        cost_estimate_status="NOT_IMPLEMENTED",
-        report_status="AUTO_CAM_SUMMARY_ONLY",
+        cost_estimate_status=cost_estimate.total_status,
+        cost_estimate=cost_estimate,
+        report_status="REPORT_AVAILABLE",
         created_at=datetime.now(UTC).isoformat(),
     )
 

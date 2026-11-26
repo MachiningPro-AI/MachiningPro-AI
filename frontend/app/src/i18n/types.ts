@@ -2378,4 +2378,42 @@ export interface TranslationDictionary {
   autocam_stage_S18: string
   autocam_stage_S19: string
   autocam_stage_S20: string
+  autocam_costTitle: string
+  autocam_costNotProvided: string
+  autocam_costSubmitHint: string
+  autocam_costStatus: string
+  autocam_costTotalStatus: string
+  autocam_costKnownTotal: string
+  autocam_costCompleteness: string
+  autocam_costUnknownComponents: string
+  autocam_costCategory: string
+  autocam_costValue: string
+  autocam_costCurrency: string
+  autocam_costSource: string
+  autocam_costProvenance: string
+  autocam_costFormula: string
+  autocam_costAdvisoryWarning: string
+  autocam_costInputMachineRate: string
+  autocam_costInputMachineCurrency: string
+  autocam_costInputMaterialTotal: string
+  autocam_costInputToolTotal: string
+  autocam_costInputSetupTotal: string
+  autocam_costInputLaborHours: string
+  autocam_costInputLaborRate: string
+  autocam_costInputOverheadPct: string
+  autocam_costInputQuantity: string
+  autocam_costInputCurrency: string
+  autocam_costInputSubmit: string
+  autocam_costInputSubmitting: string
+  autocam_costInputSuccess: string
+  autocam_costInputError: string
+  autocam_reportTitle: string
+  autocam_reportDownload: string
+  autocam_reportFormatJson: string
+  autocam_reportFormatCsv: string
+  autocam_reportFormatPdf: string
+  autocam_reportFormatXlsx: string
+  autocam_reportFormatZip: string
+  autocam_reportGenerating: string
+  autocam_reportSafetyNote: string
 }

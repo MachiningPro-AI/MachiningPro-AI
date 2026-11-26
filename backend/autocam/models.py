@@ -13,6 +13,7 @@ Safety contract — hardcoded, immutable:
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -77,6 +78,103 @@ class AutoCamFeatureInput(BaseModel):
     boundary_points: list[list[float]] | None = None
 
 
+class AutoCamCostInput(BaseModel):
+    """Commercial inputs supplied by the user for Auto CAM cost estimation.
+
+    All fields optional — missing inputs remain NOT_PROVIDED.
+    Every supplied value is labeled USER_PROVIDED with provenance.
+    """
+
+    machine_hourly_rate: float | None = None
+    machine_rate_currency: str | None = None
+
+    material_cost_total: float | None = None
+    material_cost_currency: str | None = None
+
+    tool_cost_total: float | None = None
+    tool_cost_currency: str | None = None
+
+    setup_cost_total: float | None = None
+    setup_cost_currency: str | None = None
+
+    labor_hours: float | None = None
+    labor_rate: float | None = None
+    labor_rate_currency: str | None = None
+
+    energy_cost: float | None = None
+    energy_cost_currency: str | None = None
+
+    overhead_pct: float | None = None
+
+    quantity: int | None = None
+    currency: str | None = None
+
+    submitted_at: str = Field(
+        default_factory=lambda: datetime.now(UTC).isoformat()
+    )
+
+
+class CostCategoryItem(BaseModel):
+    """One line item in the cost estimate with full provenance."""
+
+    category: str
+    value: float | None = None
+    currency: str | None = None
+    source_type: str = "UNKNOWN"
+    source_name: str | None = None
+    provenance: str = "NOT_PROVIDED"
+    status: str = "NOT_PROVIDED"
+    notes: str | None = None
+    formula: str | None = None
+
+
+class AutoCamCostEstimate(BaseModel):
+    """Full Auto CAM cost estimate with per-category provenance.
+
+    TOTAL_STATUS allowed values:
+      COMPLETE_COST_ESTIMATE      — all 8 categories known
+      PARTIAL_COST_ESTIMATE       — ≥1 known, some unknown
+      INSUFFICIENT_DATA           — no cost components known
+      NOT_PROVIDED                — no cost_input submitted yet
+      CURRENCY_MISMATCH           — mixed currencies, sum blocked
+    """
+
+    material_cost: CostCategoryItem = Field(
+        default_factory=lambda: CostCategoryItem(category="MATERIAL_COST")
+    )
+    machine_cost: CostCategoryItem = Field(
+        default_factory=lambda: CostCategoryItem(category="MACHINE_COST")
+    )
+    tool_cost: CostCategoryItem = Field(
+        default_factory=lambda: CostCategoryItem(category="TOOL_COST")
+    )
+    setup_cost: CostCategoryItem = Field(
+        default_factory=lambda: CostCategoryItem(category="SETUP_COST")
+    )
+    labor_cost: CostCategoryItem = Field(
+        default_factory=lambda: CostCategoryItem(category="LABOR_COST")
+    )
+    energy_cost: CostCategoryItem = Field(
+        default_factory=lambda: CostCategoryItem(category="ENERGY_COST")
+    )
+    overhead_cost: CostCategoryItem = Field(
+        default_factory=lambda: CostCategoryItem(category="OVERHEAD_COST")
+    )
+    other_cost: CostCategoryItem = Field(
+        default_factory=lambda: CostCategoryItem(category="OTHER_COST")
+    )
+
+    known_total: float | None = None
+    unknown_component_count: int = 0
+    completeness_pct: float = 0.0
+    total_status: str = "NOT_PROVIDED"
+    currency: str | None = None
+
+    computed_at: str = ""
+    cost_input_received: bool = False
+    warnings: list[str] = Field(default_factory=list)
+
+
 class AutoCamRequest(BaseModel):
     """Input to the Auto CAM orchestration pipeline.
 
@@ -93,6 +191,9 @@ class AutoCamRequest(BaseModel):
     machine_type_preference: str | None = Field(default=None, max_length=32)
     wcs_ref: str = Field(default="WCS_PART_ORIGIN", max_length=64)
     setup_ref: str = Field(default="SETUP_01", max_length=32)
+
+    # Cost inputs — optional user-provided commercial rates
+    cost_input: AutoCamCostInput | None = None
 
     # Safety fields — read-only; orchestrator enforces these
     is_dispatchable: bool = Field(default=False, frozen=True)
@@ -226,6 +327,9 @@ class AutoCamPlan(BaseModel):
 
     # Safety invariants — always present, always safe
     safety: dict[str, Any] = Field(default_factory=lambda: dict(_SAFETY_INVARIANTS))
+
+    # Cost estimate — computed after cost_input submitted
+    cost_estimate: AutoCamCostEstimate | None = None
 
     @property
     def is_blocked(self) -> bool:

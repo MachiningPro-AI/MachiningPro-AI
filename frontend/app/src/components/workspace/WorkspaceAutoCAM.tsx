@@ -51,7 +51,43 @@ interface ToolResult {
 }
 
 interface CuttingParamResult {
+  vc_m_per_min: number | null
+  rpm: number | null
+  feed_mm_per_min: number | null
+  fz_mm: number | null
   status: string
+  provenance: string
+}
+
+interface CostCategoryItem {
+  category: string
+  value: number | null
+  currency: string | null
+  source_type: string
+  source_name: string | null
+  provenance: string
+  status: string
+  notes: string | null
+  formula: string | null
+}
+
+interface AutoCamCostEstimate {
+  material_cost: CostCategoryItem
+  machine_cost: CostCategoryItem
+  tool_cost: CostCategoryItem
+  setup_cost: CostCategoryItem
+  labor_cost: CostCategoryItem
+  energy_cost: CostCategoryItem
+  overhead_cost: CostCategoryItem
+  other_cost: CostCategoryItem
+  known_total: number | null
+  unknown_component_count: number
+  completeness_pct: number
+  total_status: string
+  currency: string | null
+  computed_at: string
+  cost_input_received: boolean
+  warnings: string[]
 }
 
 interface OperationResult {
@@ -109,6 +145,7 @@ interface AutoCamPlan {
   blockers: AutoCamBlocker[]
   warnings: Array<{ stage: string; message: string }>
   cost_estimate_status: string
+  cost_estimate: AutoCamCostEstimate | null
   report_status: string
   created_at: string
   safety: Record<string, boolean | string>
@@ -352,7 +389,7 @@ function OperationsTable({ operations }: { operations: OperationResult[] }) {
 // Safety invariants display (MUST 35)
 // ---------------------------------------------------------------------------
 
-function SafetyInvariantsPanel({ safety }: { safety: Record<string, boolean | string> }) {
+function SafetyInvariantsPanel({ safety: _safety }: { safety: Record<string, boolean | string> }) {
   const { t } = useLocale()
   const LOCKED_FALSE = [
     'AUTO_CAM_CAN_DISPATCH_CNC',
@@ -450,6 +487,280 @@ function VerificationPanel({ v }: { v: VerificationSummaryResult }) {
           <span className={statusColor(val)}>{val}</span>
         </div>
       ))}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Cost panel
+// ---------------------------------------------------------------------------
+
+interface CostFormState {
+  machine_hourly_rate: string
+  machine_rate_currency: string
+  material_cost_total: string
+  tool_cost_total: string
+  setup_cost_total: string
+  labor_hours: string
+  labor_rate: string
+  overhead_pct: string
+  quantity: string
+  currency: string
+}
+
+const _EMPTY_COST_FORM: CostFormState = {
+  machine_hourly_rate: '', machine_rate_currency: '', material_cost_total: '',
+  tool_cost_total: '', setup_cost_total: '', labor_hours: '', labor_rate: '',
+  overhead_pct: '', quantity: '', currency: '',
+}
+
+function CostPanel({
+  planId, estimate, token, onUpdated,
+}: {
+  planId: string
+  estimate: AutoCamCostEstimate | null
+  token: string
+  onUpdated: (plan: AutoCamPlan) => void
+}) {
+  const { t } = useLocale()
+  const [form, setForm] = useState<CostFormState>(_EMPTY_COST_FORM)
+  const [submitting, setSubmitting] = useState(false)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [showForm, setShowForm] = useState(!estimate?.cost_input_received)
+
+  function fNum(v: string): number | null {
+    const n = parseFloat(v)
+    return isNaN(n) ? null : n
+  }
+  function fInt(v: string): number | null {
+    const n = parseInt(v, 10)
+    return isNaN(n) ? null : n
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setSubmitting(true)
+    setMsg(null)
+    const payload = {
+      machine_hourly_rate: fNum(form.machine_hourly_rate),
+      machine_rate_currency: form.machine_rate_currency || null,
+      material_cost_total: fNum(form.material_cost_total),
+      material_cost_currency: form.currency || null,
+      tool_cost_total: fNum(form.tool_cost_total),
+      tool_cost_currency: form.currency || null,
+      setup_cost_total: fNum(form.setup_cost_total),
+      setup_cost_currency: form.currency || null,
+      labor_hours: fNum(form.labor_hours),
+      labor_rate: fNum(form.labor_rate),
+      labor_rate_currency: form.currency || null,
+      overhead_pct: fNum(form.overhead_pct),
+      quantity: fInt(form.quantity),
+      currency: form.currency || null,
+    }
+    try {
+      const resp = await fetch(`/api/autocam/${planId}/cost-input`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      })
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      const updated: AutoCamPlan = await resp.json()
+      onUpdated(updated)
+      setMsg({ ok: true, text: t('autocam_costInputSuccess') })
+      setShowForm(false)
+    } catch {
+      setMsg({ ok: false, text: t('autocam_costInputError') })
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const inp = 'w-full bg-tp-surface-3 border border-tp-border rounded px-2 py-0.5 text-[10px] text-tp-text focus:outline-none focus:border-tp-accent/60'
+  const lbl = 'text-[9px] text-tp-text-3 mb-0.5'
+
+  const totalStatus = estimate?.total_status ?? 'NOT_PROVIDED'
+  const statusCls =
+    totalStatus === 'COMPLETE_COST_ESTIMATE' ? 'text-green-400' :
+    totalStatus === 'PARTIAL_COST_ESTIMATE' ? 'text-yellow-400' :
+    'text-tp-text-3'
+
+  const cats = estimate ? [
+    estimate.material_cost, estimate.machine_cost, estimate.tool_cost,
+    estimate.setup_cost, estimate.labor_cost, estimate.energy_cost,
+    estimate.overhead_cost, estimate.other_cost,
+  ] : []
+
+  return (
+    <div className="bg-tp-surface-2 border border-tp-border rounded p-2 text-[10px] space-y-1.5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1 text-tp-text-2 font-medium">
+          <FileText size={11} />
+          <span>{t('autocam_costTitle')}</span>
+        </div>
+        <span className={`font-mono font-semibold ${statusCls}`}>{totalStatus}</span>
+      </div>
+
+      {/* Summary row when estimate exists */}
+      {estimate?.cost_input_received && (
+        <>
+          <div className="flex gap-3 text-[9px] text-tp-text-3">
+            <span>{t('autocam_costKnownTotal')}: <span className="text-tp-text font-mono">{estimate.known_total != null ? `${estimate.known_total.toFixed(2)} ${estimate.currency ?? ''}` : 'N/A'}</span></span>
+            <span>{t('autocam_costCompleteness')}: <span className="text-tp-text">{estimate.completeness_pct}%</span></span>
+            <span>{t('autocam_costUnknownComponents')}: <span className="text-tp-text">{estimate.unknown_component_count}</span></span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[9px] border-collapse">
+              <thead>
+                <tr className="text-tp-text-3 border-b border-tp-border">
+                  <th className="text-left py-0.5 pr-2">{t('autocam_costCategory')}</th>
+                  <th className="text-right py-0.5 pr-2">{t('autocam_costValue')}</th>
+                  <th className="text-left py-0.5 pr-2">{t('autocam_costCurrency')}</th>
+                  <th className="text-left py-0.5">{t('autocam_costStatus')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cats.map(cat => (
+                  <tr key={cat.category} className="border-b border-tp-border/40">
+                    <td className="py-0.5 pr-2 text-tp-text-3">{cat.category}</td>
+                    <td className="py-0.5 pr-2 text-right font-mono text-tp-text">{cat.value != null ? cat.value.toFixed(2) : '—'}</td>
+                    <td className="py-0.5 pr-2 text-tp-text-3">{cat.currency ?? '—'}</td>
+                    <td className={`py-0.5 ${cat.status === 'NOT_PROVIDED' ? 'text-tp-text-3' : cat.value != null ? 'text-green-400' : 'text-yellow-400'}`}>{cat.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[9px] text-orange-400/80 italic">{t('autocam_costAdvisoryWarning')}</p>
+        </>
+      )}
+
+      {!estimate?.cost_input_received && !showForm && (
+        <p className="text-tp-text-3">{t('autocam_costNotProvided')}</p>
+      )}
+
+      {/* Toggle form */}
+      <button
+        type="button"
+        onClick={() => setShowForm(v => !v)}
+        className="text-[9px] text-tp-accent-light hover:underline"
+      >
+        {showForm ? '▲ Hide form' : '▼ ' + t('autocam_costInputSubmit')}
+      </button>
+
+      {showForm && (
+        <form onSubmit={handleSubmit} className="space-y-1.5 mt-1">
+          <div className="grid grid-cols-2 gap-1.5">
+            <div>
+              <p className={lbl}>{t('autocam_costInputCurrency')}</p>
+              <input className={inp} value={form.currency} onChange={e => setForm(f => ({ ...f, currency: e.target.value }))} placeholder="EUR" />
+            </div>
+            <div>
+              <p className={lbl}>{t('autocam_costInputQuantity')}</p>
+              <input className={inp} type="number" min="1" value={form.quantity} onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))} placeholder="1" />
+            </div>
+            <div>
+              <p className={lbl}>{t('autocam_costInputMachineRate')}</p>
+              <input className={inp} type="number" min="0" step="0.01" value={form.machine_hourly_rate} onChange={e => setForm(f => ({ ...f, machine_hourly_rate: e.target.value }))} placeholder="85.00" />
+            </div>
+            <div>
+              <p className={lbl}>{t('autocam_costInputMaterialTotal')}</p>
+              <input className={inp} type="number" min="0" step="0.01" value={form.material_cost_total} onChange={e => setForm(f => ({ ...f, material_cost_total: e.target.value }))} placeholder="0.00" />
+            </div>
+            <div>
+              <p className={lbl}>{t('autocam_costInputToolTotal')}</p>
+              <input className={inp} type="number" min="0" step="0.01" value={form.tool_cost_total} onChange={e => setForm(f => ({ ...f, tool_cost_total: e.target.value }))} placeholder="0.00" />
+            </div>
+            <div>
+              <p className={lbl}>{t('autocam_costInputSetupTotal')}</p>
+              <input className={inp} type="number" min="0" step="0.01" value={form.setup_cost_total} onChange={e => setForm(f => ({ ...f, setup_cost_total: e.target.value }))} placeholder="0.00" />
+            </div>
+            <div>
+              <p className={lbl}>{t('autocam_costInputLaborHours')}</p>
+              <input className={inp} type="number" min="0" step="0.01" value={form.labor_hours} onChange={e => setForm(f => ({ ...f, labor_hours: e.target.value }))} placeholder="0.5" />
+            </div>
+            <div>
+              <p className={lbl}>{t('autocam_costInputLaborRate')}</p>
+              <input className={inp} type="number" min="0" step="0.01" value={form.labor_rate} onChange={e => setForm(f => ({ ...f, labor_rate: e.target.value }))} placeholder="0.00" />
+            </div>
+            <div>
+              <p className={lbl}>{t('autocam_costInputOverheadPct')}</p>
+              <input className={inp} type="number" min="0" max="200" step="0.1" value={form.overhead_pct} onChange={e => setForm(f => ({ ...f, overhead_pct: e.target.value }))} placeholder="10" />
+            </div>
+          </div>
+          {msg && (
+            <p className={`text-[9px] ${msg.ok ? 'text-green-400' : 'text-red-400'}`}>{msg.text}</p>
+          )}
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full py-1.5 rounded text-[10px] font-semibold bg-tp-accent/20 text-tp-accent-light border border-tp-accent/40 hover:bg-tp-accent/30 transition-colors disabled:opacity-40"
+          >
+            {submitting ? t('autocam_costInputSubmitting') : t('autocam_costInputSubmit')}
+          </button>
+        </form>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Report panel
+// ---------------------------------------------------------------------------
+
+function ReportPanel({ planId, token }: { planId: string; token: string }) {
+  const { t } = useLocale()
+  const [downloading, setDownloading] = useState<string | null>(null)
+
+  async function handleDownload(fmt: string) {
+    setDownloading(fmt)
+    try {
+      const resp = await fetch(`/api/autocam/${planId}/report/${fmt}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      const blob = await resp.blob()
+      const cd = resp.headers.get('Content-Disposition') ?? ''
+      const fnMatch = cd.match(/filename="([^"]+)"/)
+      const filename = fnMatch?.[1] ?? `autocam_report.${fmt.toLowerCase()}`
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = filename; a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      // silent — network errors show no toast in this minimal panel
+    } finally {
+      setDownloading(null)
+    }
+  }
+
+  const formats = [
+    { key: 'JSON', label: t('autocam_reportFormatJson') },
+    { key: 'CSV',  label: t('autocam_reportFormatCsv') },
+    { key: 'PDF',  label: t('autocam_reportFormatPdf') },
+    { key: 'XLSX', label: t('autocam_reportFormatXlsx') },
+    { key: 'ZIP',  label: t('autocam_reportFormatZip') },
+  ]
+
+  return (
+    <div className="bg-tp-surface-2 border border-tp-border rounded p-2 text-[10px]">
+      <div className="flex items-center gap-1 mb-2 text-tp-text-2 font-medium">
+        <FileText size={11} />
+        <span>{t('autocam_reportTitle')}</span>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {formats.map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            disabled={downloading === key}
+            onClick={() => handleDownload(key)}
+            className="px-2 py-1 rounded text-[9px] font-semibold bg-tp-surface-3 text-tp-text-2 border border-tp-border hover:bg-tp-surface-3/80 hover:text-tp-text transition-colors disabled:opacity-40"
+          >
+            {downloading === key ? t('autocam_reportGenerating') : `↓ ${label}`}
+          </button>
+        ))}
+      </div>
+      <p className="mt-1.5 text-[9px] text-tp-text-3 italic">{t('autocam_reportSafetyNote')}</p>
     </div>
   )
 }
@@ -686,6 +997,25 @@ export default function WorkspaceAutoCAM({
         label={t('autocam_verificationTitle')}
       />
       <VerificationPanel v={plan.verification} />
+
+      {/* Cost Analysis */}
+      <SectionHeader
+        icon={<FileText size={11} />}
+        label={t('autocam_costTitle')}
+      />
+      <CostPanel
+        planId={plan.plan_id}
+        estimate={plan.cost_estimate}
+        token={token}
+        onUpdated={setPlan}
+      />
+
+      {/* Report Download */}
+      <SectionHeader
+        icon={<FileText size={11} />}
+        label={t('autocam_reportTitle')}
+      />
+      <ReportPanel planId={plan.plan_id} token={token} />
 
       {/* Run again */}
       <button
