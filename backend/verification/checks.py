@@ -191,37 +191,130 @@ def check_part_gouge(
 
 
 def check_part_gouge_exact(
-    segments: list[VerificationSegment],  # noqa: ARG001
-    part_bbox_min: tuple[float, float, float] | None,  # noqa: ARG001
-    part_bbox_max: tuple[float, float, float] | None,  # noqa: ARG001
-    tool_diameter_mm: float | None,  # noqa: ARG001
-    tol: TolerancePolicy = DEFAULT_TOLERANCE,  # noqa: ARG001
+    segments: list[VerificationSegment],
+    part_bbox_min: tuple[float, float, float] | None,
+    part_bbox_max: tuple[float, float, float] | None,
+    tool_diameter_mm: float | None,
+    tol: TolerancePolicy = DEFAULT_TOLERANCE,
+    # Extended parameters for exact engine (beta.5)
+    target_step_path: str | None = None,
+    stock_bbox: StockModel | None = None,
+    tolerance_mm: float | None = None,
+    tolerance_source: str = "NOT_PROVIDED",
+    test_only: bool = False,
+    test_label: str = "",
 ) -> VerificationResult:
-    """Exact gouge check — ALWAYS NOT_VERIFIABLE at current mesh fidelity.
+    """Exact gouge check using gmsh OCC Boolean engine (beta.5).
 
-    HARD RULE 1: This function NEVER returns PASS or PARTIAL.
-    HARD RULE 2: Bounding-box clearance is NOT exact gouge verification.
-    Exact mesh-vs-mesh comparison requires a CAD intersection engine
-    not available in this installation (KL-07).
+    When target_step_path is provided and gmsh is available, performs a real
+    B-Rep Boolean exact gouge check (BREP_BOOLEAN_OCC).
+
+    Falls back to NOT_VERIFIABLE when:
+      - no STEP file provided
+      - no cutting segments
+      - gmsh not available (should not happen — gmsh is a project dependency)
+      - Boolean engine fails
+
+    HARD RULE: Never returns PASS without confirmed zero-gouge Boolean result.
+    Conservative bbox check remains separate in PART_GOUGE (GOUGE_CONSERVATIVE).
     """
+    from backend.verification.exact_gouge import ExactGougeConfig, run_exact_gouge_check
+
     ct = VerificationCheckType.GOUGE_EXACT
+
+    # Build cutting segments from VerificationSegments
+    cutting_segs = [
+        (s.start_x, s.start_y, s.start_z, s.end_x, s.end_y, s.end_z)
+        for s in segments
+        if s.is_cutting
+    ]
+
+    if not cutting_segs:
+        return VerificationResult(
+            check_type=ct,
+            status=VerificationStatus.NOT_VERIFIABLE,
+            severity=VerificationSeverity.WARNING,
+            warnings=["No cutting segments; GOUGE_EXACT cannot be checked"],
+            evidence={"gouge_exact_ready": False, "reason": "NO_CUTTING_SEGMENTS"},
+        )
+
+    # Build stock dimensions
+    sx, sy, sz, sw, sh, sd = 0.0, 0.0, 0.0, 100.0, 100.0, 50.0
+    if stock_bbox and stock_bbox.is_known:
+        sx = stock_bbox.min_x_mm or 0.0
+        sy = stock_bbox.min_y_mm or 0.0
+        sz = stock_bbox.min_z_mm or 0.0
+        sw = max((stock_bbox.max_x_mm or 100.0) - sx, 1.0)
+        sh = max((stock_bbox.max_y_mm or 100.0) - sy, 1.0)
+        sd = max((stock_bbox.max_z_mm or 50.0) - sz, 1.0)
+    elif part_bbox_min and part_bbox_max:
+        # Derive stock from part bbox + 10% margin
+        sx = part_bbox_min[0] - (part_bbox_max[0] - part_bbox_min[0]) * 0.1
+        sy = part_bbox_min[1] - (part_bbox_max[1] - part_bbox_min[1]) * 0.1
+        sz = part_bbox_min[2] - (part_bbox_max[2] - part_bbox_min[2]) * 0.1
+        sw = (part_bbox_max[0] - part_bbox_min[0]) * 1.2
+        sh = (part_bbox_max[1] - part_bbox_min[1]) * 1.2
+        sd = (part_bbox_max[2] - part_bbox_min[2]) * 1.2
+
+    config = ExactGougeConfig(
+        target_step_path=target_step_path,
+        stock_x_mm=sx, stock_y_mm=sy, stock_z_mm=sz,
+        stock_w_mm=sw, stock_h_mm=sh, stock_d_mm=sd,
+        tool_radius_mm=(tool_diameter_mm or 10.0) / 2.0,
+        cutting_segments=cutting_segs,
+        tolerance_mm=tolerance_mm,
+        tolerance_source=tolerance_source,
+        test_only=test_only,
+        test_label=test_label,
+    )
+
+    gr = run_exact_gouge_check(config)
+
+    # Map ExactGougeResult status to VerificationStatus
+    status_map = {
+        "PASS": VerificationStatus.PASS,
+        "FAIL": VerificationStatus.FAIL,
+        "PARTIAL": VerificationStatus.PARTIAL,
+        "NOT_VERIFIABLE": VerificationStatus.NOT_VERIFIABLE,
+    }
+    vs = status_map.get(gr.status, VerificationStatus.NOT_VERIFIABLE)
+
+    sev = VerificationSeverity.INFO
+    if vs == VerificationStatus.FAIL:
+        sev = VerificationSeverity.CRITICAL
+    elif vs in (VerificationStatus.PARTIAL, VerificationStatus.NOT_VERIFIABLE):
+        sev = VerificationSeverity.WARNING
+
+    evidence = {
+        "gouge_exact_ready": gr.gouge_exact_ready,
+        "method": gr.method,
+        "target_geometry_fidelity": gr.target_geometry_fidelity,
+        "machined_result_method": gr.machined_result_method,
+        "machined_result_fidelity": gr.machined_result_fidelity,
+        "gouge_volume_mm3": gr.gouge_volume_mm3,
+        "max_gouge_depth_mm": gr.max_gouge_depth_mm,
+        "gouge_region_count": gr.gouge_region_count,
+        "remaining_material_volume_mm3": gr.remaining_material_volume_mm3,
+        "max_remaining_depth_mm": gr.max_remaining_depth_mm,
+        "remaining_region_count": gr.remaining_region_count,
+        "tolerance_mm": gr.tolerance_mm,
+        "tolerance_source": gr.tolerance_source,
+        "boolean_success": gr.boolean_success,
+        "total_exact_verification_ms": gr.total_exact_verification_ms,
+        "target_prep_ms": gr.target_prep_ms,
+        "machined_result_ms": gr.machined_result_ms,
+        "boolean_ms": gr.boolean_ms,
+        "gouge_analysis_ms": gr.gouge_analysis_ms,
+    }
+    if gr.error:
+        evidence["error"] = gr.error
+
     return VerificationResult(
         check_type=ct,
-        status=VerificationStatus.NOT_VERIFIABLE,
-        severity=VerificationSeverity.WARNING,
-        warnings=[
-            "GOUGE_EXACT=NOT_VERIFIABLE: exact mesh-vs-mesh gouge detection requires "
-            "a CAD boolean intersection engine (e.g. pythonocc-core OCC BRepAlgoAPI). "
-            "Current installation: PYTHONOCC=NOT_INSTALLED, MESH_ENGINE=NOT_AVAILABLE. "
-            "Conservative bbox check is in PART_GOUGE (GOUGE_CONSERVATIVE). "
-            "Engineer review required before machining (KL-07)."
-        ],
-        evidence={
-            "gouge_exact_ready": False,
-            "reason": "MESH_INTERSECTION_ENGINE_NOT_AVAILABLE",
-            "required_engine": "BRepAlgoAPI_Common or equivalent mesh-boolean",
-            "kl_reference": "KL-07",
-        },
+        status=vs,
+        severity=sev,
+        warnings=gr.warnings,
+        evidence=evidence,
     )
 
 

@@ -151,3 +151,35 @@ class MachineEnvelopeStatus(StrEnum):
     FAIL = "FAIL"
     NOT_VERIFIABLE = "NOT_VERIFIABLE"
     INSUFFICIENT_DATA = "INSUFFICIENT_DATA"
+
+
+class ExactGougeMethod(StrEnum):
+    """Method used for exact gouge / overcut verification."""
+    BREP_BOOLEAN_OCC = "BREP_BOOLEAN_OCC"       # gmsh OCC Boolean B-Rep (beta.5)
+    MESH_BOOLEAN = "MESH_BOOLEAN"               # mesh Boolean fallback
+    HIGH_RESOLUTION_VOXEL = "HIGH_RESOLUTION_VOXEL"  # voxel approx (not exact)
+    NOT_AVAILABLE = "NOT_AVAILABLE"             # engine missing
+
+
+class TargetGeometryFidelity(StrEnum):
+    """Fidelity of the target geometry used in exact gouge check."""
+    BREP_EXACT = "BREP_EXACT"                   # from STEP/B-Rep via OCC
+    TESSELLATED_HIGH_FIDELITY = "TESSELLATED_HIGH_FIDELITY"  # fine mesh
+    TESSELLATED_APPROXIMATE = "TESSELLATED_APPROXIMATE"      # coarse mesh
+    NOT_AVAILABLE = "NOT_AVAILABLE"
+
+
+class MachinedResultMethod(StrEnum):
+    """How the machined-result geometry was derived."""
+    BOOLEAN_BREP = "BOOLEAN_BREP"               # stock B-Rep cut by swept tool
+    MESH_BOOLEAN = "MESH_BOOLEAN"
+    HIGH_RESOLUTION_VOXEL = "HIGH_RESOLUTION_VOXEL"
+    NOT_COMPUTED = "NOT_COMPUTED"
+
+
+class ToolGeometryFidelity(StrEnum):
+    """Fidelity of tool geometry used in swept-volume construction."""
+    CATALOG_GEOMETRY = "CATALOG_GEOMETRY"       # full profile from catalog
+    PARAMETRIC = "PARAMETRIC"                   # diameter + corner radius known
+    SIMPLIFIED = "SIMPLIFIED"                   # cylinder only
+    NOT_AVAILABLE = "NOT_AVAILABLE"

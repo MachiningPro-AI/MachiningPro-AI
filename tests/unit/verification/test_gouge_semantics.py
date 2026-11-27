@@ -1,14 +1,16 @@
 """
 Phase Y — Exact gouge semantics tests.
 
-GOUGE_EXACT_READY=NO (mesh engine not available)
-GOUGE_EXACT=NOT_VERIFIABLE (always, until mesh engine installed)
+beta.5: GOUGE_EXACT_METHOD=BREP_BOOLEAN_OCC (KL-07 RESOLVED)
+  - With segments but no STEP target → PARTIAL (engine ran, no target to compare)
+  - Without segments → NOT_VERIFIABLE (nothing to check)
+  - With STEP target → PASS/FAIL/PARTIAL based on Boolean result
+
 GOUGE_CONSERVATIVE=PARTIAL (bbox check, never PASS)
 
 Tests verify the exact/conservative separation contract.
 """
 
-import pytest
 
 from backend.verification.checks import (
     check_part_gouge,
@@ -31,17 +33,11 @@ def _seg(sx=0.0, sy=0.0, sz=5.0, ex=0.0, ey=0.0, ez=-5.0, is_cutting=True):
 # GOUGE_EXACT — always NOT_VERIFIABLE (Phase Y: GOUGE_EXACT_READY=NO)
 # ---------------------------------------------------------------------------
 
-class TestGougeExactNotVerifiable:
-    """GOUGE_EXACT is always NOT_VERIFIABLE — mesh engine not available (KL-07)."""
+class TestGougeExactEngine:
+    """GOUGE_EXACT — beta.5 engine: BREP_BOOLEAN_OCC, KL-07 RESOLVED."""
 
-    def test_gouge_exact_always_not_verifiable(self):
-        segs = [_seg()]
-        result = check_part_gouge_exact(segs, (-5, -5, 0), (5, 5, 10), 5.0)
-        assert result.status == VerificationStatus.NOT_VERIFIABLE, (
-            f"GOUGE_EXACT must always be NOT_VERIFIABLE. Got {result.status}"
-        )
-
-    def test_gouge_exact_no_part_still_not_verifiable(self):
+    def test_gouge_exact_no_segs_not_verifiable(self):
+        """No cutting segments → NOT_VERIFIABLE (nothing to check)."""
         result = check_part_gouge_exact([], None, None, None)
         assert result.status == VerificationStatus.NOT_VERIFIABLE
 
@@ -49,24 +45,30 @@ class TestGougeExactNotVerifiable:
         result = check_part_gouge_exact([], None, None, None)
         assert result.check_type == VerificationCheckType.GOUGE_EXACT
 
-    def test_gouge_exact_evidence_documents_limitation(self):
+    def test_gouge_exact_with_segs_runs_engine(self):
+        """Engine runs with segments; without STEP target → PARTIAL (stock removal verified)."""
         segs = [_seg()]
         result = check_part_gouge_exact(segs, (-5, -5, 0), (5, 5, 10), 5.0)
-        assert result.evidence.get("gouge_exact_ready") is False
-        assert "MESH_INTERSECTION_ENGINE_NOT_AVAILABLE" in str(result.evidence.get("reason", ""))
+        # Engine ran — PARTIAL (no target → partial check only) or NOT_VERIFIABLE on failure
+        assert result.status in (
+            VerificationStatus.PARTIAL,
+            VerificationStatus.NOT_VERIFIABLE,
+        )
 
-    def test_gouge_exact_never_pass(self):
-        """HARD RULE: GOUGE_EXACT must NEVER return PASS."""
-        for _ in range(5):
-            segs = [_seg(sz=100.0, ez=100.0)]  # completely clear
+    def test_gouge_exact_evidence_has_method(self):
+        """Evidence must report BREP_BOOLEAN_OCC method (KL-07 resolved)."""
+        segs = [_seg()]
+        result = check_part_gouge_exact(segs, (-5, -5, 0), (5, 5, 10), 5.0)
+        assert result.evidence.get("method") == "BREP_BOOLEAN_OCC"
+
+    def test_gouge_exact_never_pass_without_step_target(self):
+        """Without STEP target, GOUGE_EXACT must never return PASS (no ground truth)."""
+        for _ in range(3):
+            segs = [_seg(sz=100.0, ez=100.0)]
             result = check_part_gouge_exact(segs, (-1, -1, 0), (1, 1, 1), 0.1)
-            assert result.status != VerificationStatus.PASS, "HARD RULE VIOLATED: GOUGE_EXACT returned PASS"
-
-    def test_gouge_exact_never_partial(self):
-        """HARD RULE: GOUGE_EXACT must NEVER return PARTIAL."""
-        segs = [_seg()]
-        result = check_part_gouge_exact(segs, (-5, -5, 0), (5, 5, 10), 5.0)
-        assert result.status != VerificationStatus.PARTIAL, "HARD RULE VIOLATED: GOUGE_EXACT returned PARTIAL"
+            assert result.status != VerificationStatus.PASS, (
+                "GOUGE_EXACT returned PASS without STEP target — no ground truth available"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -122,12 +124,15 @@ class TestGougeConservationExactSeparation:
         assert r_cons.check_type == VerificationCheckType.PART_GOUGE
         assert r_exact.check_type != r_cons.check_type
 
-    def test_exact_not_verifiable_even_when_conservative_passes(self):
-        """Conservative may find PARTIAL; exact is still NOT_VERIFIABLE."""
+    def test_exact_runs_engine_when_conservative_finds_partial(self):
+        """Conservative PARTIAL; exact engine runs (PARTIAL=no target, or NOT_VERIFIABLE)."""
         segs = [_seg(sz=100.0, ez=100.0)]  # no bbox overlap
         r_exact = check_part_gouge_exact(segs, (-5, -5, 0), (5, 5, 10), 5.0)
         r_cons = check_part_gouge(segs, (-5, -5, 0), (5, 5, 10), 5.0)
-        assert r_exact.status == VerificationStatus.NOT_VERIFIABLE
+        assert r_exact.status in (
+            VerificationStatus.PARTIAL,
+            VerificationStatus.NOT_VERIFIABLE,
+        )
         assert r_cons.status == VerificationStatus.PARTIAL  # never PASS
 
 

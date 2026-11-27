@@ -48,8 +48,8 @@ Resolved in beta.4: `GET /api/autocam/{plan_id}/report/DOCX` now produces a real
 
 ## 3. Simulation & Verification
 
-**KL-07 — `GOUGE_EXACT=NOT_VERIFIABLE` always**  
-Exact tool-to-part surface gouge detection requires a mesh-vs-mesh comparison against the actual part surface. This is not available in the current simulation profile. `GOUGE_EXACT=NOT_VERIFIABLE` is the correct and expected state. `GOUGE_CONSERVATIVE_WARNING` is derived from bbox checks and is provided as a secondary indicator only.
+**KL-07 — `GOUGE_EXACT=NOT_VERIFIABLE` always (beta.3/beta.4 — RESOLVED in beta.5)**  
+Exact tool-to-part surface gouge detection required a mesh/B-Rep intersection engine not available in beta.3/beta.4. `GOUGE_EXACT=NOT_VERIFIABLE` was the correct and expected state. RESOLVED in beta.5-dev: `BREP_BOOLEAN_OCC` engine using gmsh OCC kernel provides real exact gouge detection from STEP target geometry.
 
 **KL-08 — `FIXTURE_COLLISION=NOT_PERFORMED` without fixture geometry**  
 Fixture collision checking requires the user to provide fixture geometry. Without it, the check status is `NOT_PERFORMED`. This is a correct fail-closed behavior per HR11 (missing input → NOT_PERFORMED, never PASS).
@@ -127,5 +127,5 @@ Axis travel limits are sourced from `MACHINE_LIMIT_SOURCE=CATALOG`. Installed ro
 **KL-25 — Part-fixture interference returns PARTIAL, not FAIL**  
 Fixture clamping intentionally contacts the part in Z. `PART_FIXTURE_INTERFERENCE` returns `PARTIAL` (flagged for review) rather than `FAIL` for Z-overlap. This is correct semantics but requires engineer review for every overlap detected.
 
-**KL-07 — `GOUGE_EXACT=NOT_VERIFIABLE` always (unchanged from beta.3)**  
-Exact tool-to-part surface gouge detection requires `pythonocc`/`BRepAlgoAPI` or equivalent mesh intersection capability, which is not installed. `GOUGE_EXACT=NOT_VERIFIABLE` is the correct and expected behavior. This is a production-readiness limitation, not a public-beta blocker, because fail-closed semantics are preserved: the check never returns PASS.
+**KL-07 — `GOUGE_EXACT` — RESOLVED in beta.5-dev**  
+Exact gouge detection now uses the `BREP_BOOLEAN_OCC` engine: gmsh 4.x OpenCASCADE kernel providing real B-Rep Boolean operations (stock - swept_volume, target - machined). STEP target geometry is imported via `gmsh.model.occ.importShapes`. Engine resolves KL-07. Known engine limitation: gmsh OCC Boolean may fail for topologically degenerate inputs (coincident faces, zero-thickness walls) — these cases fall back to `NOT_VERIFIABLE` with a diagnostic error. No pythonocc or separate OCC installation required.
