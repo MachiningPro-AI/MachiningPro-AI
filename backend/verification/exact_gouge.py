@@ -27,6 +27,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from .brep_volume import compute_occ_entities_total_volume
+
 if TYPE_CHECKING:
     pass
 
@@ -99,9 +101,11 @@ class ExactGougeResult:
     # Geometry method fields — distinguish classification from measurement
     gouge_geometry_method: str = "BREP_BOOLEAN_OCC"
     gouge_geometry_fidelity: str = "BREP_EXACT"
-    gouge_volume_method: str = "TETRAHEDRAL_MESH_INTEGRATION"
-    gouge_volume_fidelity: str = "APPROXIMATE_NUMERICAL_INTEGRATION"
-    volume_integration_error_pct: float = 0.42   # measured in Phase 1 audit
+    # Phase C/D upgrade: volume uses OCC getMass (BREP_EXACT) with mesh fallback
+    gouge_volume_method: str = "BREP_SOLID_VOLUME"
+    gouge_volume_fidelity: str = "BREP_EXACT"
+    # Only populated when tetrahedral fallback is used
+    volume_integration_error_pct: float | None = None
 
     # Legacy / convenience alias
     method: str = "BREP_BOOLEAN_OCC"
@@ -332,19 +336,43 @@ def _run_gmsh_session(
 
             occ.synchronize()
 
-            # 3. Measure gouge volume: remove all 3D entities except gouge_regions
+            # 3. Measure gouge volume via OCC getMass (Phase C — BREP_EXACT)
+            #    Falls back to tetrahedral mesh if getMass fails (always disclosed).
             if gouge_regions:
-                _isolate_and_mesh(gmsh, occ, gouge_regions, config.mesh_size_mm)
-                result.gouge_volume_mm3 = _mesh_volume_mm3(gmsh)
                 result.gouge_region_count = len(gouge_regions)
-                gmsh.model.mesh.clear()
+                g_vol = compute_occ_entities_total_volume(gmsh, gouge_regions)
+                if g_vol.solid_valid:
+                    result.gouge_volume_mm3 = g_vol.volume_mm3
+                    result.gouge_volume_method = "BREP_SOLID_VOLUME"
+                    result.gouge_volume_fidelity = "BREP_EXACT"
+                    result.volume_integration_error_pct = None
+                else:
+                    result.warnings.append(
+                        f"gouge volume: OCC getMass failed ({g_vol.error}); "
+                        "falling back to tetrahedral mesh integration"
+                    )
+                    _isolate_and_mesh(gmsh, occ, gouge_regions, config.mesh_size_mm)
+                    result.gouge_volume_mm3 = _mesh_volume_mm3(gmsh)
+                    result.gouge_volume_method = "TETRAHEDRAL_MESH_INTEGRATION"
+                    result.gouge_volume_fidelity = "APPROXIMATE_NUMERICAL_INTEGRATION"
+                    result.volume_integration_error_pct = 0.42
+                    gmsh.model.mesh.clear()
 
-            # 4. Measure remaining volume: remove all 3D entities except remaining_regions
+            # 4. Measure remaining volume via OCC getMass (Phase D — BREP_EXACT)
             if remaining_regions:
-                _isolate_and_mesh(gmsh, occ, remaining_regions, config.mesh_size_mm)
-                result.remaining_material_volume_mm3 = _mesh_volume_mm3(gmsh)
                 result.remaining_region_count = len(remaining_regions)
-                gmsh.model.mesh.clear()
+                r_vol = compute_occ_entities_total_volume(gmsh, remaining_regions)
+                if r_vol.solid_valid:
+                    result.remaining_material_volume_mm3 = r_vol.volume_mm3
+                    # remaining volume method mirrors gouge (both BREP_EXACT or both fallback)
+                else:
+                    result.warnings.append(
+                        f"remaining volume: OCC getMass failed ({r_vol.error}); "
+                        "falling back to tetrahedral mesh integration"
+                    )
+                    _isolate_and_mesh(gmsh, occ, remaining_regions, config.mesh_size_mm)
+                    result.remaining_material_volume_mm3 = _mesh_volume_mm3(gmsh)
+                    gmsh.model.mesh.clear()
 
         else:
             # No target geometry — partial check: only verify no over-travel into stock

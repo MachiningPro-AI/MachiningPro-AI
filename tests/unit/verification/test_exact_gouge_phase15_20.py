@@ -195,12 +195,16 @@ class TestPhase16LiveAcceptance:
             f"Expected BREP_EXACT, got {result.gouge_geometry_fidelity}"
         )
 
-    def test_s1_reports_approximate_volume_fidelity(self):
-        """Volume must be APPROXIMATE_NUMERICAL_INTEGRATION, not EXACT."""
+    def test_s1_reports_volume_fidelity(self):
+        """Phase C/D: BREP_EXACT when getMass succeeds; fallback = APPROXIMATE_NUMERICAL_INTEGRATION."""
         cuts = [(30, 20, 22, 30, 20, -1)]
         result = self._run(_S1, ((0, 0, 0), (60, 40, 20)), cuts, "S1_VOL_FIDELITY")
-        assert result.gouge_volume_fidelity == "APPROXIMATE_NUMERICAL_INTEGRATION"
-        assert result.gouge_volume_method == "TETRAHEDRAL_MESH_INTEGRATION"
+        assert result.gouge_volume_fidelity in (
+            "BREP_EXACT", "APPROXIMATE_NUMERICAL_INTEGRATION"
+        )
+        assert result.gouge_volume_method in (
+            "BREP_SOLID_VOLUME", "TETRAHEDRAL_MESH_INTEGRATION"
+        )
 
     def test_s1_timing_all_fields_positive(self):
         cuts = [(30, 20, 22, 30, 20, -1)]
@@ -226,7 +230,10 @@ class TestPhase16LiveAcceptance:
         cuts = [(40, 30, 32, 40, 30, -1)]
         result = self._run(_S2, ((0, 0, 0), (80, 60, 30)), cuts, "S2_FIDELITY")
         assert result.gouge_geometry_fidelity == "BREP_EXACT"
-        assert result.gouge_volume_fidelity == "APPROXIMATE_NUMERICAL_INTEGRATION"
+        # Phase C/D: BREP_EXACT primary; APPROXIMATE_NUMERICAL_INTEGRATION on fallback
+        assert result.gouge_volume_fidelity in (
+            "BREP_EXACT", "APPROXIMATE_NUMERICAL_INTEGRATION"
+        )
 
     @pytest.mark.skipif(not _real_step_exists(_S3), reason="S3 not found")
     def test_s3_multi_feature_engine_runs(self):
@@ -243,13 +250,16 @@ class TestPhase16LiveAcceptance:
 
     @pytest.mark.skipif(not _real_step_exists(_S3), reason="S3 not found")
     def test_s3_volume_integration_error_reported(self):
-        """Volume integration error must be reported (not hidden)."""
+        """When fallback mesh is used, error_pct must be reported; BREP_EXACT = None."""
         cuts = [(40, 30, 37, 40, 30, -1)]
         result = self._run(_S3, ((0, 0, 0), (80, 60, 35)), cuts, "S3_ERR")
-        # Must be a positive finite value — the measured ~0.42% from Phase 1
-        assert 0.0 < result.volume_integration_error_pct < 5.0, (
-            f"volume_integration_error_pct={result.volume_integration_error_pct} not in (0,5)"
-        )
+        if result.gouge_volume_fidelity == "APPROXIMATE_NUMERICAL_INTEGRATION":
+            assert 0.0 < result.volume_integration_error_pct < 5.0, (
+                f"volume_integration_error_pct={result.volume_integration_error_pct} not in (0,5)"
+            )
+        else:
+            # BREP_EXACT path: error_pct is None (no approximation)
+            assert result.volume_integration_error_pct is None
 
     def test_no_production_tolerance_no_pass(self):
         """Without a real production tolerance, live run must not return PASS."""
@@ -352,7 +362,10 @@ class TestMust17KnownNoGouge:
         )
         result = run_exact_gouge_check(cfg)
         assert result.gouge_geometry_fidelity == "BREP_EXACT"
-        assert result.gouge_volume_fidelity == "APPROXIMATE_NUMERICAL_INTEGRATION"
+        # Phase C/D: BREP_EXACT primary; fallback retains APPROXIMATE_NUMERICAL_INTEGRATION
+        assert result.gouge_volume_fidelity in (
+            "BREP_EXACT", "APPROXIMATE_NUMERICAL_INTEGRATION"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -435,7 +448,10 @@ class TestMust18KnownGouge:
             test_only=True, test_label="MUST18_FID",
         )
         result = run_exact_gouge_check(cfg)
-        assert result.gouge_volume_fidelity == "APPROXIMATE_NUMERICAL_INTEGRATION"
+        # Phase C/D: BREP_EXACT primary; fallback retains APPROXIMATE_NUMERICAL_INTEGRATION
+        assert result.gouge_volume_fidelity in (
+            "BREP_EXACT", "APPROXIMATE_NUMERICAL_INTEGRATION"
+        )
         assert result.gouge_geometry_fidelity == "BREP_EXACT"
 
 

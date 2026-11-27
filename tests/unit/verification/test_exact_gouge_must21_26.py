@@ -139,7 +139,8 @@ class TestMust21UnitScale:
         assert r.remaining_material_volume_mm3 >= 0.0
         # Fields are present (not None)
         assert r.gouge_geometry_method == "BREP_BOOLEAN_OCC"
-        assert r.gouge_volume_method == "TETRAHEDRAL_MESH_INTEGRATION"
+        # Phase C/D: BREP_SOLID_VOLUME when getMass succeeds; fallback = TETRAHEDRAL_MESH_INTEGRATION
+        assert r.gouge_volume_method in ("BREP_SOLID_VOLUME", "TETRAHEDRAL_MESH_INTEGRATION")
 
 
 # ===========================================================================

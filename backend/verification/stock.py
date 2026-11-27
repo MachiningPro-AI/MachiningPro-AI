@@ -11,7 +11,16 @@ import math
 
 from pydantic import BaseModel, Field
 
-from .enums import FixtureSource, FixtureType, StockFidelity, StockRemovalFidelity, StockShape
+from .enums import (
+    CustomBRepStatus,
+    FixtureSource,
+    FixtureType,
+    StockFidelity,
+    StockRemovalFidelity,
+    StockShape,
+    StockVolumeFidelity,
+    StockVolumeMethod,
+)
 from .tolerance import DEFAULT_TOLERANCE, TolerancePolicy
 
 
@@ -29,6 +38,17 @@ class StockModel(BaseModel):
     center_x_mm: float | None = None
     center_y_mm: float | None = None
     bottom_z_mm: float | None = None
+
+    # Phase M: initial stock volume metadata
+    initial_stock_volume_mm3: float | None = None
+    initial_stock_volume_method: StockVolumeMethod = StockVolumeMethod.NOT_AVAILABLE
+    initial_stock_volume_fidelity: StockVolumeFidelity = StockVolumeFidelity.NOT_AVAILABLE
+
+    # Phase M: CUSTOM_BREP fields
+    custom_brep_step_path: str | None = None          # path to STEP/IGES file
+    custom_brep_status: CustomBRepStatus = CustomBRepStatus.NOT_PROVIDED
+    custom_brep_repair_applied: bool = False           # True only when disclosed
+    custom_brep_repair_note: str | None = None
 
     @property
     def is_known(self) -> bool:
@@ -62,6 +82,11 @@ class StockModel(BaseModel):
         )
 
     def volume_mm3(self) -> float | None:
+        """Compute analytic volume for BOX and CYLINDER primitives.
+
+        For CUSTOM_BREP, volume is set via initial_stock_volume_mm3 after
+        OCC getMass validation — this method returns None for that shape.
+        """
         if self.shape == StockShape.BOX and self.has_box_dims:
             return (
                 (self.max_x_mm - self.min_x_mm)
@@ -70,7 +95,25 @@ class StockModel(BaseModel):
             )
         if self.shape == StockShape.CYLINDER and self.has_cylinder_dims:
             return math.pi * self.radius_mm**2 * self.height_mm
+        if self.shape == StockShape.CUSTOM_BREP:
+            return self.initial_stock_volume_mm3
         return None
+
+    def volume_method(self) -> StockVolumeMethod:
+        """Return the volume method appropriate for this stock shape."""
+        if self.shape in (StockShape.BOX, StockShape.CYLINDER):
+            return StockVolumeMethod.ANALYTIC_FORMULA
+        if self.shape == StockShape.CUSTOM_BREP:
+            return self.initial_stock_volume_method
+        return StockVolumeMethod.NOT_AVAILABLE
+
+    def volume_fidelity(self) -> StockVolumeFidelity:
+        """Return the volume fidelity appropriate for this stock shape."""
+        if self.shape in (StockShape.BOX, StockShape.CYLINDER):
+            return StockVolumeFidelity.ANALYTIC_EXACT
+        if self.shape == StockShape.CUSTOM_BREP:
+            return self.initial_stock_volume_fidelity
+        return StockVolumeFidelity.NOT_AVAILABLE
 
     def contains_point(self, x: float, y: float, z: float) -> bool:
         if self.shape == StockShape.BOX and self.has_box_dims:

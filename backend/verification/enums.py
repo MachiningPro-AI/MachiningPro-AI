@@ -68,16 +68,42 @@ class VerificationState(StrEnum):
 class StockShape(StrEnum):
     BOX = "BOX"
     CYLINDER = "CYLINDER"
+    CUSTOM_BREP = "CUSTOM_BREP"       # Phase M: user-supplied B-Rep (STEP/IGES/STL)
     USER_DEFINED_MESH = "USER_DEFINED_MESH"
     NEAR_NET_MESH = "NEAR_NET_MESH"
     UNKNOWN = "UNKNOWN"
 
 
 class StockFidelity(StrEnum):
+    BREP_EXACT = "BREP_EXACT"              # Phase M: validated closed B-Rep solid
     EXACT_MESH = "EXACT_MESH"
     ANALYTIC_PRIMITIVE = "ANALYTIC_PRIMITIVE"
     DISCRETIZED_APPROXIMATION = "DISCRETIZED_APPROXIMATION"
     UNKNOWN = "UNKNOWN"
+
+
+class StockVolumeMethod(StrEnum):
+    """Method used to compute initial stock volume."""
+    BREP_SOLID_VOLUME = "BREP_SOLID_VOLUME"          # OCC getMass exact
+    ANALYTIC_FORMULA = "ANALYTIC_FORMULA"            # π r² h or L×W×H
+    TETRAHEDRAL_MESH_INTEGRATION = "TETRAHEDRAL_MESH_INTEGRATION"
+    NOT_AVAILABLE = "NOT_AVAILABLE"
+
+
+class StockVolumeFidelity(StrEnum):
+    """Fidelity of the initial stock volume measurement."""
+    BREP_EXACT = "BREP_EXACT"
+    ANALYTIC_EXACT = "ANALYTIC_EXACT"               # formula on a primitive
+    APPROXIMATE_NUMERICAL_INTEGRATION = "APPROXIMATE_NUMERICAL_INTEGRATION"
+    NOT_AVAILABLE = "NOT_AVAILABLE"
+
+
+class CustomBRepStatus(StrEnum):
+    """Validation status for a user-supplied CUSTOM_BREP stock."""
+    VALID_CLOSED_SOLID = "VALID_CLOSED_SOLID"
+    OPEN_SHELL = "OPEN_SHELL"
+    NOT_VERIFIABLE = "NOT_VERIFIABLE"
+    NOT_PROVIDED = "NOT_PROVIDED"
 
 
 class StockRemovalFidelity(StrEnum):
