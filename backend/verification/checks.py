@@ -160,7 +160,7 @@ def check_part_gouge(
             ct,
             VerificationSeverity.CRITICAL,
             [i for i in issues if i.severity == VerificationSeverity.CRITICAL],
-            warnings=["PART_GOUGE uses bounding-box approximation"],
+            warnings=["PART_GOUGE uses bounding-box approximation only"],
         )
     if issues:
         return VerificationResult(
@@ -170,11 +170,58 @@ def check_part_gouge(
             issues=issues,
             warnings=["Conservative bbox check; exact mesh not available"],
         )
-    return _pass(
-        ct,
-        note="Bounding-box check passed",
-        checked_segments=len(cutting),
-        fidelity="APPROXIMATE",
+    # HARD RULE 1+2: bbox conservative check NEVER returns PASS.
+    # No bbox overlap found — this is a conservative indicator only.
+    # GOUGE_EXACT (mesh-vs-mesh) is required for PASS; use check_part_gouge_exact().
+    return VerificationResult(
+        check_type=ct,
+        status=VerificationStatus.PARTIAL,
+        severity=VerificationSeverity.WARNING,
+        evidence={
+            "note": "CONSERVATIVE_NO_BBOX_OVERLAP",
+            "checked_segments": len(cutting),
+            "fidelity": "BBOX_CONSERVATIVE_ONLY",
+        },
+        warnings=[
+            "PART_GOUGE conservative check: no bounding-box violation found. "
+            "This is NOT a gouge-free guarantee — exact mesh comparison (GOUGE_EXACT) "
+            "is NOT_VERIFIABLE. Engineer review required before machining."
+        ],
+    )
+
+
+def check_part_gouge_exact(
+    segments: list[VerificationSegment],  # noqa: ARG001
+    part_bbox_min: tuple[float, float, float] | None,  # noqa: ARG001
+    part_bbox_max: tuple[float, float, float] | None,  # noqa: ARG001
+    tool_diameter_mm: float | None,  # noqa: ARG001
+    tol: TolerancePolicy = DEFAULT_TOLERANCE,  # noqa: ARG001
+) -> VerificationResult:
+    """Exact gouge check — ALWAYS NOT_VERIFIABLE at current mesh fidelity.
+
+    HARD RULE 1: This function NEVER returns PASS or PARTIAL.
+    HARD RULE 2: Bounding-box clearance is NOT exact gouge verification.
+    Exact mesh-vs-mesh comparison requires a CAD intersection engine
+    not available in this installation (KL-07).
+    """
+    ct = VerificationCheckType.GOUGE_EXACT
+    return VerificationResult(
+        check_type=ct,
+        status=VerificationStatus.NOT_VERIFIABLE,
+        severity=VerificationSeverity.WARNING,
+        warnings=[
+            "GOUGE_EXACT=NOT_VERIFIABLE: exact mesh-vs-mesh gouge detection requires "
+            "a CAD boolean intersection engine (e.g. pythonocc-core OCC BRepAlgoAPI). "
+            "Current installation: PYTHONOCC=NOT_INSTALLED, MESH_ENGINE=NOT_AVAILABLE. "
+            "Conservative bbox check is in PART_GOUGE (GOUGE_CONSERVATIVE). "
+            "Engineer review required before machining (KL-07)."
+        ],
+        evidence={
+            "gouge_exact_ready": False,
+            "reason": "MESH_INTERSECTION_ENGINE_NOT_AVAILABLE",
+            "required_engine": "BRepAlgoAPI_Common or equivalent mesh-boolean",
+            "kl_reference": "KL-07",
+        },
     )
 
 
@@ -221,13 +268,14 @@ def check_stock_gouge(
     return _pass(ct, checked_segments=len(cutting), fidelity="APPROXIMATE")
 
 
-def check_tool_collision(
+def check_tool_fixture_collision(
     segments: list[VerificationSegment],
     fixtures: list[FixtureGeometry],
     tool_diameter_mm: float | None,
     tol: TolerancePolicy = DEFAULT_TOLERANCE,
 ) -> VerificationResult:
-    ct = VerificationCheckType.TOOL_COLLISION
+    """Phase I — TOOL_FIXTURE_COLLISION: tool cylinder vs fixture bboxes."""
+    ct = VerificationCheckType.TOOL_FIXTURE_COLLISION
     if not fixtures:
         return _not_performed(ct, "No fixture geometry; tool collision cannot be checked")
     if tool_diameter_mm is None:
@@ -355,6 +403,258 @@ def check_holder_collision(
     return _pass(ct, checked_fixtures=len(fixtures), holder_diameter_mm=holder_diameter_mm)
 
 
+def check_holder_part_collision(
+    segments: list[VerificationSegment],
+    part_bbox_min: tuple[float, float, float] | None,
+    part_bbox_max: tuple[float, float, float] | None,
+    tool_length_mm: float | None,
+    holder_diameter_mm: float | None,
+    holder_length_mm: float | None,
+    tol: TolerancePolicy = DEFAULT_TOLERANCE,
+) -> VerificationResult:
+    """Phase G — HOLDER_PART_COLLISION: holder cylinder vs part bounding box."""
+    ct = VerificationCheckType.HOLDER_PART_COLLISION
+    if holder_diameter_mm is None:
+        return _not_performed(ct, "Holder geometry unknown; HOLDER_PART_COLLISION=NOT_PERFORMED")
+    if part_bbox_min is None or part_bbox_max is None:
+        return _not_performed(ct, "Part geometry not provided; HOLDER_PART_COLLISION=NOT_PERFORMED")
+    if tool_length_mm is None:
+        return _insufficient(ct, "Tool length unknown; holder Z position cannot be determined")
+
+    holder_radius = holder_diameter_mm / 2.0
+    holder_offset_z = tool_length_mm
+    h_len = holder_length_mm if holder_length_mm else 50.0
+
+    part_aabb = AABB(
+        part_bbox_min[0], part_bbox_min[1], part_bbox_min[2],
+        part_bbox_max[0], part_bbox_max[1], part_bbox_max[2],
+    )
+
+    issues: list[VerificationIssue] = []
+    for seg in segments:
+        if not _valid_coords(seg.start_x, seg.start_y, seg.start_z):
+            continue
+        if not _valid_coords(seg.end_x, seg.end_y, seg.end_z):
+            continue
+        h_start_z = seg.start_z + holder_offset_z
+        h_end_z = seg.end_z + holder_offset_z
+        if segment_cylinder_intersects_aabb(
+            seg.start_x, seg.start_y, h_start_z,
+            seg.end_x, seg.end_y, h_end_z + h_len,
+            holder_radius, part_aabb,
+        ):
+            issues.append(_issue(
+                ct, VerificationSeverity.CRITICAL,
+                f"Holder intersects part bounding box during {seg.motion_type}",
+                segment_id=seg.segment_id,
+                evidence={
+                    "holder_radius_mm": holder_radius,
+                    "holder_z_offset_mm": holder_offset_z,
+                    "method": "BBOX_CYLINDER",
+                    "geometry_source": "CATALOG",
+                    "fidelity": "SIMPLIFIED_CYLINDER",
+                },
+            ))
+
+    if issues:
+        return _fail(ct, VerificationSeverity.CRITICAL, issues)
+    return _pass(
+        ct,
+        holder_diameter_mm=holder_diameter_mm,
+        method="BBOX_CYLINDER",
+        geometry_source="CATALOG",
+        fidelity="SIMPLIFIED_CYLINDER",
+    )
+
+
+def check_holder_stock_collision(
+    segments: list[VerificationSegment],
+    stock: StockModel | None,
+    tool_length_mm: float | None,
+    holder_diameter_mm: float | None,
+    holder_length_mm: float | None,
+    tol: TolerancePolicy = DEFAULT_TOLERANCE,
+) -> VerificationResult:
+    """Phase G — HOLDER_STOCK_COLLISION: holder cylinder vs stock bounding box."""
+    ct = VerificationCheckType.HOLDER_STOCK_COLLISION
+    if holder_diameter_mm is None:
+        return _not_performed(ct, "Holder geometry unknown; HOLDER_STOCK_COLLISION=NOT_PERFORMED")
+    if stock is None or not stock.is_known:
+        return _not_performed(
+            ct, "Stock geometry not provided; HOLDER_STOCK_COLLISION=NOT_PERFORMED"
+        )
+    if tool_length_mm is None:
+        return _insufficient(ct, "Tool length unknown; holder Z position cannot be determined")
+
+    holder_radius = holder_diameter_mm / 2.0
+    holder_offset_z = tool_length_mm
+    h_len = holder_length_mm if holder_length_mm else 50.0
+
+    if not stock.has_box_dims:
+        return _insufficient(ct, "Stock lacks bbox dims; HOLDER_STOCK_COLLISION cannot be checked")
+
+    stock_aabb = AABB(
+        stock.min_x_mm, stock.min_y_mm, stock.min_z_mm,
+        stock.max_x_mm, stock.max_y_mm, stock.max_z_mm,
+    )
+
+    issues: list[VerificationIssue] = []
+    for seg in segments:
+        if not _valid_coords(seg.start_x, seg.start_y, seg.start_z):
+            continue
+        if not _valid_coords(seg.end_x, seg.end_y, seg.end_z):
+            continue
+        h_start_z = seg.start_z + holder_offset_z
+        h_end_z = seg.end_z + holder_offset_z
+        if segment_cylinder_intersects_aabb(
+            seg.start_x, seg.start_y, h_start_z,
+            seg.end_x, seg.end_y, h_end_z + h_len,
+            holder_radius, stock_aabb,
+        ):
+            issues.append(_issue(
+                ct, VerificationSeverity.CRITICAL,
+                f"Holder intersects stock bounding box during {seg.motion_type}",
+                segment_id=seg.segment_id,
+                evidence={
+                    "holder_radius_mm": holder_radius,
+                    "holder_z_offset_mm": holder_offset_z,
+                    "method": "BBOX_CYLINDER",
+                    "geometry_source": "CATALOG",
+                    "fidelity": "SIMPLIFIED_CYLINDER",
+                },
+            ))
+
+    if issues:
+        return _fail(ct, VerificationSeverity.CRITICAL, issues)
+    return _pass(
+        ct,
+        holder_diameter_mm=holder_diameter_mm,
+        method="BBOX_CYLINDER",
+        geometry_source="CATALOG",
+        fidelity="SIMPLIFIED_CYLINDER",
+    )
+
+
+def check_holder_fixture_collision(
+    segments: list[VerificationSegment],
+    fixtures: list[FixtureGeometry],
+    tool_length_mm: float | None,
+    holder_diameter_mm: float | None,
+    holder_length_mm: float | None,
+    tol: TolerancePolicy = DEFAULT_TOLERANCE,
+) -> VerificationResult:
+    """Phase G — HOLDER_FIXTURE_COLLISION: holder cylinder vs fixture bboxes."""
+    ct = VerificationCheckType.HOLDER_FIXTURE_COLLISION
+    if holder_diameter_mm is None:
+        return _not_performed(ct, "Holder geometry unknown; HOLDER_FIXTURE_COLLISION=NOT_PERFORMED")
+    if not fixtures:
+        return _not_performed(ct, "No fixture geometry; HOLDER_FIXTURE_COLLISION=NOT_PERFORMED")
+    if tool_length_mm is None:
+        return _insufficient(ct, "Tool length unknown; holder Z position cannot be determined")
+
+    holder_radius = holder_diameter_mm / 2.0
+    holder_offset_z = tool_length_mm
+    h_len = holder_length_mm if holder_length_mm else 50.0
+    issues: list[VerificationIssue] = []
+
+    for seg in segments:
+        if not _valid_coords(seg.start_x, seg.start_y, seg.start_z):
+            continue
+        if not _valid_coords(seg.end_x, seg.end_y, seg.end_z):
+            continue
+        h_start_z = seg.start_z + holder_offset_z
+        h_end_z = seg.end_z + holder_offset_z
+        for fixture in fixtures:
+            if not fixture.is_known:
+                continue
+            faabb = AABB(
+                fixture.min_x_mm, fixture.min_y_mm, fixture.min_z_mm,
+                fixture.max_x_mm, fixture.max_y_mm, fixture.max_z_mm,
+            )
+            if segment_cylinder_intersects_aabb(
+                seg.start_x, seg.start_y, h_start_z,
+                seg.end_x, seg.end_y, h_end_z + h_len,
+                holder_radius, faabb,
+            ):
+                issues.append(_issue(
+                    ct, VerificationSeverity.CRITICAL,
+                    f"Holder intersects fixture '{fixture.fixture_id}' during {seg.motion_type}",
+                    segment_id=seg.segment_id,
+                    evidence={
+                        "fixture_id": fixture.fixture_id,
+                        "holder_radius_mm": holder_radius,
+                        "holder_z_offset_mm": holder_offset_z,
+                        "method": "BBOX_CYLINDER",
+                        "clearance_mm": None,
+                        "collision_count": len(issues) + 1,
+                    },
+                ))
+
+    if issues:
+        return _fail(ct, VerificationSeverity.CRITICAL, issues)
+    return _pass(
+        ct,
+        checked_fixtures=len(fixtures),
+        holder_diameter_mm=holder_diameter_mm,
+        method="BBOX_CYLINDER",
+        geometry_source="CATALOG",
+        fidelity="SIMPLIFIED_CYLINDER",
+    )
+
+
+def check_part_fixture_interference(
+    part_bbox_min: tuple[float, float, float] | None,
+    part_bbox_max: tuple[float, float, float] | None,
+    fixtures: list[FixtureGeometry],
+    tol: TolerancePolicy = DEFAULT_TOLERANCE,
+) -> VerificationResult:
+    """Phase I — PART_FIXTURE_INTERFERENCE: part bbox vs fixture bboxes.
+
+    This checks static setup interference (part inside fixture envelope).
+    """
+    ct = VerificationCheckType.PART_FIXTURE_INTERFERENCE
+    if part_bbox_min is None or part_bbox_max is None:
+        return _not_performed(
+            ct, "Part geometry not provided; PART_FIXTURE_INTERFERENCE=NOT_PERFORMED"
+        )
+    if not fixtures:
+        return _not_performed(ct, "No fixture geometry; PART_FIXTURE_INTERFERENCE=NOT_PERFORMED")
+
+    issues: list[VerificationIssue] = []
+    for fixture in fixtures:
+        if not fixture.is_known:
+            continue
+        # Check if part bbox overlaps fixture bbox in X/Y (Z may intentionally overlap for clamping)
+        p_min_x, p_min_y = part_bbox_min[0], part_bbox_min[1]
+        p_max_x, p_max_y = part_bbox_max[0], part_bbox_max[1]
+        p_max_z = part_bbox_max[2]
+        overlap_x = p_min_x < fixture.max_x_mm and p_max_x > fixture.min_x_mm
+        overlap_y = p_min_y < fixture.max_y_mm and p_max_y > fixture.min_y_mm
+        overlap_z = p_max_z > fixture.min_z_mm + tol.linear_mm
+        if overlap_x and overlap_y and overlap_z:
+            issues.append(_issue(
+                ct, VerificationSeverity.WARNING,
+                f"Part bbox overlaps fixture '{fixture.fixture_id}' (potential setup interference)",
+                evidence={
+                    "fixture_id": fixture.fixture_id,
+                    "note": "STATIC_SETUP_CHECK — clamping overlap may be intentional",
+                    "method": "BBOX_OVERLAP",
+                },
+            ))
+
+    if issues:
+        return VerificationResult(
+            check_type=ct,
+            status=VerificationStatus.PARTIAL,
+            severity=VerificationSeverity.WARNING,
+            issues=issues,
+            warnings=[
+                "PART_FIXTURE_INTERFERENCE uses bbox overlap only; mesh check not available"
+            ],
+        )
+    return _pass(ct, checked_fixtures=len(fixtures), method="BBOX_OVERLAP")
+
+
 def check_fixture_collision(
     segments: list[VerificationSegment],
     fixtures: list[FixtureGeometry],
@@ -368,8 +668,8 @@ def check_fixture_collision(
     if not fixtures:
         return _not_performed(ct, "No fixture geometry; fixture collision cannot be checked")
 
-    tool_result = check_tool_collision(segments, fixtures, tool_diameter_mm, tol)
-    holder_result = check_holder_collision(
+    tool_result = check_tool_fixture_collision(segments, fixtures, tool_diameter_mm, tol)
+    holder_result = check_holder_fixture_collision(
         segments, fixtures, tool_length_mm, holder_diameter_mm, holder_length_mm, tol
     )
 
@@ -582,13 +882,23 @@ def check_axis_limit(
                     continue
                 val = pt[idx]
                 if val < lo or val > hi:
+                    excess = val - hi if val > hi else lo - val
                     issues.append(
                         _issue(
                             ct,
                             VerificationSeverity.CRITICAL,
-                            f"Axis {axis} value {val:.3f} outside [{lo:.3f}, {hi:.3f}]",
+                            f"Axis {axis} value {val:.3f} outside [{lo:.3f}, {hi:.3f}]"
+                            f" (excess={excess:.3f} mm)",
                             segment_id=seg.segment_id,
-                            evidence={"axis": axis, "value": val, "min": lo, "max": hi},
+                            evidence={
+                                "AXIS": axis,
+                                "COMMAND_POSITION": val,
+                                "LIMIT_MIN": lo,
+                                "LIMIT_MAX": hi,
+                                "EXCESS_MM": excess,
+                                "OPERATION_ID": seg.operation_id,
+                                "TOOLPATH_SEGMENT": seg.segment_id,
+                            },
                         )
                     )
 
@@ -728,6 +1038,104 @@ def check_stock_remaining(
             warnings=["Stock removal is voxel-approximate; not suitable for tolerance inspection"],
         )
     return result, remaining, removed
+
+
+# Phase I backward-compat alias
+def check_tool_collision(
+    segments: list[VerificationSegment],
+    fixtures: list[FixtureGeometry],
+    tool_diameter_mm: float | None,
+    tol: TolerancePolicy = DEFAULT_TOLERANCE,
+) -> VerificationResult:
+    return check_tool_fixture_collision(segments, fixtures, tool_diameter_mm, tol)
+
+
+def check_machine_envelope_with_wcs(
+    segments: list[VerificationSegment],
+    travel_x_mm: float | None,
+    travel_y_mm: float | None,
+    travel_z_mm: float | None,
+    wcs_offset_x_mm: float = 0.0,
+    wcs_offset_y_mm: float = 0.0,
+    wcs_offset_z_mm: float = 0.0,
+    part_bbox_min: tuple[float, float, float] | None = None,
+    part_bbox_max: tuple[float, float, float] | None = None,
+    stock_bbox_min: tuple[float, float, float] | None = None,
+    stock_bbox_max: tuple[float, float, float] | None = None,
+    machine_id: str | None = None,
+    machine_limit_source: str = "CATALOG",
+    tol: TolerancePolicy = DEFAULT_TOLERANCE,
+) -> VerificationResult:
+    """Phase J/K — machine envelope check with WCS transform and extents reporting.
+
+    WCS offsets are applied to toolpath segments before comparing against
+    machine travel limits. Part and stock extents are checked independently.
+    """
+    ct = VerificationCheckType.MACHINE_ENVELOPE
+    if travel_x_mm is None or travel_y_mm is None or travel_z_mm is None:
+        return _insufficient(ct, "Machine travel limits not specified")
+
+    half_x = travel_x_mm / 2.0
+    half_y = travel_y_mm / 2.0
+    issues: list[VerificationIssue] = []
+
+    # Check toolpath points with WCS transform applied
+    for seg in segments:
+        for pt in [
+            (
+                seg.start_x + wcs_offset_x_mm,
+                seg.start_y + wcs_offset_y_mm,
+                seg.start_z + wcs_offset_z_mm,
+            ),
+            (
+                seg.end_x + wcs_offset_x_mm,
+                seg.end_y + wcs_offset_y_mm,
+                seg.end_z + wcs_offset_z_mm,
+            ),
+        ]:
+            if not _valid_coords(*pt):
+                continue
+            if abs(pt[0]) > half_x or abs(pt[1]) > half_y or pt[2] < -travel_z_mm:
+                issues.append(_issue(
+                    ct, VerificationSeverity.CRITICAL,
+                    f"Toolpath exceeds machine travel (WCS-transformed):"
+                    f" ({pt[0]:.3f}, {pt[1]:.3f}, {pt[2]:.3f})",
+                    segment_id=seg.segment_id,
+                    evidence={
+                        "point_wcs": list(pt),
+                        "travel_x": travel_x_mm,
+                        "travel_y": travel_y_mm,
+                        "travel_z": travel_z_mm,
+                        "wcs_offset": [wcs_offset_x_mm, wcs_offset_y_mm, wcs_offset_z_mm],
+                        "MACHINE_ID": machine_id,
+                        "MACHINE_LIMIT_SOURCE": machine_limit_source,
+                    },
+                ))
+
+    # Check part extents (Phase K)
+    if part_bbox_min is not None and part_bbox_max is not None:
+        for pt in [part_bbox_min, part_bbox_max]:
+            px = pt[0] + wcs_offset_x_mm
+            py = pt[1] + wcs_offset_y_mm
+            pz = pt[2] + wcs_offset_z_mm
+            if abs(px) > half_x or abs(py) > half_y or pz < -travel_z_mm:
+                issues.append(_issue(
+                    ct, VerificationSeverity.CRITICAL,
+                    f"Part extent exceeds machine travel: ({px:.3f}, {py:.3f}, {pz:.3f})",
+                    evidence={"source": "PART_BBOX", "point_wcs": [px, py, pz]},
+                ))
+
+    if issues:
+        return _fail(ct, VerificationSeverity.CRITICAL, issues)
+    return _pass(
+        ct,
+        travel_x=travel_x_mm,
+        travel_y=travel_y_mm,
+        travel_z=travel_z_mm,
+        machine_id=machine_id,
+        machine_limit_source=machine_limit_source,
+        wcs_offset=[wcs_offset_x_mm, wcs_offset_y_mm, wcs_offset_z_mm],
+    )
 
 
 def check_kinematic(

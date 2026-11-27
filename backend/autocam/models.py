@@ -277,9 +277,32 @@ class VerificationSummaryResult(BaseModel):
     stock_removal_fidelity: str = "NOT_PERFORMED"
     collision_check: str = "NOT_PERFORMED"
     gouge_check: str = "NOT_VERIFIABLE"
+    # Phase D: separate exact vs conservative gouge — GOUGE_EXACT always NOT_VERIFIABLE (KL-07)
+    gouge_exact: str = "NOT_VERIFIABLE"
+    gouge_conservative: str = "NOT_PERFORMED"
+    # Phase G: explicit holder collision sub-checks
+    holder_collision_check: str = "NOT_PERFORMED"
+    holder_part_collision: str = "NOT_PERFORMED"
+    holder_stock_collision: str = "NOT_PERFORMED"
+    holder_fixture_collision: str = "NOT_PERFORMED"
+    # Phase I: explicit fixture collision sub-checks
+    fixture_collision_check: str = "NOT_PERFORMED"
+    tool_fixture_collision: str = "NOT_PERFORMED"
+    part_fixture_interference: str = "NOT_PERFORMED"
     tool_reach_check: str = "NOT_PERFORMED"
     machine_envelope_check: str = "NOT_PERFORMED"
+    axis_limit_check: str = "NOT_PERFORMED"
+    # Phase J/K: machine + WCS envelope data
+    machine_id: str | None = None
+    machine_limit_source: str = "CATALOG"
+    wcs_ref: str = "WCS_PART_ORIGIN"
+    # Phase N: individual check provenance (for the results panel)
+    check_details: dict[str, dict[str, Any]] = Field(default_factory=dict)
     issues: list[dict[str, Any]] = Field(default_factory=list)
+    # Phase Q: safety invariants
+    verification_can_auto_approve: bool = False
+    verification_can_release_production: bool = False
+    verification_can_dispatch_cnc: bool = False
 
 
 class MachineResult(BaseModel):
@@ -288,6 +311,11 @@ class MachineResult(BaseModel):
     model: str | None = None
     machine_type_code: str | None = None
     spindle_max_rpm: int | None = None
+    # Phase J: machine travel limits for envelope verification
+    x_travel_mm: float | None = None
+    y_travel_mm: float | None = None
+    z_travel_mm: float | None = None
+    machine_limit_source: str = "CATALOG"
     status: str = "INSUFFICIENT_DATA"
 
 

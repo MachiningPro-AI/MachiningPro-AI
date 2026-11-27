@@ -130,6 +130,8 @@ _MIME: dict[str, str] = {
     "CSV": "text/csv",
     "PDF": "application/pdf",
     "XLSX": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    # KL-20 RESOLVED (beta.4): DOCX wired via existing docx_exporter.py
+    "DOCX": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "ZIP": "application/zip",
 }
 
@@ -143,7 +145,8 @@ def download_report(
 ) -> Response:
     """Download an Auto CAM plan report.
 
-    Supported formats: JSON, CSV, PDF, XLSX, ZIP
+    Supported formats: JSON, CSV, PDF, XLSX, DOCX, ZIP
+    KL-20 RESOLVED: DOCX now supported via existing docx_exporter.py.
     REPORT_GENERATION_ENGINEERING_STATE_CHANGED=False — read-only.
     """
     _require_user(authorization)

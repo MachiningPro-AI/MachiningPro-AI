@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "machiningpro-ai"
-version = "1.0.0-beta.3"
+version = "1.0.0-beta.4"
 description = "MachiningPro AI - deterministic-first machining engineering platform"
 readme = "README.md"
 requires-python = ">=3.11"

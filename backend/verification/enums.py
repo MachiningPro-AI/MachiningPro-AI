@@ -11,6 +11,10 @@ from enum import StrEnum
 class VerificationStatus(StrEnum):
     NOT_PERFORMED = "NOT_PERFORMED"
     INSUFFICIENT_DATA = "INSUFFICIENT_DATA"
+    # NOT_VERIFIABLE: check is conceptually applicable but the required engine/data
+    # is not available — never treated as PASS, never treated as FAIL.
+    # Example: GOUGE_EXACT requires mesh-vs-mesh engine not installed.
+    NOT_VERIFIABLE = "NOT_VERIFIABLE"
     PASS = "PASS"
     FAIL = "FAIL"
     PARTIAL = "PARTIAL"
@@ -20,8 +24,22 @@ class VerificationStatus(StrEnum):
 class VerificationCheckType(StrEnum):
     TOOL_COLLISION = "TOOL_COLLISION"
     HOLDER_COLLISION = "HOLDER_COLLISION"
+    # Explicit sub-checks for holder collision (Phase G)
+    HOLDER_PART_COLLISION = "HOLDER_PART_COLLISION"
+    HOLDER_STOCK_COLLISION = "HOLDER_STOCK_COLLISION"
+    HOLDER_FIXTURE_COLLISION = "HOLDER_FIXTURE_COLLISION"
     FIXTURE_COLLISION = "FIXTURE_COLLISION"
+    # Explicit sub-checks for fixture collision (Phase I)
+    TOOL_FIXTURE_COLLISION = "TOOL_FIXTURE_COLLISION"
+    PART_FIXTURE_INTERFERENCE = "PART_FIXTURE_INTERFERENCE"
+    # PART_GOUGE: conservative bounding-box check — never returns PASS,
+    # returns PARTIAL (no overlap found) or FAIL (critical violation).
     PART_GOUGE = "PART_GOUGE"
+    # GOUGE_EXACT: exact mesh-vs-mesh comparison — always NOT_VERIFIABLE
+    # until a mesh intersection engine is available (KL-07).
+    GOUGE_EXACT = "GOUGE_EXACT"
+    # GOUGE_CONSERVATIVE: alias for PART_GOUGE bbox check in explicit separation contexts
+    GOUGE_CONSERVATIVE = "GOUGE_CONSERVATIVE"
     STOCK_GOUGE = "STOCK_GOUGE"
     MACHINE_ENVELOPE = "MACHINE_ENVELOPE"
     AXIS_LIMIT = "AXIS_LIMIT"
@@ -107,3 +125,29 @@ class SweptVolumeStatus(StrEnum):
     APPROXIMATE = "APPROXIMATE"
     INSUFFICIENT_DATA = "INSUFFICIENT_DATA"
     NOT_COMPUTED = "NOT_COMPUTED"
+
+
+class HolderGeometryFidelity(StrEnum):
+    """Phase F fidelity levels for holder geometry used in collision checks."""
+    CATALOG_GEOMETRY = "CATALOG_GEOMETRY"
+    PARAMETRIC_APPROXIMATION = "PARAMETRIC_APPROXIMATION"
+    SIMPLIFIED = "SIMPLIFIED"
+    NOT_AVAILABLE = "NOT_AVAILABLE"
+
+
+class FixtureGeometrySource(StrEnum):
+    """Phase H fixture model sources."""
+    STEP = "STEP"
+    IGES = "IGES"
+    STL = "STL"
+    PROJECT_ARTIFACT = "PROJECT_ARTIFACT"
+    USER_DEFINED_BBOX = "USER_DEFINED_BBOX"
+    NOT_PROVIDED = "NOT_PROVIDED"
+
+
+class MachineEnvelopeStatus(StrEnum):
+    """Phase J machine envelope verification status."""
+    PASS = "PASS"
+    FAIL = "FAIL"
+    NOT_VERIFIABLE = "NOT_VERIFIABLE"
+    INSUFFICIENT_DATA = "INSUFFICIENT_DATA"

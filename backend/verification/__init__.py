@@ -11,8 +11,11 @@ IS_VERIFIED_DERIVED=TRUE
 """
 
 from .enums import (
+    FixtureGeometrySource,
     FixtureSource,
     FixtureType,
+    HolderGeometryFidelity,
+    MachineEnvelopeStatus,
     SimulationStatus,
     StockFidelity,
     StockRemovalFidelity,
@@ -25,6 +28,9 @@ from .enums import (
     VerificationStatus,
 )
 from .models import (
+    AxisLimitViolation,
+    HolderGeometryRecord,
+    MachineEnvelopeRecord,
     SimulationRequest,
     SimulationResult,
     VerificationIssue,
@@ -32,6 +38,7 @@ from .models import (
     VerificationSegment,
     VerificationSummary,
     VisualizationData,
+    WCSEnvelopeRecord,
 )
 from .profiles import PROFILE_MANDATORY_CHECKS, get_mandatory_checks
 from .simulation import derive_verification_state, run_simulation
@@ -40,8 +47,14 @@ from .swept_volume import AABB, SweptVolume, compute_swept_aabb, segment_cylinde
 from .tolerance import DEFAULT_TOLERANCE, TolerancePolicy
 
 __all__ = [
+    "AxisLimitViolation",
+    "FixtureGeometrySource",
     "FixtureSource",
     "FixtureType",
+    "HolderGeometryFidelity",
+    "HolderGeometryRecord",
+    "MachineEnvelopeRecord",
+    "MachineEnvelopeStatus",
     "SimulationStatus",
     "StockFidelity",
     "StockRemovalFidelity",
@@ -59,6 +72,7 @@ __all__ = [
     "VerificationSegment",
     "VerificationSummary",
     "VisualizationData",
+    "WCSEnvelopeRecord",
     "PROFILE_MANDATORY_CHECKS",
     "get_mandatory_checks",
     "derive_verification_state",

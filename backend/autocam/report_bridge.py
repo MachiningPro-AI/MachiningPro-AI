@@ -1,11 +1,11 @@
-"""Auto CAM report bridge — MACHININGPRO_AI_BETA3_REPORT_BRIDGE_01.
+"""Auto CAM report bridge — MACHININGPRO_AI_BETA4_REPORT_BRIDGE_01.
 
 Bridges AutoCamPlan to the existing report exporters (JSON, CSV, PDF,
-XLSX, ZIP).  Builds a ReportDocument from plan data and passes
+XLSX, ZIP, DOCX).  Builds a ReportDocument from plan data and passes
 it to existing exporters — DUPLICATE_ENGINE_CREATED=NO.
 
-DOCX export exists as a general exporter (docx_exporter.py) but is NOT
-wired into the Auto CAM bridge in this release (see KL-20).
+KL-20 RESOLVED (beta.4): DOCX export is now wired into the Auto CAM bridge
+via the existing docx_exporter.py (OOXML, no python-docx dependency).
 
 Safety invariants (enforced, never bypassed):
   REPORT_GENERATION_ENGINEERING_STATE_CHANGED=False always
@@ -13,13 +13,14 @@ Safety invariants (enforced, never bypassed):
   PRODUCTION_RELEASED=False always
   AUTO_APPROVED=False always
 
-Supported formats: JSON, CSV, PDF, XLSX, ZIP
+Supported formats: JSON, CSV, PDF, XLSX, ZIP, DOCX
 """
 from __future__ import annotations
 
 from datetime import UTC, datetime
 
 from backend.reports.exporters.csv_exporter import export_csv
+from backend.reports.exporters.docx_exporter import export_docx
 from backend.reports.exporters.json_exporter import export_json
 from backend.reports.exporters.pdf_exporter import export_pdf
 from backend.reports.exporters.xlsx_exporter import export_xlsx
@@ -225,17 +226,38 @@ def build_autocam_report_document(
             )],
         ))
 
-    # ── Section 06: Verification ──────────────────────────────────────────
+    # ── Section 06: Verification (Phase N/R) ─────────────────────────────
     v = plan.verification
     ver_items = [
         ("State", v.state),
         ("Checks Performed", str(v.checks_performed)),
         ("Checks Passed", str(v.checks_passed)),
+        ("Checks Failed", str(v.checks_failed)),
         ("Stock Removal Fidelity", v.stock_removal_fidelity),
-        ("Gouge Check", v.gouge_check),
-        ("Collision Check", v.collision_check),
-        ("Tool Reach", v.tool_reach_check),
+        # Phase D: gouge checks
+        ("Gouge (Exact / KL-07)", v.gouge_exact),
+        ("Gouge (Conservative bbox)", v.gouge_conservative),
+        # Phase G: holder collision sub-checks
+        ("Holder-Part Collision", v.holder_part_collision),
+        ("Holder-Stock Collision", v.holder_stock_collision),
+        ("Holder-Fixture Collision", v.holder_fixture_collision),
+        # Phase I: fixture collision sub-checks
+        ("Tool-Fixture Collision", v.tool_fixture_collision),
+        ("Part-Fixture Interference", v.part_fixture_interference),
+        ("Fixture Collision (Combined)", v.fixture_collision_check),
+        # Phase J: machine envelope
         ("Machine Envelope", v.machine_envelope_check),
+        ("Machine ID", v.machine_id or "N/A"),
+        ("Machine Limit Source", v.machine_limit_source),
+        ("Axis Limit", v.axis_limit_check),
+        # Other checks
+        ("Collision Check", v.collision_check),
+        ("Holder Collision", v.holder_collision_check),
+        ("Tool Reach", v.tool_reach_check),
+        # Phase Q: safety invariants
+        ("Can Auto-Approve", "NO"),
+        ("Can Release Production", "NO"),
+        ("Can Dispatch CNC", "NO"),
     ]
     sections.append(ReportSection(
         section_id="06_VERIFICATION",
@@ -244,14 +266,42 @@ def build_autocam_report_document(
             ReportKeyValue(items=ver_items),
             ReportWarningBox(
                 text=(
-                    "GOUGE_EXACT=NOT_VERIFIABLE (KL-07). "
-                    "FIXTURE/HOLDER_COLLISION=NOT_PERFORMED (KL-08/09). "
-                    "ENGINEER_REVIEW_REQUIRED before any machining."
+                    "GOUGE_EXACT=NOT_VERIFIABLE (KL-07): mesh intersection engine not available. "
+                    "GOUGE_CONSERVATIVE=PARTIAL: bbox check only, NOT a gouge-free guarantee. "
+                    "HOLDER_COLLISION=NOT_PERFORMED: holder geometry not provided in request. "
+                    "FIXTURE_COLLISION=NOT_PERFORMED: fixture geometry not provided in request. "
+                    "ENGINEER_REVIEW_REQUIRED before any machining. "
+                    "VERIFICATION_CAN_AUTO_APPROVE=NO. "
+                    "VERIFICATION_CAN_RELEASE_PRODUCTION=NO. "
+                    "VERIFICATION_CAN_DISPATCH_CNC=NO."
                 ),
                 level="WARNING",
             ),
         ],
     ))
+
+    # ── Section 06b: Per-Check Details (Phase N) ──────────────────────────
+    if v.check_details:
+        detail_rows = []
+        for check_key, detail in v.check_details.items():
+            detail_rows.append(TableRow(cells=[
+                check_key,
+                str(detail.get("status", "N/A")),
+                str(detail.get("method", "N/A")),
+                str(detail.get("fidelity", "N/A")),
+                str(detail.get("geometry_source", "N/A")),
+                str(detail.get("issues", 0)),
+            ]))
+        if detail_rows:
+            sections.append(ReportSection(
+                section_id="06b_CHECK_DETAILS",
+                title="Verification Check Details" if not is_tr else "Doğrulama Kontrol Detayları",
+                content=[ReportTable(
+                    headers=["Check", "Status", "Method", "Fidelity", "Geometry Source", "Issues"],
+                    rows=detail_rows,
+                    caption="Per-check verification details — CANDIDATE_ONLY",
+                )],
+            ))
 
     # ── Section 07: Safety Invariants ─────────────────────────────────────
     safety_items = [
@@ -301,11 +351,14 @@ def generate_autocam_report(
 ) -> ReportExportItem:
     """Generate a report export for an Auto CAM plan.
 
-    Uses existing exporters — DUPLICATE_ENGINE_CREATED=NO.
-    Returns a ReportExportItem with content bytes and mime_type.
+    Phase S: all formats derive from the SAME canonical ReportDocument snapshot.
+    REPORT_SNAPSHOT_CANONICAL=YES — engineering calculations are NOT regenerated
+    per format; the document is built once and exported to the requested format.
 
-    Supported formats: JSON, CSV, PDF, XLSX, ZIP
+    Uses existing exporters — DUPLICATE_ENGINE_CREATED=NO.
+    Supported formats: JSON, CSV, PDF, XLSX, DOCX, ZIP
     """
+    # Phase S: single canonical snapshot — all formats use this same doc
     doc = build_autocam_report_document(plan, language=language)
 
     fmt_upper = fmt.upper()
@@ -317,6 +370,9 @@ def generate_autocam_report(
         return export_pdf(doc)
     if fmt_upper in ("XLSX", "XLS"):
         return export_xlsx(doc)
+    if fmt_upper == "DOCX":
+        # KL-20 RESOLVED: DOCX export wired via existing docx_exporter.py
+        return export_docx(doc)
     if fmt_upper == "ZIP":
         bundle = ReportBundle(document=doc)
         bundle.items.extend([
@@ -331,6 +387,10 @@ def generate_autocam_report(
             bundle.items.append(export_xlsx(doc))
         except Exception:
             pass
+        try:
+            bundle.items.append(export_docx(doc))
+        except Exception:
+            pass
         return export_zip(doc, bundle)
 
-    raise ValueError(f"Unsupported format: {fmt!r}. Supported: JSON, CSV, PDF, XLSX, ZIP")
+    raise ValueError(f"Unsupported format: {fmt!r}. Supported: JSON, CSV, PDF, XLSX, DOCX, ZIP")

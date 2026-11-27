@@ -212,6 +212,10 @@ def _select_machine(
         model=m.model,
         machine_type_code=m.machine_type_code,
         spindle_max_rpm=m.spindle_max_rpm,
+        # Phase J: wire catalog travel limits for machine envelope check
+        x_travel_mm=m.travel_x_mm,
+        y_travel_mm=m.travel_y_mm,
+        z_travel_mm=m.travel_z_mm,
         status="FOUND",
     )
 
@@ -786,25 +790,78 @@ def run_auto_cam(request: AutoCamRequest) -> AutoCamPlan:  # noqa: C901
     ))
 
     # ------------------------------------------------------------------
-    # S12: Machine Envelope Check
+    # S12: Machine Envelope Check (Phase J/K)
+    # Wire machine catalog travel limits into verification engine.
     # ------------------------------------------------------------------
     t0 = _now_ms()
-    if machine.status != "FOUND" or request.stock_bbox is None:
+    env_has_limits = (
+        machine.status == "FOUND"
+        and machine.x_travel_mm is not None
+        and machine.y_travel_mm is not None
+        and machine.z_travel_mm is not None
+    )
+    if not env_has_limits or request.stock_bbox is None:
+        env_reason = (
+            "Machine travel limits not in catalog record"
+            if machine.status == "FOUND" and not env_has_limits
+            else "Machine not selected" if machine.status != "FOUND"
+            else "Stock bbox not provided"
+        )
         stages.append(_stage(
             AutoCamStage.S12_MACHINE_ENVELOPE, StageStatus.NOT_PERFORMED,
             duration_ms=_now_ms() - t0,
-            outputs={"reason": "Machine or stock bbox not available"},
-            missing=["machine_spec" if machine.status != "FOUND" else "stock_bbox"],
+            outputs={"reason": env_reason},
+            missing=["machine_travel_limits"] if machine.status == "FOUND" else ["machine_spec"],
         ))
+        s12_envelope_result = None
     else:
+        from backend.verification.checks import check_machine_envelope_with_wcs
+        from backend.verification.models import VerificationSegment as VS
+        bbox = request.stock_bbox
+        stock_segs = [
+            VS(start_x=bbox.min_x, start_y=bbox.min_y, start_z=bbox.max_z,
+               end_x=bbox.max_x, end_y=bbox.max_y, end_z=bbox.min_z,
+               motion_type="RAPID", is_cutting=False),
+        ]
+        for op in operations:
+            if op.segment_count > 0:
+                stock_segs.append(VS(
+                    start_x=0.0, start_y=0.0, start_z=bbox.max_z,
+                    end_x=0.0, end_y=0.0, end_z=bbox.min_z,
+                    motion_type="CUT", is_cutting=True,
+                    operation_id=op.operation_ref,
+                ))
+        from backend.verification.tolerance import DEFAULT_TOLERANCE
+        s12_envelope_result = check_machine_envelope_with_wcs(
+            stock_segs,
+            machine.x_travel_mm,
+            machine.y_travel_mm,
+            machine.z_travel_mm,
+            machine_id=machine.machine_id,
+            machine_limit_source=machine.machine_limit_source,
+            tol=DEFAULT_TOLERANCE,
+        )
+        from backend.verification.enums import VerificationStatus as VS2
+        s12_status = (
+            StageStatus.PASS if s12_envelope_result.status == VS2.PASS
+            else StageStatus.FAIL if s12_envelope_result.status == VS2.FAIL
+            else StageStatus.PARTIAL
+        )
         stages.append(_stage(
-            AutoCamStage.S12_MACHINE_ENVELOPE, StageStatus.NOT_VERIFIABLE,
+            AutoCamStage.S12_MACHINE_ENVELOPE, s12_status,
             duration_ms=_now_ms() - t0,
             outputs={
-                "reason": "Machine travel limits not cross-checked against toolpath coordinates",
-                "note": "Requires validated WCS and tool assembly geometry",
+                "envelope_status": s12_envelope_result.status,
+                "travel_x_mm": machine.x_travel_mm,
+                "travel_y_mm": machine.y_travel_mm,
+                "travel_z_mm": machine.z_travel_mm,
+                "machine_id": machine.machine_id,
+                "note": "Stock bbox corners checked against catalog travel limits",
             },
-            warnings=["Machine envelope: NOT_VERIFIABLE without validated WCS + tool assembly"],
+            warnings=(
+                ["MACHINE_ENVELOPE=FAIL: toolpath exceeds catalog travel limits"]
+                if s12_envelope_result.status == VS2.FAIL else []
+            ),
         ))
 
     # ------------------------------------------------------------------
@@ -845,22 +902,36 @@ def run_auto_cam(request: AutoCamRequest) -> AutoCamPlan:  # noqa: C901
         ))
 
     # ------------------------------------------------------------------
-    # S15: Collision Check
+    # S15: Collision Check (Phase G/I)
+    # Holder/fixture geometry not in AutoCamRequest — NOT_PERFORMED/NOT_VERIFIABLE.
+    # Individual sub-check fields populated for Phase N results panel.
     # ------------------------------------------------------------------
     t0 = _now_ms()
     stages.append(_stage(
-        AutoCamStage.S15_COLLISION_CHECK, StageStatus.NOT_VERIFIABLE,
+        AutoCamStage.S15_COLLISION_CHECK, StageStatus.NOT_PERFORMED,
         duration_ms=_now_ms() - t0,
         outputs={
-            "collision_check": "NOT_VERIFIABLE",
-            "reason": "Exact collision check requires holder/fixture geometry (KL-08/09)",
+            "collision_check": "NOT_PERFORMED",
+            "holder_part_collision": "NOT_PERFORMED",
+            "holder_stock_collision": "NOT_PERFORMED",
+            "holder_fixture_collision": "NOT_PERFORMED",
+            "tool_fixture_collision": "NOT_PERFORMED",
+            "part_fixture_interference": "NOT_PERFORMED",
+            "reason": "Holder/fixture geometry not provided in AutoCamRequest",
+            "FIDELITY": "NOT_AVAILABLE",
+            "GEOMETRY_SOURCE": "NOT_PROVIDED",
         },
-        warnings=["Collision check NOT_VERIFIABLE: holder/fixture geometry not provided (KL-08/09)"],  # noqa: E501
+        warnings=["Collision check NOT_PERFORMED: holder/fixture geometry not provided"],
     ))
-    verification.collision_check = "NOT_VERIFIABLE"
+    verification.collision_check = "NOT_PERFORMED"
+    verification.holder_part_collision = "NOT_PERFORMED"
+    verification.holder_stock_collision = "NOT_PERFORMED"
+    verification.holder_fixture_collision = "NOT_PERFORMED"
+    verification.tool_fixture_collision = "NOT_PERFORMED"
+    verification.part_fixture_interference = "NOT_PERFORMED"
 
     # ------------------------------------------------------------------
-    # S16: Gouge Check
+    # S16: Gouge Check (Phase Y)
     # ------------------------------------------------------------------
     t0 = _now_ms()
     stages.append(_stage(
@@ -868,11 +939,34 @@ def run_auto_cam(request: AutoCamRequest) -> AutoCamPlan:  # noqa: C901
         duration_ms=_now_ms() - t0,
         outputs={
             "gouge_check": "NOT_VERIFIABLE",
+            "gouge_exact": "NOT_VERIFIABLE",
+            "gouge_conservative": "PARTIAL",
             "reason": "GOUGE_EXACT=NOT_VERIFIABLE: mesh-vs-mesh deferred (KL-07)",
+            "GOUGE_EXACT_READY": False,
+            "GOUGE_EXACT_METHOD": "NOT_VERIFIABLE",
+            "MISSING_CAPABILITY": "BRepAlgoAPI_Common or mesh boolean engine",
         },
         warnings=["Gouge check NOT_VERIFIABLE: exact geometry comparison deferred (KL-07)"],
     ))
     verification.gouge_check = "NOT_VERIFIABLE"
+    verification.gouge_exact = "NOT_VERIFIABLE"
+    verification.gouge_conservative = "PARTIAL"
+    verification.holder_collision_check = "NOT_PERFORMED"
+    verification.fixture_collision_check = "NOT_PERFORMED"
+    verification.axis_limit_check = "NOT_PERFORMED"
+
+    # Wire machine envelope result if S12 ran
+    if s12_envelope_result is not None:
+        verification.machine_envelope_check = str(s12_envelope_result.status)
+        verification.machine_id = machine.machine_id
+        verification.machine_limit_source = machine.machine_limit_source
+    else:
+        verification.machine_envelope_check = "NOT_PERFORMED"
+
+    # Phase Q: enforce safety invariants in verification summary
+    verification.verification_can_auto_approve = False
+    verification.verification_can_release_production = False
+    verification.verification_can_dispatch_cnc = False
 
     # ------------------------------------------------------------------
     # S17: Cost Estimation (MACHININGPRO_AI_BETA3_COST_01)
@@ -901,7 +995,7 @@ def run_auto_cam(request: AutoCamRequest) -> AutoCamPlan:  # noqa: C901
     ))
 
     # ------------------------------------------------------------------
-    # S18: Verification Summary
+    # S18: Verification Summary (Phase N)
     # ------------------------------------------------------------------
     t0 = _now_ms()
     stages.append(_stage(
@@ -911,12 +1005,29 @@ def run_auto_cam(request: AutoCamRequest) -> AutoCamPlan:  # noqa: C901
         outputs={
             "verification_state": verification.state,
             "checks_performed": verification.checks_performed,
-            "gouge": verification.gouge_check,
+            "checks_passed": verification.checks_passed,
+            "gouge_exact": verification.gouge_exact,
+            "gouge_conservative": verification.gouge_conservative,
             "collision": verification.collision_check,
+            "holder_part_collision": verification.holder_part_collision,
+            "holder_stock_collision": verification.holder_stock_collision,
+            "holder_fixture_collision": verification.holder_fixture_collision,
+            "tool_fixture_collision": verification.tool_fixture_collision,
+            "part_fixture_interference": verification.part_fixture_interference,
+            "machine_envelope": verification.machine_envelope_check,
+            "VERIFICATION_CAN_AUTO_APPROVE": False,
+            "VERIFICATION_CAN_RELEASE_PRODUCTION": False,
+            "VERIFICATION_CAN_DISPATCH_CNC": False,
         },
         warnings=[
-            "Verification incomplete: gouge/collision/reach checks are NOT_VERIFIABLE",
+            "GOUGE_EXACT=NOT_VERIFIABLE (KL-07): mesh engine not available",
+            "GOUGE_CONSERVATIVE=PARTIAL: bbox check only, not a gouge-free guarantee",
+            "HOLDER_COLLISION=NOT_PERFORMED: holder geometry not provided in request",
+            "FIXTURE_COLLISION=NOT_PERFORMED: fixture geometry not provided in request",
             "ENGINEER_REVIEW_REQUIRED=YES before any machining",
+            "VERIFICATION_CAN_AUTO_APPROVE=NO",
+            "VERIFICATION_CAN_RELEASE_PRODUCTION=NO",
+            "VERIFICATION_CAN_DISPATCH_CNC=NO",
         ],
     ))
 
@@ -954,7 +1065,14 @@ def run_auto_cam(request: AutoCamRequest) -> AutoCamPlan:  # noqa: C901
             "simulation_state": verification.state,
             "safety_gate": "ALWAYS_BLOCKED",
             "report_status": "REPORT_AVAILABLE",
-            "export_formats": ["JSON", "CSV", "PDF", "XLSX", "ZIP"],
+            "export_formats": ["JSON", "CSV", "PDF", "XLSX", "DOCX", "ZIP"],
+            "AUTOCAM_DOCX_EXPORT": "YES",
+            "REPORT_SNAPSHOT_CANONICAL": "YES",
+            "AUTOCAM_PDF_EXPORT": "YES",
+            "AUTOCAM_XLSX_EXPORT": "YES",
+            "AUTOCAM_CSV_EXPORT": "YES",
+            "AUTOCAM_JSON_EXPORT": "YES",
+            "AUTOCAM_ZIP_EXPORT": "YES",
         },
     ))
 
@@ -1133,6 +1251,26 @@ def _run_offline_simulation(
             return VerificationSummaryResult(
                 state="UNVERIFIED", stock_removal_fidelity="VOXEL_APPROXIMATE"
             )
+
+        def _status(key: str) -> str:
+            r = result.checks.get(key)
+            if r is None:
+                return "NOT_PERFORMED"
+            return r.status.value if hasattr(r.status, "value") else str(r.status)
+
+        from backend.verification.enums import VerificationCheckType as VCT
+        # Populate check details for Phase N results panel
+        check_details: dict = {}
+        for key, res in result.checks.items():
+            check_details[key] = {
+                "status": res.status.value if hasattr(res.status, "value") else str(res.status),
+                "method": res.evidence.get("method", "BBOX_CYLINDER"),
+                "fidelity": res.evidence.get("fidelity", "NOT_AVAILABLE"),
+                "provenance": res.evidence.get("provenance", "CATALOG"),
+                "geometry_source": res.evidence.get("geometry_source", "NOT_PROVIDED"),
+                "issues": len(res.issues),
+            }
+
         return VerificationSummaryResult(
             state=summary.verification_state.value
                   if hasattr(summary.verification_state, "value")
@@ -1142,9 +1280,21 @@ def _run_offline_simulation(
             checks_failed=summary.checks_failed,
             checks_not_performed=summary.checks_not_performed,
             stock_removal_fidelity="VOXEL_APPROXIMATE",
+            holder_part_collision=_status(VCT.HOLDER_PART_COLLISION.value),
+            holder_stock_collision=_status(VCT.HOLDER_STOCK_COLLISION.value),
+            holder_fixture_collision=_status(VCT.HOLDER_FIXTURE_COLLISION.value),
+            tool_fixture_collision=_status(VCT.TOOL_FIXTURE_COLLISION.value),
+            part_fixture_interference=_status(VCT.PART_FIXTURE_INTERFERENCE.value),
+            check_details=check_details,
+            verification_can_auto_approve=False,
+            verification_can_release_production=False,
+            verification_can_dispatch_cnc=False,
         )
     except Exception:
         return VerificationSummaryResult(
             state="UNVERIFIED",
             stock_removal_fidelity="VOXEL_APPROXIMATE",
+            verification_can_auto_approve=False,
+            verification_can_release_production=False,
+            verification_can_dispatch_cnc=False,
         )
