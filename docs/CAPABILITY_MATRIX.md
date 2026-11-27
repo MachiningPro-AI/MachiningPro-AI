@@ -1,5 +1,5 @@
 # MachiningPro AI — Capability Matrix
-Version: 1.0.0-beta.2 | Head: cf06487 | Date: 2026-11-26
+Version: 1.0.0-beta.4 | Head: 852ca0a | Date: 2026-11-27
 
 | Capability | Status | Notes |
 |------------|--------|-------|
@@ -31,8 +31,13 @@ Version: 1.0.0-beta.2 | Head: cf06487 | Date: 2026-11-26
 | STEP Level 2 B-Rep | OPTIONAL_DEPENDENCY | Requires pythonocc-core |
 | VLM/OCR Analysis | OPTIONAL_DEPENDENCY | Requires Ollama + granite3.2-vision:2b |
 | Multi-user Auth | NOT_IMPLEMENTED | Single shared credential |
-| Exact Gouge Detection | NOT_IMPLEMENTED | GOUGE_EXACT=NOT_VERIFIABLE; mesh-vs-mesh deferred (KL-07) |
-| Holder/Fixture Geometry Input | NOT_IMPLEMENTED | Collision checks NOT_PERFORMED without geometry (KL-08/09) |
+| Exact Gouge Detection | NOT_VERIFIABLE | GOUGE_EXACT=NOT_VERIFIABLE always; pythonocc/BRepAlgoAPI not installed (KL-07); fail-closed |
+| Conservative Gouge Check | BETA_READY | GOUGE_CONSERVATIVE=PARTIAL/FAIL; bbox-based; never PASS; independent from exact |
+| Holder Collision (3 checks) | BETA_READY | HOLDER_PART/STOCK/FIXTURE_COLLISION; SIMPLIFIED_CYLINDER fidelity; NOT_PERFORMED without geometry (KL-21) |
+| Fixture Collision (2 checks) | BETA_READY | TOOL_FIXTURE_COLLISION + PART_FIXTURE_INTERFERENCE; bbox; NOT_PERFORMED without fixture geometry (KL-22) |
+| Machine Envelope (WCS-aware) | BETA_READY | Catalog axis limits; WCS transform; structured AxisLimitViolation; PASS/FAIL/NOT_VERIFIABLE |
+| Auto CAM DOCX Report | BETA_READY | DOCX via docx_exporter.py; canonical snapshot; KL-20 closed |
+| Verification UI (11 checks) | BETA_READY | All tool/holder/fixture/envelope/gouge checks displayed; NOT_VERIFIABLE/NOT_PERFORMED never green |
 | PFMEA | NOT_IMPLEMENTED | Deferred |
 | SPC | NOT_IMPLEMENTED | Deferred |
 | MES/ERP Integration | NOT_IMPLEMENTED | Deferred |

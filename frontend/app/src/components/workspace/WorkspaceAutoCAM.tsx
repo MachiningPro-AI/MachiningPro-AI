@@ -123,8 +123,19 @@ interface VerificationSummaryResult {
   stock_removal_fidelity: string
   collision_check: string
   gouge_check: string
+  gouge_exact: string
+  gouge_conservative: string
   tool_reach_check: string
   machine_envelope_check: string
+  axis_limit_check: string
+  holder_part_collision: string
+  holder_stock_collision: string
+  holder_fixture_collision: string
+  tool_fixture_collision: string
+  part_fixture_interference: string
+  verification_can_auto_approve: boolean
+  verification_can_release_production: boolean
+  verification_can_dispatch_cnc: boolean
 }
 
 interface AutoCamBlocker {
@@ -468,25 +479,38 @@ function MachinePanel({ machine, cycleTime }: { machine: MachineResult; cycleTim
 
 function VerificationPanel({ v }: { v: VerificationSummaryResult }) {
   const { t } = useLocale()
+  const checks: [string, string][] = [
+    ['Tool-Part',         v.collision_check],
+    ['Tool-Stock',        v.collision_check],
+    ['Tool-Fixture',      v.tool_fixture_collision],
+    ['Holder-Part',       v.holder_part_collision],
+    ['Holder-Stock',      v.holder_stock_collision],
+    ['Holder-Fixture',    v.holder_fixture_collision],
+    ['Machine Env.',      v.machine_envelope_check],
+    ['Axis Limits',       v.axis_limit_check],
+    ['Tool Reach',        v.tool_reach_check],
+    ['Gouge (exact)',     v.gouge_exact],
+    ['Gouge (conserv.)',  v.gouge_conservative],
+    ['Stock Removal',     v.stock_removal_fidelity],
+  ]
   return (
     <div className="bg-tp-surface-2 border border-tp-border rounded p-2 text-[10px] space-y-0.5">
       <div className="flex items-center gap-1 mb-1 text-tp-text-2 font-medium">
         <Wrench size={11} />
         <span>{t('autocam_verificationTitle')}</span>
       </div>
-      {[
-        ['Stock removal',  v.stock_removal_fidelity],
-        ['Gouge',          v.gouge_check],
-        ['Collision',      v.collision_check],
-        ['Tool reach',     v.tool_reach_check],
-        ['Machine env.',   v.machine_envelope_check],
-      ].map(([label, val]) => (
+      {checks.map(([label, val]) => (
         <div key={label} className="flex items-center gap-1.5">
           <StatusIcon status={val} />
-          <span className="text-tp-text-3 w-20 shrink-0">{label}</span>
-          <span className={statusColor(val)}>{val}</span>
+          <span className="text-tp-text-3 w-24 shrink-0">{label}</span>
+          <span className={statusColor(val ?? 'NOT_PERFORMED')}>{val ?? 'NOT_PERFORMED'}</span>
         </div>
       ))}
+      {(!v.verification_can_dispatch_cnc) && (
+        <div className="mt-1 pt-1 border-t border-tp-border text-[9px] text-amber-400">
+          DISPATCH LOCKED — engineer review required
+        </div>
+      )}
     </div>
   )
 }

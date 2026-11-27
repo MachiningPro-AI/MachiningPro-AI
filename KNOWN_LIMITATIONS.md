@@ -1,8 +1,8 @@
 # MachiningPro AI — Known Limitations
 
-**Qualification:** BETA3_FINAL_GATE_CLOSURE_01  
-**Date:** 2026-11-26  
-**Commit:** ff527fd (prior) + this commit  
+**Qualification:** V1_0_0_BETA_4_RELEASE_CANDIDATE_QUALIFICATION_01  
+**Date:** 2026-11-27  
+**Commit:** 852ca0a  
 
 ---
 
@@ -41,8 +41,8 @@ Resolved in beta.3: `GET /api/autocam/{plan_id}/report/{fmt}` generates PDF/XLSX
 **KL-19 — `other_cost` always NOT_PROVIDED; max completeness 87.5%**  
 The `AutoCamCostInput` model has no `other_cost_total` field. The `other_cost` category is structurally always `NOT_PROVIDED`. As a result, `COMPLETE_COST_ESTIMATE` (100% completeness) is never reached; maximum is `PARTIAL_COST_ESTIMATE` at 87.5% (7/8 categories). This is intentional per HR-8 (no fabricated totals). Users requiring a complete total should include other costs in `material_cost_total`.
 
-**KL-20 — Auto CAM report does not expose DOCX format**  
-The general report subsystem includes a `docx_exporter.py`. However, `GET /api/autocam/{plan_id}/report/{fmt}` does not wire up DOCX — the `_MIME` map covers JSON, CSV, PDF, XLSX, ZIP only. Requesting `fmt=DOCX` returns HTTP 400. DOCX export from Auto CAM plans is deferred to a future release.
+**KL-20 — RESOLVED (beta.4)** ~~Auto CAM report does not expose DOCX format~~  
+Resolved in beta.4: `GET /api/autocam/{plan_id}/report/DOCX` now produces a real DOCX artifact via `docx_exporter.py`. All 6 formats (PDF/DOCX/XLSX/CSV/JSON/ZIP) derive from a single canonical `ReportDocument` snapshot (`REPORT_SNAPSHOT_CANONICAL=YES`).
 
 ---
 
@@ -107,3 +107,25 @@ In dev mode, authentication is configured via `MACHININGPRO_DEV_USERNAME`, `MACH
 
 **KL-18 — Pre-existing test: `test_no_hard_coded_cycle_times` reads a missing temp path**  
 `tests/unit/api/test_cad_import_level7.py::test_no_hard_coded_cycle_times` reads from a temp restore directory that only exists after a specific test fixture setup. This failure is pre-existing at baseline commit `fb8b1f8` and is not introduced by this release. `NEW_FAILURES_INTRODUCED=0`.
+
+---
+
+## 8. Beta.4 New Limitations
+
+**KL-21 — Holder and fixture collision use SIMPLIFIED_CYLINDER fidelity**  
+Holder geometry is modeled as a cylinder (diameter × gauge length). Full 3D holder profile collision (HSK tapers, retention knobs, side protrusions) is not checked. `HOLDER_GEOMETRY_FIDELITY=SIMPLIFIED_CYLINDER` is always disclosed in check results. Users must review toolholder clearance with actual CAM post-processor data for production.
+
+**KL-22 — Fixture geometry limited to bbox; STEP/IGES fixture input deferred**  
+The fixture collision framework accepts geometry source declarations (STEP/IGES/STL/PROJECT_ARTIFACT) but actual 3D fixture geometry is not yet imported. Collision checks use a bounding-box approximation when dimensions are provided, or return `NOT_PERFORMED` when no fixture geometry is supplied. Upload of fixture CAD files is deferred.
+
+**KL-23 — Blocker navigation is message-only (no click-to-operation)**  
+Verification blockers display stage code and message. Click-to-navigate (select the relevant operation, highlight the offending toolpath segment, move camera) is not yet implemented. `VERIFICATION_BLOCKER_NAVIGATION_READY=PARTIAL`.
+
+**KL-24 — Machine envelope uses catalog travel; actual installed options not queried**  
+Axis travel limits are sourced from `MACHINE_LIMIT_SOURCE=CATALOG`. Installed rotary tables, tombstones, or machine-specific runtime configurations that reduce effective travel are not accounted for. Users must verify envelope against actual machine setup.
+
+**KL-25 — Part-fixture interference returns PARTIAL, not FAIL**  
+Fixture clamping intentionally contacts the part in Z. `PART_FIXTURE_INTERFERENCE` returns `PARTIAL` (flagged for review) rather than `FAIL` for Z-overlap. This is correct semantics but requires engineer review for every overlap detected.
+
+**KL-07 — `GOUGE_EXACT=NOT_VERIFIABLE` always (unchanged from beta.3)**  
+Exact tool-to-part surface gouge detection requires `pythonocc`/`BRepAlgoAPI` or equivalent mesh intersection capability, which is not installed. `GOUGE_EXACT=NOT_VERIFIABLE` is the correct and expected behavior. This is a production-readiness limitation, not a public-beta blocker, because fail-closed semantics are preserved: the check never returns PASS.

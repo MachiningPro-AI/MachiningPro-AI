@@ -44,6 +44,9 @@ node_modules/
 MachiningPro_AI_VP100_*.xlsx
 data/literature_catalog.csv
 
+# --- Runtime-generated report artifacts (regenerable, not source) ---
+artifacts/
+
 # --- NC release-readiness artifacts (NC_PROGRAM_RELEASE_READINESS_01) ---
 # Browser automation session data
 .playwright-mcp/
