@@ -81,20 +81,40 @@ class ExactGougeConfig:
 
 @dataclass
 class ExactGougeResult:
-    """Result of exact gouge verification."""
+    """Result of exact gouge verification.
+
+    Fidelity semantics (preserve explicitly):
+      gouge_geometry_method   = BREP_BOOLEAN_OCC   (OCC Boolean intersection)
+      gouge_geometry_fidelity = BREP_EXACT          (B-Rep solids, not mesh)
+      gouge_volume_method     = TETRAHEDRAL_MESH_INTEGRATION
+      gouge_volume_fidelity   = APPROXIMATE_NUMERICAL_INTEGRATION (~0.42% error)
+
+    The geometric classification (gouge present / absent / remaining) is exact
+    B-Rep Boolean. The reported volume is approximate (tetrahedral integration).
+    Do NOT describe reported volumes as mathematically exact.
+    """
 
     status: str = "NOT_VERIFIABLE"           # PASS / FAIL / PARTIAL / NOT_VERIFIABLE
+
+    # Geometry method fields — distinguish classification from measurement
+    gouge_geometry_method: str = "BREP_BOOLEAN_OCC"
+    gouge_geometry_fidelity: str = "BREP_EXACT"
+    gouge_volume_method: str = "TETRAHEDRAL_MESH_INTEGRATION"
+    gouge_volume_fidelity: str = "APPROXIMATE_NUMERICAL_INTEGRATION"
+    volume_integration_error_pct: float = 0.42   # measured in Phase 1 audit
+
+    # Legacy / convenience alias
     method: str = "BREP_BOOLEAN_OCC"
     target_geometry_fidelity: str = "NOT_AVAILABLE"
     machined_result_method: str = "BOOLEAN_BREP"
     machined_result_fidelity: str = "BREP_EXACT"
 
     # Gouge (over-cut)
-    gouge_volume_mm3: float = 0.0
+    gouge_volume_mm3: float = 0.0            # APPROXIMATE (tetrahedral integration)
     max_gouge_depth_mm: float = 0.0
     gouge_region_count: int = 0
 
-    # Remaining material (under-cut)
+    # Remaining material (under-cut) — volume is APPROXIMATE (tetrahedral integration)
     remaining_material_volume_mm3: float = 0.0
     max_remaining_depth_mm: float = 0.0
     remaining_region_count: int = 0
@@ -258,6 +278,9 @@ def _run_gmsh_session(
         t0 = time.perf_counter()
         target_entities = _load_target(occ, config)
         result.target_prep_ms = (time.perf_counter() - t0) * 1000.0
+        if target_entities:
+            result.target_geometry_fidelity = "BREP_EXACT"
+            result.gouge_geometry_fidelity = "BREP_EXACT"
 
         # --- Phase: stock + machined result ---
         t0 = time.perf_counter()
@@ -289,13 +312,19 @@ def _run_gmsh_session(
         t0 = time.perf_counter()
 
         if target_entities:
-            # Gouge = target - machined (what of target is missing from machined = overcut)
+            # Gouge = target - machined (over-cut: target material that was removed)
+            # gmsh.model.mesh.generate(3) meshes ALL model entities, so we must
+            # isolate exactly the target measurement entities before each mesh.
+            # Strategy: compute both Booleans using clones, then measure each
+            # result in an isolated sub-model.
+
+            # 1. Clone for gouge computation (target - machined)
             gouge_input_target = _clone_entities(occ, target_entities)
             gouge_input_machined = _clone_entities(occ, machined)
             gouge_regions, _ = occ.cut(gouge_input_target, gouge_input_machined,
                                         removeObject=True, removeTool=True)
 
-            # Remaining = machined - target (excess material = undercut)
+            # 2. Clone for remaining computation (machined - target)
             remain_input_machined = _clone_entities(occ, machined)
             remain_input_target = _clone_entities(occ, target_entities)
             remaining_regions, _ = occ.cut(remain_input_machined, remain_input_target,
@@ -303,16 +332,16 @@ def _run_gmsh_session(
 
             occ.synchronize()
 
-            # Mesh gouge regions and compute volume
+            # 3. Measure gouge volume: remove all 3D entities except gouge_regions
             if gouge_regions:
-                _mesh_entities(gmsh, gouge_regions, config.mesh_size_mm)
+                _isolate_and_mesh(gmsh, occ, gouge_regions, config.mesh_size_mm)
                 result.gouge_volume_mm3 = _mesh_volume_mm3(gmsh)
                 result.gouge_region_count = len(gouge_regions)
-                # Remove gouge mesh before remaining
                 gmsh.model.mesh.clear()
 
+            # 4. Measure remaining volume: remove all 3D entities except remaining_regions
             if remaining_regions:
-                _mesh_entities(gmsh, remaining_regions, config.mesh_size_mm)
+                _isolate_and_mesh(gmsh, occ, remaining_regions, config.mesh_size_mm)
                 result.remaining_material_volume_mm3 = _mesh_volume_mm3(gmsh)
                 result.remaining_region_count = len(remaining_regions)
                 gmsh.model.mesh.clear()
@@ -380,12 +409,39 @@ def _clone_entities(occ, entities: list[tuple[int, int]]) -> list[tuple[int, int
     return result
 
 
+def _isolate_and_mesh(
+    gmsh,
+    occ,
+    target_entities: list[tuple[int, int]],
+    mesh_size: float,
+) -> None:
+    """
+    Remove all 3D entities from the model EXCEPT those in target_entities,
+    then generate a 3D mesh of the isolated entities.
+
+    gmsh.model.mesh.generate(3) meshes ALL entities in the model. Without
+    isolation, volumes from other solids (target, machined result) would be
+    included in the measurement. This helper ensures only the target_entities
+    are present before meshing.
+    """
+    keep_tags = {t for d, t in target_entities if d == 3}
+    all_3d = gmsh.model.getEntities(3)
+    to_remove = [(d, t) for d, t in all_3d if t not in keep_tags]
+    if to_remove:
+        try:
+            occ.remove(to_remove, recursive=True)
+            occ.synchronize()
+        except Exception as exc:
+            logger.debug("_isolate_and_mesh remove failed: %s", exc)
+
+    _mesh_entities(gmsh, target_entities, mesh_size)
+
+
 def _mesh_entities(gmsh, entities: list[tuple[int, int]], mesh_size: float) -> None:
-    """Generate 3D mesh for given entities only."""
+    """Generate 3D mesh (meshes ALL model entities — call _isolate_and_mesh first)."""
     gmsh.option.setNumber("Mesh.CharacteristicLengthMax", mesh_size)
     gmsh.option.setNumber("Mesh.CharacteristicLengthMin", mesh_size / 4.0)
     gmsh.option.setNumber("Mesh.Algorithm3D", 4)  # Frontal-Delaunay
-    # Only mesh the requested entities
     tags_3d = [t for d, t in entities if d == 3]
     if tags_3d:
         gmsh.model.mesh.generate(3)

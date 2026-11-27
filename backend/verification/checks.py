@@ -288,9 +288,17 @@ def check_part_gouge_exact(
     evidence = {
         "gouge_exact_ready": gr.gouge_exact_ready,
         "method": gr.method,
+        # Geometry classification (B-Rep exact)
+        "gouge_geometry_method": gr.gouge_geometry_method,
+        "gouge_geometry_fidelity": gr.gouge_geometry_fidelity,
+        # Volume measurement (tetrahedral integration, approximate)
+        "gouge_volume_method": gr.gouge_volume_method,
+        "gouge_volume_fidelity": gr.gouge_volume_fidelity,
+        "volume_integration_error_pct": gr.volume_integration_error_pct,
         "target_geometry_fidelity": gr.target_geometry_fidelity,
         "machined_result_method": gr.machined_result_method,
         "machined_result_fidelity": gr.machined_result_fidelity,
+        # Volumes are APPROXIMATE (tetrahedral mesh integration)
         "gouge_volume_mm3": gr.gouge_volume_mm3,
         "max_gouge_depth_mm": gr.max_gouge_depth_mm,
         "gouge_region_count": gr.gouge_region_count,
