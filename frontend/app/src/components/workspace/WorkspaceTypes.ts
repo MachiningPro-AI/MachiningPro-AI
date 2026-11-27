@@ -489,6 +489,82 @@ export const LAYOUT_PRESETS: Record<LayoutPresetId, Partial<WorkspaceLayout>> = 
   },
 }
 
+// ---------------------------------------------------------------------------
+// Phase W — Layer visibility toggles
+// ---------------------------------------------------------------------------
+
+/** Canonical layer set for Phase W visibility panel. */
+export type WorkspaceLayer =
+  | 'PART'
+  | 'TARGET'
+  | 'STOCK'
+  | 'MACHINED_RESULT'
+  | 'TOOL'
+  | 'HOLDER'
+  | 'FIXTURE'
+  | 'MACHINE'
+  | 'TOOLPATH'
+  | 'GOUGE'
+  | 'REMAINING_MATERIAL'
+  | 'COLLISION'
+
+export const ALL_WORKSPACE_LAYERS: WorkspaceLayer[] = [
+  'PART', 'TARGET', 'STOCK', 'MACHINED_RESULT',
+  'TOOL', 'HOLDER', 'FIXTURE', 'MACHINE',
+  'TOOLPATH', 'GOUGE', 'REMAINING_MATERIAL', 'COLLISION',
+]
+
+export type LayerVisibilityState = Record<WorkspaceLayer, boolean>
+
+export const DEFAULT_LAYER_VISIBILITY: LayerVisibilityState = {
+  PART: true,
+  TARGET: true,
+  STOCK: true,
+  MACHINED_RESULT: true,
+  TOOL: true,
+  HOLDER: false,
+  FIXTURE: true,
+  MACHINE: false,
+  TOOLPATH: true,
+  GOUGE: true,
+  REMAINING_MATERIAL: true,
+  COLLISION: true,
+}
+
+// ---------------------------------------------------------------------------
+// Phase U — Machine motion visualization fidelity
+// ---------------------------------------------------------------------------
+
+export type MachineMotionFidelity =
+  | 'FULL_MACHINE_KINEMATICS'
+  | 'PARTIAL_MACHINE_KINEMATICS'
+  | 'TOOL_ONLY'
+  | 'NOT_AVAILABLE'
+
+export interface MachineDigitalTwinState {
+  machineId: string | null
+  architecture: string
+  fidelity: MachineMotionFidelity
+  currentAxisPositions: Record<string, number>  // keyed by axis label
+  axisLimits: Record<string, [number, number]>  // keyed by axis label
+  ready: boolean
+}
+
+export const DEFAULT_MACHINE_DIGITAL_TWIN: MachineDigitalTwinState = {
+  machineId: null,
+  architecture: 'UNKNOWN',
+  fidelity: 'NOT_AVAILABLE',
+  currentAxisPositions: {},
+  axisLimits: {},
+  ready: false,
+}
+
+// ---------------------------------------------------------------------------
+// Phase Y — Quality mode
+// ---------------------------------------------------------------------------
+
+export type WorkspaceQualityMode = 'FAST' | 'BALANCED' | 'HIGH_FIDELITY'
+
 const _LAYOUT_STORAGE_KEY = 'machiningpro-workspace-layout'
 
 export function saveWorkspaceLayout(layout: WorkspaceLayout): void {
