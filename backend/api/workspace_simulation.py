@@ -154,6 +154,11 @@ class WsSimResponse(BaseModel):
     # Phase B: gouge semantics split
     gouge_exact: str = "NOT_VERIFIABLE"
     gouge_conservative_warning: str = "NOT_PERFORMED"
+    # Phase B fidelity semantics (beta.5, KL-07 RESOLVED)
+    gouge_geometry_method: str = "BREP_BOOLEAN_OCC"
+    gouge_geometry_fidelity: str = "NOT_AVAILABLE"
+    gouge_volume_method: str = "TETRAHEDRAL_MESH_INTEGRATION"
+    gouge_volume_fidelity: str = "APPROXIMATE_NUMERICAL_INTEGRATION"
     # Phase C: stock volume label
     stock_volume_method: str = "NOT_VERIFIABLE"
     approx_remaining_volume_mm3: float | None = None
@@ -246,6 +251,22 @@ def _adapt_result(res: SimulationResult) -> WsSimResponse:
     else:
         stock_vol_method = "NOT_VERIFIABLE"
 
+    # Phase B: extract gouge_exact status and fidelity from simulation check result
+    gouge_exact_chk = res.checks.get("gouge_exact")
+    if gouge_exact_chk is not None:
+        gouge_exact_status = _sv(gouge_exact_chk.status)
+        ge_ev = gouge_exact_chk.evidence if hasattr(gouge_exact_chk, "evidence") else {}
+        gouge_geom_method = ge_ev.get("gouge_geometry_method", "BREP_BOOLEAN_OCC")
+        gouge_geom_fidelity = ge_ev.get("gouge_geometry_fidelity", "NOT_AVAILABLE")
+        gouge_vol_method = ge_ev.get("gouge_volume_method", "TETRAHEDRAL_MESH_INTEGRATION")
+        gouge_vol_fidelity = ge_ev.get("gouge_volume_fidelity", "APPROXIMATE_NUMERICAL_INTEGRATION")
+    else:
+        gouge_exact_status = "NOT_VERIFIABLE"
+        gouge_geom_method = "BREP_BOOLEAN_OCC"
+        gouge_geom_fidelity = "NOT_AVAILABLE"
+        gouge_vol_method = "TETRAHEDRAL_MESH_INTEGRATION"
+        gouge_vol_fidelity = "APPROXIMATE_NUMERICAL_INTEGRATION"
+
     return WsSimResponse(
         session_id=res.session_id,
         toolpath_id=res.toolpath_id,
@@ -258,8 +279,12 @@ def _adapt_result(res: SimulationResult) -> WsSimResponse:
         remaining_stock_volume_mm3=res.remaining_stock_volume_mm3,
         removed_volume_mm3=res.removed_volume_mm3,
         stock_removal_fidelity=_sv(res.stock_removal_fidelity),
-        gouge_exact="NOT_VERIFIABLE",
+        gouge_exact=gouge_exact_status,
         gouge_conservative_warning=gouge_conservative,
+        gouge_geometry_method=gouge_geom_method,
+        gouge_geometry_fidelity=gouge_geom_fidelity,
+        gouge_volume_method=gouge_vol_method,
+        gouge_volume_fidelity=gouge_vol_fidelity,
         stock_volume_method=stock_vol_method,
         approx_remaining_volume_mm3=res.remaining_stock_volume_mm3,
         approx_removed_volume_mm3=res.removed_volume_mm3,

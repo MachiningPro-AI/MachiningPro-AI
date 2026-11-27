@@ -235,7 +235,11 @@ def build_autocam_report_document(
         ("Checks Failed", str(v.checks_failed)),
         ("Stock Removal Fidelity", v.stock_removal_fidelity),
         # Phase D: gouge checks
-        ("Gouge (Exact / KL-07)", v.gouge_exact),
+        ("Gouge (Exact / BREP_BOOLEAN_OCC)", v.gouge_exact),
+        ("Gouge Geometry Method", v.gouge_geometry_method),
+        ("Gouge Geometry Fidelity", v.gouge_geometry_fidelity),
+        ("Gouge Volume Method", v.gouge_volume_method),
+        ("Gouge Volume Fidelity", v.gouge_volume_fidelity),
         ("Gouge (Conservative bbox)", v.gouge_conservative),
         # Phase G: holder collision sub-checks
         ("Holder-Part Collision", v.holder_part_collision),
@@ -266,7 +270,10 @@ def build_autocam_report_document(
             ReportKeyValue(items=ver_items),
             ReportWarningBox(
                 text=(
-                    "GOUGE_EXACT=NOT_VERIFIABLE (KL-07): mesh intersection engine not available. "
+                    "GOUGE_EXACT=NOT_VERIFIABLE: target STEP file not provided. "
+                    "GOUGE_EXACT_ENGINE=BREP_BOOLEAN_OCC (KL-07 RESOLVED in beta.5). "
+                    "GOUGE_GEOMETRY_FIDELITY=BREP_EXACT when STEP target provided. "
+                    "GOUGE_VOLUME_FIDELITY=APPROXIMATE_NUMERICAL_INTEGRATION (~0.42% err). "
                     "GOUGE_CONSERVATIVE=PARTIAL: bbox check only, NOT a gouge-free guarantee. "
                     "HOLDER_COLLISION=NOT_PERFORMED: holder geometry not provided in request. "
                     "FIXTURE_COLLISION=NOT_PERFORMED: fixture geometry not provided in request. "

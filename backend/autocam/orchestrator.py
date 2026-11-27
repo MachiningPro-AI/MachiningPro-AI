@@ -941,16 +941,23 @@ def run_auto_cam(request: AutoCamRequest) -> AutoCamPlan:  # noqa: C901
             "gouge_check": "NOT_VERIFIABLE",
             "gouge_exact": "NOT_VERIFIABLE",
             "gouge_conservative": "PARTIAL",
-            "reason": "GOUGE_EXACT=NOT_VERIFIABLE: mesh-vs-mesh deferred (KL-07)",
-            "GOUGE_EXACT_READY": False,
-            "GOUGE_EXACT_METHOD": "NOT_VERIFIABLE",
-            "MISSING_CAPABILITY": "BRepAlgoAPI_Common or mesh boolean engine",
+            "reason": "GOUGE_EXACT=NOT_VERIFIABLE: target STEP file not provided",
+            "GOUGE_EXACT_READY": True,
+            "GOUGE_EXACT_METHOD": "BREP_BOOLEAN_OCC",
+            "GOUGE_GEOMETRY_FIDELITY": "BREP_EXACT",
+            "GOUGE_VOLUME_METHOD": "TETRAHEDRAL_MESH_INTEGRATION",
+            "GOUGE_VOLUME_FIDELITY": "APPROXIMATE_NUMERICAL_INTEGRATION",
+            "KL_07": "RESOLVED",
         },
-        warnings=["Gouge check NOT_VERIFIABLE: exact geometry comparison deferred (KL-07)"],
+        warnings=["Gouge check NOT_VERIFIABLE: target STEP file not provided"],
     ))
     verification.gouge_check = "NOT_VERIFIABLE"
     verification.gouge_exact = "NOT_VERIFIABLE"
     verification.gouge_conservative = "PARTIAL"
+    verification.gouge_geometry_method = "BREP_BOOLEAN_OCC"
+    verification.gouge_geometry_fidelity = "NOT_AVAILABLE"
+    verification.gouge_volume_method = "TETRAHEDRAL_MESH_INTEGRATION"
+    verification.gouge_volume_fidelity = "APPROXIMATE_NUMERICAL_INTEGRATION"
     verification.holder_collision_check = "NOT_PERFORMED"
     verification.fixture_collision_check = "NOT_PERFORMED"
     verification.axis_limit_check = "NOT_PERFORMED"
@@ -1008,6 +1015,10 @@ def run_auto_cam(request: AutoCamRequest) -> AutoCamPlan:  # noqa: C901
             "checks_passed": verification.checks_passed,
             "gouge_exact": verification.gouge_exact,
             "gouge_conservative": verification.gouge_conservative,
+            "gouge_geometry_method": verification.gouge_geometry_method,
+            "gouge_geometry_fidelity": verification.gouge_geometry_fidelity,
+            "gouge_volume_method": verification.gouge_volume_method,
+            "gouge_volume_fidelity": verification.gouge_volume_fidelity,
             "collision": verification.collision_check,
             "holder_part_collision": verification.holder_part_collision,
             "holder_stock_collision": verification.holder_stock_collision,
@@ -1020,7 +1031,7 @@ def run_auto_cam(request: AutoCamRequest) -> AutoCamPlan:  # noqa: C901
             "VERIFICATION_CAN_DISPATCH_CNC": False,
         },
         warnings=[
-            "GOUGE_EXACT=NOT_VERIFIABLE (KL-07): mesh engine not available",
+            "GOUGE_EXACT=NOT_VERIFIABLE: target STEP file not provided to AutoCAM pipeline",
             "GOUGE_CONSERVATIVE=PARTIAL: bbox check only, not a gouge-free guarantee",
             "HOLDER_COLLISION=NOT_PERFORMED: holder geometry not provided in request",
             "FIXTURE_COLLISION=NOT_PERFORMED: fixture geometry not provided in request",

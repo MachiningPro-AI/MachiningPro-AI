@@ -277,9 +277,14 @@ class VerificationSummaryResult(BaseModel):
     stock_removal_fidelity: str = "NOT_PERFORMED"
     collision_check: str = "NOT_PERFORMED"
     gouge_check: str = "NOT_VERIFIABLE"
-    # Phase D: separate exact vs conservative gouge — GOUGE_EXACT always NOT_VERIFIABLE (KL-07)
+    # Phase D: separate exact vs conservative gouge — KL-07 RESOLVED (beta.5, BREP_BOOLEAN_OCC)
     gouge_exact: str = "NOT_VERIFIABLE"
     gouge_conservative: str = "NOT_PERFORMED"
+    # Phase D fidelity semantics (beta.5)
+    gouge_geometry_method: str = "BREP_BOOLEAN_OCC"
+    gouge_geometry_fidelity: str = "NOT_AVAILABLE"
+    gouge_volume_method: str = "TETRAHEDRAL_MESH_INTEGRATION"
+    gouge_volume_fidelity: str = "APPROXIMATE_NUMERICAL_INTEGRATION"
     # Phase G: explicit holder collision sub-checks
     holder_collision_check: str = "NOT_PERFORMED"
     holder_part_collision: str = "NOT_PERFORMED"
