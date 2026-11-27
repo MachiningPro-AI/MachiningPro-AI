@@ -1,6 +1,6 @@
 # Exact Gouge Detection — Implementation
 
-**Beta**: 1.0.0-beta.5  
+**Version**: 1.0.0-beta.5  
 **KL-07**: RESOLVED  
 **Geometry Engine**: BREP_BOOLEAN_OCC (gmsh 4.x OpenCASCADE kernel)
 

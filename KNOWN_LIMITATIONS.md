@@ -49,7 +49,7 @@ Resolved in beta.4: `GET /api/autocam/{plan_id}/report/DOCX` now produces a real
 ## 3. Simulation & Verification
 
 **KL-07 — `GOUGE_EXACT=NOT_VERIFIABLE` always (beta.3/beta.4 — RESOLVED in beta.5)**  
-Exact tool-to-part surface gouge detection required a mesh/B-Rep intersection engine not available in beta.3/beta.4. `GOUGE_EXACT=NOT_VERIFIABLE` was the correct and expected state. RESOLVED in beta.5-dev: `BREP_BOOLEAN_OCC` engine using gmsh OCC kernel provides real exact gouge detection from STEP target geometry.
+Exact tool-to-part surface gouge detection required a mesh/B-Rep intersection engine not available in beta.3/beta.4. `GOUGE_EXACT=NOT_VERIFIABLE` was the correct and expected state. RESOLVED in beta.5: `BREP_BOOLEAN_OCC` engine using gmsh OCC kernel provides real exact gouge detection from STEP target geometry.
 
 **KL-08 — `FIXTURE_COLLISION=NOT_PERFORMED` without fixture geometry**  
 Fixture collision checking requires the user to provide fixture geometry. Without it, the check status is `NOT_PERFORMED`. This is a correct fail-closed behavior per HR11 (missing input → NOT_PERFORMED, never PASS).
@@ -127,5 +127,11 @@ Axis travel limits are sourced from `MACHINE_LIMIT_SOURCE=CATALOG`. Installed ro
 **KL-25 — Part-fixture interference returns PARTIAL, not FAIL**  
 Fixture clamping intentionally contacts the part in Z. `PART_FIXTURE_INTERFERENCE` returns `PARTIAL` (flagged for review) rather than `FAIL` for Z-overlap. This is correct semantics but requires engineer review for every overlap detected.
 
-**KL-07 — `GOUGE_EXACT` — RESOLVED in beta.5-dev**  
+**KL-07 — `GOUGE_EXACT` — RESOLVED in beta.5**  
 Exact gouge detection now uses the `BREP_BOOLEAN_OCC` engine: gmsh 4.x OpenCASCADE kernel providing real B-Rep Boolean operations (stock - swept_volume, target - machined). STEP target geometry is imported via `gmsh.model.occ.importShapes`. Engine resolves KL-07. Known engine limitation: gmsh OCC Boolean may fail for topologically degenerate inputs (coincident faces, zero-thickness walls) — these cases fall back to `NOT_VERIFIABLE` with a diagnostic error. No pythonocc or separate OCC installation required.
+
+**KL-26 — Gouge volume is approximate (tetrahedral mesh integration, ~0.42% error)**  
+The geometric classification of gouge presence/absence uses exact B-Rep Boolean operations (`GOUGE_GEOMETRY_FIDELITY=BREP_EXACT`). However, the *numerical volume* of the gouge region is computed by tetrahedral mesh integration of the Boolean result solid (`GOUGE_VOLUME_FIDELITY=APPROXIMATE_NUMERICAL_INTEGRATION`). Measured error: ~0.42% on analytic reference cases. The reported volume must NOT be described as mathematically exact. This is by design — exact B-Rep volume integration would require additional kernel work. The ~0.42% error is always disclosed in `volume_integration_error_pct`.
+
+**KL-27 — Tool geometry uses parametric cylinder (not catalog profile)**  
+The swept-volume engine models the tool as a cylindrical solid (`tool_radius_mm`, `tool_corner_radius_mm=0`). Actual tool geometry (taper angle, corner radius, flute geometry) is not represented. Tools with significant taper or large corner radii may produce incorrect swept volumes. `TOOL_GEOMETRY_FIDELITY=PARAMETRIC_CYLINDER` is a limitation for precision gouge detection on contour operations. `GOUGE_EXACT=FAIL` from a parametric model is conservative (over-reports gouge); `GOUGE_EXACT=PASS` on tapered paths may miss small gouges.

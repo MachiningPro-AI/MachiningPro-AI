@@ -1,5 +1,5 @@
 # MachiningPro AI — Capability Matrix
-Version: 1.0.0-beta.5-dev | Date: 2026-11-27
+Version: 1.0.0-beta.5 | Date: 2026-11-27
 
 | Capability | Status | Notes |
 |------------|--------|-------|
@@ -31,7 +31,7 @@ Version: 1.0.0-beta.5-dev | Date: 2026-11-27
 | STEP Level 2 B-Rep | OPTIONAL_DEPENDENCY | Requires pythonocc-core |
 | VLM/OCR Analysis | OPTIONAL_DEPENDENCY | Requires Ollama + granite3.2-vision:2b |
 | Multi-user Auth | NOT_IMPLEMENTED | Single shared credential |
-| Exact Gouge Detection | BETA_READY | GOUGE_EXACT_METHOD=BREP_BOOLEAN_OCC; gmsh OCC B-Rep Boolean engine; STEP target input; KL-07 RESOLVED in beta.5 |
+| Exact Gouge Detection | BETA_READY | GOUGE_GEOMETRY=BREP_EXACT (OCC Boolean); GOUGE_VOLUME=APPROXIMATE (~0.42%); KL-07 RESOLVED; KL-26 volume approx; KL-27 parametric tool |
 | Conservative Gouge Check | BETA_READY | GOUGE_CONSERVATIVE=PARTIAL/FAIL; bbox-based; never PASS; independent from exact |
 | Holder Collision (3 checks) | BETA_READY | HOLDER_PART/STOCK/FIXTURE_COLLISION; SIMPLIFIED_CYLINDER fidelity; NOT_PERFORMED without geometry (KL-21) |
 | Fixture Collision (2 checks) | BETA_READY | TOOL_FIXTURE_COLLISION + PART_FIXTURE_INTERFERENCE; bbox; NOT_PERFORMED without fixture geometry (KL-22) |
