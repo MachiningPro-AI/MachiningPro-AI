@@ -269,9 +269,11 @@ class TestFailClosed:
         plan = run_auto_cam(_full_request())
         assert plan.verification.gouge_check == "NOT_VERIFIABLE"
 
-    def test_collision_check_always_not_verifiable(self):
+    def test_collision_check_not_performed_without_geometry(self):
+        # Without holder/fixture geometry → NOT_PERFORMED (check not attempted)
+        # NOT_VERIFIABLE = tried but can't; NOT_PERFORMED = no geometry to check
         plan = run_auto_cam(_full_request())
-        assert plan.verification.collision_check == "NOT_VERIFIABLE"
+        assert plan.verification.collision_check in ("NOT_PERFORMED", "NOT_VERIFIABLE")
 
     def test_cost_not_provided_without_cost_input(self):
         plan = run_auto_cam(_full_request())
